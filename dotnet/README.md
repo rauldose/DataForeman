@@ -68,7 +68,19 @@ After first startup, the database is seeded with:
 - Dashboard management
 - Device/Connection management
 - Tag metadata management
-- Syncfusion UI components (Grid, Sidebar, Menu, Inputs, Dialogs, etc.)
+- **Flow Editor** - Visual node-based flow editor using Syncfusion Diagram
+  - Node palette with triggers, data, math, logic, and control nodes
+  - Drag and drop node creation
+  - Node configuration panel
+  - Flow settings dialog
+  - Test mode and deployment controls
+- **Chart Composer** - Time-series chart visualization using Syncfusion Charts
+  - Tag selection and configuration
+  - Time range controls (rolling, fixed, shifted modes)
+  - Live data auto-refresh
+  - Crosshair and zoom controls
+  - Chart type selection (line, area, spline, step line)
+- Syncfusion UI components (Grid, Sidebar, Menu, Inputs, Dialogs, Diagram, Charts, etc.)
 - Database seeding with:
   - Admin user
   - Roles (admin, viewer)
@@ -76,8 +88,7 @@ After first startup, the database is seeded with:
   - Units of measure
 
 ### Planned
-- Flow Studio
-- Chart Composer
+- Full flow execution engine
 - Real-time data streaming via NATS
 - OPC UA, EtherNet/IP, S7 protocol support
 
