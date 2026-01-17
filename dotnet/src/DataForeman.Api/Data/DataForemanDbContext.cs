@@ -121,6 +121,10 @@ public class DataForemanDbContext : DbContext
             e.Property(s => s.LastActivityAt).HasColumnName("last_activity_at");
             e.HasOne(s => s.User).WithMany(u => u.Sessions).HasForeignKey(s => s.UserId);
             e.HasIndex(s => s.Jti).IsUnique();
+            // Additional indexes for performance (improvement #11)
+            e.HasIndex(s => s.RefreshHash);
+            e.HasIndex(s => s.UserId);
+            e.HasIndex(s => new { s.ExpiresAt, s.RevokedAt }); // For cleanup queries
         });
 
         // Connections
@@ -202,6 +206,10 @@ public class DataForemanDbContext : DbContext
             e.HasOne(t => t.PollGroup).WithMany(p => p.Tags).HasForeignKey(t => t.PollGroupId);
             e.HasOne(t => t.Unit).WithMany().HasForeignKey(t => t.UnitId);
             e.HasIndex(t => new { t.ConnectionId, t.TagPath, t.DriverType }).IsUnique();
+            // Additional indexes for performance (improvement #11)
+            e.HasIndex(t => t.ConnectionId); // For querying tags by connection
+            e.HasIndex(t => t.IsSubscribed); // For finding subscribed tags
+            e.HasIndex(t => new { t.IsDeleted, t.IsSubscribed }); // For active tag queries
         });
 
         // Dashboards

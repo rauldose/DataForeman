@@ -4,7 +4,7 @@ This directory contains the .NET/Blazor port of the DataForeman industrial telem
 
 ## Projects
 
-- **DataForeman.Api** - ASP.NET Core Web API backend
+- **DataForeman.Api** - ASP.NET Core Web API backend with Repository Pattern and MediatR
 - **DataForeman.Web** - Blazor Server frontend with Syncfusion components
 - **DataForeman.Shared** - Shared models and DTOs
 - **DataForeman.Connectivity** - MQTT connectivity service for device communication
@@ -127,6 +127,41 @@ After first startup, the database is seeded with:
   - Poll groups
   - Units of measure
 
+### Architecture Improvements (v0.5)
+
+1. **Repository Pattern** - Generic and specific repositories with Unit of Work pattern
+   - `IRepository<T>` for generic CRUD operations
+   - `IUnitOfWork` for transaction management
+   - Specific repositories for Flows, Charts, Users, Sessions, etc.
+
+2. **MediatR (CQRS)** - Command/Query separation for better scalability
+   - Commands: `CreateFlowCommand`, `UpdateFlowCommand`, `DeleteFlowCommand`
+   - Queries: `GetFlowsQuery`, `GetFlowByIdQuery`
+   - Handlers in `Features/Flows` directory
+
+3. **Memory Caching** - Caching for frequently accessed data
+   - `ICacheService` for typed caching
+   - Auto-cached: Poll groups, Units of measure, Subscribed tags
+   - Configurable expiration times
+
+4. **Health Checks** - Extended health monitoring
+   - `/health` - Full health status with all checks
+   - `/health/ready` - Readiness probe for k8s
+   - `/health/live` - Liveness probe
+   - `/api/health` - Detailed health with uptime
+   - Checks: Database, Memory, Sessions
+
+5. **Background Services** - Automated maintenance tasks
+   - `SessionCleanupService` - Cleans expired sessions
+   - `CacheRefreshService` - Keeps cache warm
+
+6. **Database Indexing** - Performance indexes
+   - `sessions.refresh_hash`, `sessions.user_id`, `sessions.expires_at`
+   - `tag_metadata.connection_id`, `tag_metadata.is_subscribed`
+
+7. **Connection Pooling** - SQLite with connection pooling enabled
+   - `Cache=Shared;Pooling=true` in connection string
+
 ### Planned
 - Full flow execution engine
 - Real-time data streaming via SignalR
@@ -140,6 +175,7 @@ After first startup, the database is seeded with:
 - **Database**: SQLite with Entity Framework Core
 - **Authentication**: JWT Bearer tokens with BCrypt password hashing
 - **Messaging**: MQTT via MQTTnet library
+- **Architecture**: Repository Pattern, MediatR (CQRS), Memory Caching, Health Checks
 
 ## License
 
