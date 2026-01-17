@@ -583,6 +583,7 @@
     private string[] defaultColors = new[] { "#1976d2", "#388e3c", "#f57c00", "#7b1fa2", "#c62828", "#00838f", "#6d4c41", "#455a64" };
     private int colorIndex = 0;
     private Guid? _previousId;
+    private bool _firstLoad = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -592,9 +593,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // Only reload if the Id parameter changed
-        if (_previousId != Id)
+        // Only reload if the Id parameter changed or first load
+        if (_firstLoad || _previousId != Id)
         {
+            _firstLoad = false;
             _previousId = Id;
             await EnsureAuthHeaderAsync();
             

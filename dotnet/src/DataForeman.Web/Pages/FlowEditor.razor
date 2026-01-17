@@ -504,6 +504,7 @@
     };
 
     private Guid? _previousId;
+    private bool _firstLoad = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -513,9 +514,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // Only reload if the Id parameter changed
-        if (_previousId != Id)
+        // Only reload if the Id parameter changed or first load
+        if (_firstLoad || _previousId != Id)
         {
+            _firstLoad = false;
             _previousId = Id;
             await EnsureAuthHeaderAsync();
             
