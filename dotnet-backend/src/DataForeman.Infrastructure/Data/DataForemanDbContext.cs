@@ -237,7 +237,6 @@ public class DataForemanDbContext : DbContext
         {
             entity.HasKey(e => e.GroupId);
             entity.HasIndex(e => e.Name).IsUnique();
-            entity.HasIndex(e => e.PollRateMs).IsUnique();
             entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
         });
 
