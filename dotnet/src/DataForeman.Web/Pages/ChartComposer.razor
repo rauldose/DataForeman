@@ -12,7 +12,7 @@
         <!-- Chart List View -->
         <div class="page-header">
             <h1>Chart Composer</h1>
-            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Chart" OnClick="CreateChart"></SfButton>
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Chart" OnClick="ShowCreateDialog"></SfButton>
         </div>
 
         @if (isLoading)
@@ -27,7 +27,7 @@
                 <div class="empty-icon">📈</div>
                 <h3>No Charts Yet</h3>
                 <p>Create your first chart to visualize time-series data from your industrial systems.</p>
-                <SfButton CssClass="e-primary" Content="Create Chart" OnClick="CreateChart"></SfButton>
+                <SfButton CssClass="e-primary" Content="Create Chart" OnClick="ShowCreateDialog"></SfButton>
             </div>
         }
         else
@@ -349,6 +349,26 @@
     </DialogButtons>
 </SfDialog>
 
+<!-- Create Chart Dialog -->
+<SfDialog @bind-Visible="@showCreateDialog" Width="500px" IsModal="true" ShowCloseIcon="true" Header="Create New Chart">
+    <DialogTemplates>
+        <Content>
+            <div class="settings-form">
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="newChartName" Placeholder="Chart Name" FloatLabelType="FloatLabelType.Auto"></SfTextBox>
+                </div>
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="newChartDescription" Placeholder="Description (optional)" FloatLabelType="FloatLabelType.Auto" Multiline="true"></SfTextBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" CssClass="e-flat" OnClick="CloseCreateDialog"></DialogButton>
+        <DialogButton Content="Create" CssClass="e-primary" IsPrimary="true" Disabled="@(string.IsNullOrWhiteSpace(newChartName))" OnClick="CreateChartAndNavigate"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
 <style>
     .chart-composer-container {
         display: flex;
@@ -495,6 +515,7 @@
     private bool showPointsTable = false;
     private bool showAddTagDialog = false;
     private bool showSettingsDialog = false;
+    private bool showCreateDialog = false;
     private System.Timers.Timer? refreshTimer;
     
     // Tag configuration
@@ -517,6 +538,10 @@
     private string chartDescription = "";
     private string chartType = "line";
     private bool chartIsShared = false;
+    
+    // Create dialog
+    private string newChartName = "";
+    private string newChartDescription = "";
 
     // Options
     private List<TagOption> availableTags = new();
@@ -653,9 +678,44 @@
         // TODO: Parse currentChart.Config and populate tagConfigs
     }
 
-    private void CreateChart()
+    private void ShowCreateDialog()
     {
-        NavigationManager.NavigateTo("/charts/new");
+        newChartName = "";
+        newChartDescription = "";
+        showCreateDialog = true;
+    }
+    
+    private void CloseCreateDialog()
+    {
+        showCreateDialog = false;
+    }
+    
+    private async Task CreateChartAndNavigate()
+    {
+        if (string.IsNullOrWhiteSpace(newChartName)) return;
+        
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/charts", new
+            {
+                name = newChartName,
+                description = newChartDescription
+            });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ChartConfigDto>();
+                if (result != null)
+                {
+                    showCreateDialog = false;
+                    NavigationManager.NavigateTo($"/charts/{result.Id}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating chart: {ex.Message}");
+        }
     }
 
     private void EditChart(Guid? id)

@@ -12,7 +12,7 @@
         <!-- Flow List View -->
         <div class="page-header">
             <h1>Flow Studio</h1>
-            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Flow" OnClick="CreateFlow"></SfButton>
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Flow" OnClick="ShowCreateDialog"></SfButton>
         </div>
 
         @if (isLoading)
@@ -27,7 +27,7 @@
                 <div class="empty-icon">🔄</div>
                 <h3>No Flows Yet</h3>
                 <p>Create your first automation flow to connect and process industrial data.</p>
-                <SfButton CssClass="e-primary" Content="Create Flow" OnClick="CreateFlow"></SfButton>
+                <SfButton CssClass="e-primary" Content="Create Flow" OnClick="ShowCreateDialog"></SfButton>
             </div>
         }
         else
@@ -317,6 +317,26 @@
     </DialogButtons>
 </SfDialog>
 
+<!-- Create Flow Dialog -->
+<SfDialog @bind-Visible="@showCreateDialog" Width="500px" IsModal="true" ShowCloseIcon="true" Header="Create New Flow">
+    <DialogTemplates>
+        <Content>
+            <div class="settings-form">
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="newFlowName" Placeholder="Flow Name" FloatLabelType="FloatLabelType.Auto"></SfTextBox>
+                </div>
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="newFlowDescription" Placeholder="Description (optional)" FloatLabelType="FloatLabelType.Auto" Multiline="true"></SfTextBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" CssClass="e-flat" OnClick="CloseCreateDialog"></DialogButton>
+        <DialogButton Content="Create" CssClass="e-primary" IsPrimary="true" Disabled="@(string.IsNullOrWhiteSpace(newFlowName))" OnClick="CreateFlowAndNavigate"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
 <style>
     .flow-editor-container {
         display: flex;
@@ -441,6 +461,7 @@
     private bool isLoading = true;
     private bool isTestMode = false;
     private bool showSettingsDialog = false;
+    private bool showCreateDialog = false;
     
     // Diagram data
     private DiagramObjectCollection<Node> nodes = new();
@@ -459,6 +480,10 @@
     private string flowDescription = "";
     private string flowExecutionMode = "manual";
     private int flowScanRate = 1000;
+    
+    // Create dialog
+    private string newFlowName = "";
+    private string newFlowDescription = "";
 
     // Options
     private List<TagOption> availableTags = new();
@@ -585,9 +610,45 @@
         }
     }
 
-    private void CreateFlow()
+    private void ShowCreateDialog()
     {
-        NavigationManager.NavigateTo("/flows/new");
+        newFlowName = "";
+        newFlowDescription = "";
+        showCreateDialog = true;
+    }
+    
+    private void CloseCreateDialog()
+    {
+        showCreateDialog = false;
+    }
+    
+    private async Task CreateFlowAndNavigate()
+    {
+        if (string.IsNullOrWhiteSpace(newFlowName)) return;
+        
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/flows", new
+            {
+                name = newFlowName,
+                description = newFlowDescription,
+                execution_mode = "manual"
+            });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<FlowDto>();
+                if (result != null)
+                {
+                    showCreateDialog = false;
+                    NavigationManager.NavigateTo($"/flows/{result.Id}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating flow: {ex.Message}");
+        }
     }
 
     private void EditFlow(Guid? id)
