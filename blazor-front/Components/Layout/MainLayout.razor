@@ -82,8 +82,9 @@
         var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
         if (path == "/")
         {
-            return string.IsNullOrEmpty(currentPath) || currentPath == "/";
+            return string.IsNullOrEmpty(currentPath);
         }
-        return ("/" + currentPath).StartsWith(path);
+        var fullPath = string.IsNullOrEmpty(currentPath) ? "/" : "/" + currentPath;
+        return fullPath.StartsWith(path);
     }
 }
