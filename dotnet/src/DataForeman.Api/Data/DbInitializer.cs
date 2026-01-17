@@ -161,5 +161,254 @@ public static class DbInitializer
             db.UnitsOfMeasure.AddRange(units);
             await db.SaveChangesAsync();
         }
+
+        // Seed sample connections (devices) if not exists
+        if (!await db.Connections.AnyAsync())
+        {
+            var connections = new List<Connection>
+            {
+                new()
+                {
+                    Name = "Modbus PLC - Line 1",
+                    Type = "modbus-tcp",
+                    Enabled = true,
+                    ConfigData = "{\"host\":\"192.168.1.10\",\"port\":502,\"unitId\":1}",
+                    MaxTagsPerGroup = 100,
+                    MaxConcurrentConnections = 1
+                },
+                new()
+                {
+                    Name = "OPC-UA Server",
+                    Type = "opc-ua",
+                    Enabled = true,
+                    ConfigData = "{\"endpoint\":\"opc.tcp://192.168.1.20:4840\"}",
+                    MaxTagsPerGroup = 500,
+                    MaxConcurrentConnections = 3
+                },
+                new()
+                {
+                    Name = "MQTT Broker",
+                    Type = "mqtt",
+                    Enabled = true,
+                    ConfigData = "{\"broker\":\"192.168.1.30\",\"port\":1883}",
+                    MaxTagsPerGroup = 1000,
+                    MaxConcurrentConnections = 5
+                },
+                new()
+                {
+                    Name = "Siemens S7 - Tank Farm",
+                    Type = "s7",
+                    Enabled = false,
+                    ConfigData = "{\"host\":\"192.168.1.40\",\"rack\":0,\"slot\":1}",
+                    MaxTagsPerGroup = 200,
+                    MaxConcurrentConnections = 1
+                }
+            };
+
+            db.Connections.AddRange(connections);
+            await db.SaveChangesAsync();
+
+            // Get the admin user for ownership
+            var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Email == "admin@example.com");
+            var celsiusUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "°C");
+            var kpaUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "kPa");
+            var lpmUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "L/min");
+            var percentUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "%");
+            var pollGroup = await db.PollGroups.FirstOrDefaultAsync(p => p.GroupId == 5); // Standard (1s)
+
+            // Seed sample tags
+            var modbusConnection = connections.First(c => c.Name.Contains("Modbus"));
+            var opcuaConnection = connections.First(c => c.Name.Contains("OPC"));
+            var defaultPollGroupId = pollGroup?.GroupId ?? 5;
+
+            var tags = new List<TagMetadata>
+            {
+                new()
+                {
+                    ConnectionId = modbusConnection.Id,
+                    DriverType = "modbus-tcp",
+                    TagPath = "PLC1/Temperature/Reactor1",
+                    TagName = "Reactor 1 Temperature",
+                    IsSubscribed = true,
+                    Status = "active",
+                    PollGroupId = defaultPollGroupId,
+                    DataType = "float",
+                    UnitId = celsiusUnit?.Id,
+                    Description = "Main reactor temperature sensor"
+                },
+                new()
+                {
+                    ConnectionId = modbusConnection.Id,
+                    DriverType = "modbus-tcp",
+                    TagPath = "PLC1/Pressure/Tank1",
+                    TagName = "Tank 1 Pressure",
+                    IsSubscribed = true,
+                    Status = "active",
+                    PollGroupId = defaultPollGroupId,
+                    DataType = "float",
+                    UnitId = kpaUnit?.Id,
+                    Description = "Storage tank pressure sensor"
+                },
+                new()
+                {
+                    ConnectionId = modbusConnection.Id,
+                    DriverType = "modbus-tcp",
+                    TagPath = "PLC1/Flow/Pump1",
+                    TagName = "Pump 1 Flow Rate",
+                    IsSubscribed = true,
+                    Status = "active",
+                    PollGroupId = defaultPollGroupId,
+                    DataType = "float",
+                    UnitId = lpmUnit?.Id,
+                    Description = "Main pump flow sensor"
+                },
+                new()
+                {
+                    ConnectionId = modbusConnection.Id,
+                    DriverType = "modbus-tcp",
+                    TagPath = "PLC1/Level/Tank1",
+                    TagName = "Tank 1 Level",
+                    IsSubscribed = true,
+                    Status = "active",
+                    PollGroupId = defaultPollGroupId,
+                    DataType = "float",
+                    UnitId = percentUnit?.Id,
+                    Description = "Tank level sensor"
+                },
+                new()
+                {
+                    ConnectionId = opcuaConnection.Id,
+                    DriverType = "opc-ua",
+                    TagPath = "ns=2;s=Line1/Motor1/Speed",
+                    TagName = "Motor 1 Speed",
+                    IsSubscribed = true,
+                    Status = "active",
+                    PollGroupId = defaultPollGroupId,
+                    DataType = "float",
+                    Description = "Conveyor motor speed"
+                },
+                new()
+                {
+                    ConnectionId = opcuaConnection.Id,
+                    DriverType = "opc-ua",
+                    TagPath = "ns=2;s=Line1/Motor1/Current",
+                    TagName = "Motor 1 Current",
+                    IsSubscribed = true,
+                    Status = "active",
+                    PollGroupId = defaultPollGroupId,
+                    DataType = "float",
+                    Description = "Conveyor motor current draw"
+                }
+            };
+
+            db.TagMetadata.AddRange(tags);
+            await db.SaveChangesAsync();
+
+            // Seed sample flows
+            if (adminUser != null)
+            {
+                var flows = new List<Flow>
+                {
+                    new()
+                    {
+                        Name = "Temperature Alarm",
+                        Description = "Monitors reactor temperature and triggers alarm when exceeding threshold",
+                        OwnerUserId = adminUser.Id,
+                        Deployed = true,
+                        ExecutionMode = "continuous",
+                        ScanRateMs = 1000,
+                        Definition = "{\"nodes\":[{\"id\":\"start\",\"type\":\"trigger-tag-change\",\"position\":{\"x\":100,\"y\":200}},{\"id\":\"compare\",\"type\":\"logic-compare\",\"position\":{\"x\":300,\"y\":200}},{\"id\":\"alert\",\"type\":\"tag-output\",\"position\":{\"x\":500,\"y\":200}}],\"edges\":[{\"source\":\"start\",\"target\":\"compare\"},{\"source\":\"compare\",\"target\":\"alert\"}]}"
+                    },
+                    new()
+                    {
+                        Name = "Tank Level Control",
+                        Description = "Automatic tank level control with pump start/stop logic",
+                        OwnerUserId = adminUser.Id,
+                        Deployed = false,
+                        ExecutionMode = "continuous",
+                        ScanRateMs = 500,
+                        Definition = "{}"
+                    },
+                    new()
+                    {
+                        Name = "Data Logger",
+                        Description = "Logs process data to historian every minute",
+                        OwnerUserId = adminUser.Id,
+                        Deployed = true,
+                        ExecutionMode = "manual",
+                        Definition = "{}"
+                    }
+                };
+
+                db.Flows.AddRange(flows);
+                await db.SaveChangesAsync();
+
+                // Seed sample charts
+                var charts = new List<ChartConfig>
+                {
+                    new()
+                    {
+                        Name = "Reactor Overview",
+                        Description = "Real-time reactor temperature and pressure monitoring",
+                        UserId = adminUser.Id,
+                        ChartType = "line",
+                        TimeMode = "rolling",
+                        TimeDuration = 3600000, // 1 hour in ms
+                        LiveEnabled = true,
+                        Options = "{\"tags\":[\"PLC1/Temperature/Reactor1\",\"PLC1/Pressure/Tank1\"],\"colors\":[\"#2196f3\",\"#4caf50\"]}"
+                    },
+                    new()
+                    {
+                        Name = "Pump Performance",
+                        Description = "Flow rate and tank level correlation",
+                        UserId = adminUser.Id,
+                        ChartType = "area",
+                        TimeMode = "rolling",
+                        TimeDuration = 1800000, // 30 min in ms
+                        LiveEnabled = true,
+                        Options = "{\"tags\":[\"PLC1/Flow/Pump1\",\"PLC1/Level/Tank1\"],\"colors\":[\"#ff9800\",\"#9c27b0\"]}"
+                    },
+                    new()
+                    {
+                        Name = "Motor Analysis",
+                        Description = "Motor speed and current draw analysis",
+                        UserId = adminUser.Id,
+                        ChartType = "spline",
+                        TimeMode = "fixed",
+                        LiveEnabled = false,
+                        Options = "{\"tags\":[\"ns=2;s=Line1/Motor1/Speed\",\"ns=2;s=Line1/Motor1/Current\"],\"colors\":[\"#e91e63\",\"#00bcd4\"]}"
+                    }
+                };
+
+                db.ChartConfigs.AddRange(charts);
+                await db.SaveChangesAsync();
+
+                // Seed sample dashboards
+                var dashboards = new List<Dashboard>
+                {
+                    new()
+                    {
+                        Name = "Production Overview",
+                        Description = "Main production floor monitoring dashboard",
+                        UserId = adminUser.Id,
+                        IsShared = true,
+                        Layout = "{\"widgets\":[{\"type\":\"chart\",\"x\":0,\"y\":0,\"w\":6,\"h\":4},{\"type\":\"gauge\",\"x\":6,\"y\":0,\"w\":3,\"h\":2}]}",
+                        Options = "{\"refreshRate\":5000}"
+                    },
+                    new()
+                    {
+                        Name = "Alarms & Events",
+                        Description = "Active alarms and recent events",
+                        UserId = adminUser.Id,
+                        IsShared = true,
+                        Layout = "{\"widgets\":[{\"type\":\"alarmList\",\"x\":0,\"y\":0,\"w\":12,\"h\":6}]}",
+                        Options = "{\"refreshRate\":1000}"
+                    }
+                };
+
+                db.Dashboards.AddRange(dashboards);
+                await db.SaveChangesAsync();
+            }
+        }
     }
 }

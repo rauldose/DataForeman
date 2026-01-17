@@ -219,9 +219,9 @@
                                     NodeCreating="OnNodeCreating"
                                     ConnectorCreating="OnConnectorCreating"
                                     SelectionChanged="OnSelectionChanged">
-                    <SnapSettings Constraints="SnapConstraints.ShowLines">
-                        <HorizontalGridLines LineColor="#e0e0e0" LineIntervals="@(new double[] { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 })"></HorizontalGridLines>
-                        <VerticalGridLines LineColor="#e0e0e0" LineIntervals="@(new double[] { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 })"></VerticalGridLines>
+                    <SnapSettings Constraints="SnapConstraints.ShowLines | SnapConstraints.SnapToLines">
+                        <HorizontalGridLines LineColor="#333" LineIntervals="@(new double[] { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 })"></HorizontalGridLines>
+                        <VerticalGridLines LineColor="#333" LineIntervals="@(new double[] { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 })"></VerticalGridLines>
                     </SnapSettings>
                     <ScrollSettings ScrollLimit="ScrollLimitMode.Infinity"></ScrollSettings>
                 </SfDiagramComponent>
@@ -622,13 +622,17 @@
                 ID = "start",
                 OffsetX = 300,
                 OffsetY = 200,
-                Width = 100,
+                Width = 120,
                 Height = 50,
                 Shape = new FlowShape { Type = NodeShapes.Flow, Shape = NodeFlowShapes.Terminator },
-                Style = new ShapeStyle { Fill = "#e8f5e9", StrokeColor = "#2e7d32" },
+                Style = new ShapeStyle { Fill = "#4CAF50", StrokeColor = "#ffffff", StrokeWidth = 2 },
                 Annotations = new DiagramObjectCollection<ShapeAnnotation>
                 {
-                    new ShapeAnnotation { Content = "Start" }
+                    new ShapeAnnotation { Content = "Start", Style = new TextStyle { Color = "#ffffff", Bold = true } }
+                },
+                Ports = new DiagramObjectCollection<PointPort>
+                {
+                    new PointPort { ID = "right", Offset = new DiagramPoint(1, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff" } }
                 }
             };
             nodes.Add(startNode);
@@ -817,26 +821,32 @@
 
     private Node? CreateNodeFromType(string nodeType, double x, double y)
     {
-        var (fill, stroke, label) = nodeType switch
+        // Use colors matching the original React app
+        var (fill, stroke, label, shape) = nodeType switch
         {
-            "trigger-manual" => ("#e8f5e9", "#2e7d32", "Manual Trigger"),
-            "trigger-schedule" => ("#e8f5e9", "#2e7d32", "Schedule"),
-            "trigger-tag-change" => ("#e8f5e9", "#2e7d32", "Tag Change"),
-            "tag-input" => ("#e3f2fd", "#1565c0", "Tag Input"),
-            "tag-output" => ("#fff3e0", "#e65100", "Tag Output"),
-            "constant" => ("#f3e5f5", "#7b1fa2", "Constant"),
-            "math-add" => ("#fce4ec", "#c2185b", "Add"),
-            "math-subtract" => ("#fce4ec", "#c2185b", "Subtract"),
-            "math-multiply" => ("#fce4ec", "#c2185b", "Multiply"),
-            "math-divide" => ("#fce4ec", "#c2185b", "Divide"),
-            "logic-compare" => ("#e0f2f1", "#00695c", "Compare"),
-            "logic-and" => ("#e0f2f1", "#00695c", "AND"),
-            "logic-or" => ("#e0f2f1", "#00695c", "OR"),
-            "logic-not" => ("#e0f2f1", "#00695c", "NOT"),
-            "control-if" => ("#ede7f6", "#512da8", "If/Else"),
-            "control-switch" => ("#ede7f6", "#512da8", "Switch"),
-            "control-delay" => ("#ede7f6", "#512da8", "Delay"),
-            _ => ("#f5f5f5", "#616161", nodeType)
+            // Triggers - Red
+            "trigger-manual" => ("#F44336", "#ffffff", "Manual Trigger", NodeFlowShapes.Terminator),
+            "trigger-schedule" => ("#F44336", "#ffffff", "Schedule", NodeFlowShapes.Terminator),
+            "trigger-tag-change" => ("#F44336", "#ffffff", "Tag Change", NodeFlowShapes.Terminator),
+            // Data nodes - Green for input, Orange for output
+            "tag-input" => ("#4CAF50", "#ffffff", "Tag Input", NodeFlowShapes.Process),
+            "tag-output" => ("#FF9800", "#ffffff", "Tag Output", NodeFlowShapes.Process),
+            "constant" => ("#9C27B0", "#ffffff", "Constant", NodeFlowShapes.Data),
+            // Math nodes - Pink
+            "math-add" => ("#E91E63", "#ffffff", "Add", NodeFlowShapes.Process),
+            "math-subtract" => ("#E91E63", "#ffffff", "Subtract", NodeFlowShapes.Process),
+            "math-multiply" => ("#E91E63", "#ffffff", "Multiply", NodeFlowShapes.Process),
+            "math-divide" => ("#E91E63", "#ffffff", "Divide", NodeFlowShapes.Process),
+            // Logic nodes - Teal
+            "logic-compare" => ("#00BCD4", "#ffffff", "Compare", NodeFlowShapes.Decision),
+            "logic-and" => ("#00BCD4", "#ffffff", "AND", NodeFlowShapes.Process),
+            "logic-or" => ("#00BCD4", "#ffffff", "OR", NodeFlowShapes.Process),
+            "logic-not" => ("#00BCD4", "#ffffff", "NOT", NodeFlowShapes.Process),
+            // Control nodes - Purple
+            "control-if" => ("#673AB7", "#ffffff", "If/Else", NodeFlowShapes.Decision),
+            "control-switch" => ("#673AB7", "#ffffff", "Switch", NodeFlowShapes.Decision),
+            "control-delay" => ("#673AB7", "#ffffff", "Delay", NodeFlowShapes.Delay),
+            _ => ("#757575", "#ffffff", nodeType, NodeFlowShapes.Process)
         };
 
         return new Node
@@ -844,18 +854,24 @@
             ID = $"{nodeType}-{Guid.NewGuid():N}",
             OffsetX = x,
             OffsetY = y,
-            Width = 120,
-            Height = 60,
-            Shape = new FlowShape { Type = NodeShapes.Flow, Shape = NodeFlowShapes.Process },
-            Style = new ShapeStyle { Fill = fill, StrokeColor = stroke },
+            Width = 140,
+            Height = 50,
+            Shape = new FlowShape { Type = NodeShapes.Flow, Shape = shape },
+            Style = new ShapeStyle { Fill = fill, StrokeColor = stroke, StrokeWidth = 2 },
             Annotations = new DiagramObjectCollection<ShapeAnnotation>
             {
-                new ShapeAnnotation { Content = label }
+                new ShapeAnnotation 
+                { 
+                    Content = label,
+                    Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true }
+                }
             },
             Ports = new DiagramObjectCollection<PointPort>
             {
-                new PointPort { ID = "input", Offset = new DiagramPoint(0, 0.5), Visibility = PortVisibility.Visible },
-                new PointPort { ID = "output", Offset = new DiagramPoint(1, 0.5), Visibility = PortVisibility.Visible }
+                new PointPort { ID = "left", Offset = new DiagramPoint(0, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } },
+                new PointPort { ID = "right", Offset = new DiagramPoint(1, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } },
+                new PointPort { ID = "top", Offset = new DiagramPoint(0.5, 0), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } },
+                new PointPort { ID = "bottom", Offset = new DiagramPoint(0.5, 1), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } }
             }
         };
     }
@@ -865,6 +881,10 @@
         if (obj is Node node)
         {
             node.Style ??= new ShapeStyle();
+            if (node.Style.StrokeWidth == 0)
+            {
+                node.Style.StrokeWidth = 2;
+            }
         }
     }
 
@@ -873,7 +893,12 @@
         if (obj is Connector connector)
         {
             connector.Type = ConnectorSegmentType.Orthogonal;
-            connector.TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow };
+            connector.Style = new ShapeStyle { StrokeColor = "#2196f3", StrokeWidth = 2 };
+            connector.TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow,
+                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#2196f3" }
+            };
         }
     }
 
