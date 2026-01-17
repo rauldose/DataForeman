@@ -1,25 +1,23 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.Authorization;
-using Blazored.LocalStorage;
 
 namespace DataForeman.Web.Services;
 
 public class AuthStateProvider : AuthenticationStateProvider
 {
-    private readonly ILocalStorageService _localStorage;
+    private readonly IAuthTokenStorage _tokenStorage;
     private readonly HttpClient _http;
-    private const string TokenKey = "authToken";
 
-    public AuthStateProvider(ILocalStorageService localStorage, HttpClient http)
+    public AuthStateProvider(IAuthTokenStorage tokenStorage, HttpClient http)
     {
-        _localStorage = localStorage;
+        _tokenStorage = tokenStorage;
         _http = http;
     }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var token = await _localStorage.GetItemAsync<string>(TokenKey);
+        var token = await _tokenStorage.GetTokenAsync();
         
         if (string.IsNullOrEmpty(token))
         {

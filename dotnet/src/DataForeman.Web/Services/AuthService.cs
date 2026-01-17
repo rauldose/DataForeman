@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
-using Blazored.LocalStorage;
+using System.Net.Http.Headers;
 using DataForeman.Shared.DTOs;
 
 namespace DataForeman.Web.Services;
@@ -17,14 +17,12 @@ public interface IAuthService
 public class AuthService : IAuthService
 {
     private readonly HttpClient _http;
-    private readonly ILocalStorageService _localStorage;
-    private const string TokenKey = "authToken";
-    private const string RefreshKey = "refreshToken";
+    private readonly IAuthTokenStorage _tokenStorage;
 
-    public AuthService(HttpClient http, ILocalStorageService localStorage)
+    public AuthService(HttpClient http, IAuthTokenStorage tokenStorage)
     {
         _http = http;
-        _localStorage = localStorage;
+        _tokenStorage = tokenStorage;
     }
 
     public async Task<LoginResponse?> LoginAsync(string email, string password)
@@ -37,8 +35,8 @@ public class AuthService : IAuthService
                 var result = await response.Content.ReadFromJsonAsync<LoginResult>();
                 if (result != null)
                 {
-                    await _localStorage.SetItemAsync(TokenKey, result.Token);
-                    await _localStorage.SetItemAsync(RefreshKey, result.Refresh);
+                    await _tokenStorage.SetTokenAsync(result.Token);
+                    await _tokenStorage.SetRefreshTokenAsync(result.Refresh);
                     return new LoginResponse(result.Token, result.Refresh, result.Role);
                 }
             }
@@ -54,7 +52,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var refreshToken = await _localStorage.GetItemAsync<string>(RefreshKey);
+            var refreshToken = await _tokenStorage.GetRefreshTokenAsync();
             if (string.IsNullOrEmpty(refreshToken))
                 return null;
 
@@ -64,8 +62,8 @@ public class AuthService : IAuthService
                 var result = await response.Content.ReadFromJsonAsync<RefreshResult>();
                 if (result != null)
                 {
-                    await _localStorage.SetItemAsync(TokenKey, result.Token);
-                    await _localStorage.SetItemAsync(RefreshKey, result.Refresh);
+                    await _tokenStorage.SetTokenAsync(result.Token);
+                    await _tokenStorage.SetRefreshTokenAsync(result.Refresh);
                     return new RefreshResponse(result.Token, result.Refresh);
                 }
             }
@@ -81,9 +79,14 @@ public class AuthService : IAuthService
     {
         try
         {
-            var refreshToken = await _localStorage.GetItemAsync<string>(RefreshKey);
+            var refreshToken = await _tokenStorage.GetRefreshTokenAsync();
             if (!string.IsNullOrEmpty(refreshToken))
             {
+                var token = await _tokenStorage.GetTokenAsync();
+                if (!string.IsNullOrEmpty(token))
+                {
+                    _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                }
                 await _http.PostAsJsonAsync("api/auth/logout", new { refresh = refreshToken });
             }
         }
@@ -93,14 +96,13 @@ public class AuthService : IAuthService
         }
         finally
         {
-            await _localStorage.RemoveItemAsync(TokenKey);
-            await _localStorage.RemoveItemAsync(RefreshKey);
+            await _tokenStorage.ClearTokensAsync();
         }
     }
 
     public async Task<string?> GetTokenAsync()
     {
-        return await _localStorage.GetItemAsync<string>(TokenKey);
+        return await _tokenStorage.GetTokenAsync();
     }
 
     public async Task<bool> IsAuthenticatedAsync()

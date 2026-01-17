@@ -5,9 +5,9 @@ This directory contains the .NET/Blazor port of the DataForeman industrial telem
 ## Projects
 
 - **DataForeman.Api** - ASP.NET Core Web API backend
-- **DataForeman.Web** - Blazor WebAssembly frontend with Syncfusion components
+- **DataForeman.Web** - Blazor Server frontend with Syncfusion components
 - **DataForeman.Shared** - Shared models and DTOs
-- **DataForeman.Connectivity** - Connectivity services (NATS, etc.)
+- **DataForeman.Connectivity** - Connectivity services (placeholder for protocol drivers)
 
 ## Prerequisites
 
@@ -32,9 +32,14 @@ dotnet run
 
 The API will start on `http://localhost:5000` by default.
 
-### Web Application
+### Web Application (Blazor Server)
 
-The Blazor WebAssembly application needs to be served. For development, you can configure the API project to serve it, or use a separate static file server.
+```bash
+cd dotnet/src/DataForeman.Web
+dotnet run
+```
+
+The web application will start on `http://localhost:5271` by default.
 
 ## Configuration
 
@@ -51,7 +56,7 @@ The API can be configured through environment variables or `appsettings.json`:
 
 ### Web Configuration
 
-The web application can be configured through `wwwroot/appsettings.json`:
+The web application can be configured through `appsettings.json`:
 
 - `ApiBaseUrl` - Base URL for the API server (default: `http://localhost:5000`)
 
@@ -64,7 +69,7 @@ After first startup, the database is seeded with:
 ## Features
 
 ### Implemented
-- User authentication with JWT tokens
+- User authentication with JWT tokens (server-side session storage)
 - Dashboard management
 - Device/Connection management
 - Tag metadata management
@@ -89,13 +94,34 @@ After first startup, the database is seeded with:
 
 ### Planned
 - Full flow execution engine
-- Real-time data streaming via NATS
+- Real-time data streaming
 - OPC UA, EtherNet/IP, S7 protocol support
+
+## Messaging (NATS vs MQTT)
+
+The original DataForeman uses **NATS** for inter-service communication between:
+- Core API server
+- Connectivity service (protocol drivers)
+- Ingestor service (data storage)
+
+**What NATS does:**
+- Publishes telemetry data from devices
+- Sends real-time status updates
+- Request/reply communication for commands
+- Pub/sub for log streaming
+
+**MQTT Alternative:**
+NATS can be replaced with MQTT if preferred. MQTT is better suited for:
+- IoT devices with limited resources
+- Unreliable network connections
+- Broader ecosystem support in industrial automation
+
+To implement MQTT support, the `DataForeman.Connectivity` project would use the `MQTTnet` library instead of `NATS.Client`.
 
 ## Technology Stack
 
 - **Backend**: ASP.NET Core 10
-- **Frontend**: Blazor WebAssembly
+- **Frontend**: Blazor Server (with server-side session auth)
 - **UI Components**: Syncfusion Blazor
 - **Database**: SQLite with Entity Framework Core
 - **Authentication**: JWT Bearer tokens with BCrypt password hashing

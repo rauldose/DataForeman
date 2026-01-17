@@ -1,19 +1,42 @@
-﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
 
-<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
-                    <RedirectToLogin />
-                </NotAuthorized>
-                <Authorizing>
-                    <div class="loading-container">
-                        <SfSpinner Visible="true" Label="Loading..." />
-                    </div>
-                </Authorizing>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-    </Router>
-</CascadingAuthenticationState>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DataForeman</title>
+    <base href="/" />
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <!-- Syncfusion Blazor Material 3 Theme -->
+    <link href="_content/Syncfusion.Blazor.Themes/material3.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="DataForeman.Web.styles.css" rel="stylesheet" />
+    <!-- Syncfusion JavaScript interop -->
+    <script src="_content/Syncfusion.Blazor.Core/scripts/syncfusion-blazor.min.js" type="text/javascript"></script>
+    <HeadOutlet />
+</head>
+<body>
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <RedirectToLogin />
+                    </NotAuthorized>
+                    <Authorizing>
+                        <div class="loading-container">
+                            <SfSpinner Visible="true" Label="Loading..." />
+                        </div>
+                    </Authorizing>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+        </Router>
+    </CascadingAuthenticationState>
+
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

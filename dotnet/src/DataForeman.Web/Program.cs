@@ -1,37 +1,56 @@
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
-using Blazored.LocalStorage;
 using Syncfusion.Blazor;
-using DataForeman.Web;
 using DataForeman.Web.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 
-var builder = WebAssemblyHostBuilder.CreateDefault(args);
-builder.RootComponents.Add<App>("#app");
-builder.RootComponents.Add<HeadOutlet>("head::after");
+var builder = WebApplication.CreateBuilder(args);
 
-// Add Blazored LocalStorage for auth token storage (must be added before HttpClient)
-builder.Services.AddBlazoredLocalStorage();
-
-// Configure API base address with authorization handler
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000";
-builder.Services.AddScoped(sp =>
-{
-    var localStorage = sp.GetRequiredService<ILocalStorageService>();
-    var handler = new AuthorizationHandler(localStorage)
-    {
-        InnerHandler = new HttpClientHandler()
-    };
-    return new HttpClient(handler) { BaseAddress = new Uri(apiBaseUrl) };
-});
+// Add services to the container
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
 
 // Add Syncfusion Blazor services
 builder.Services.AddSyncfusionBlazor();
 
+// Configure HttpClient for API calls
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000";
+builder.Services.AddHttpClient("DataForemanApi", client =>
+{
+    client.BaseAddress = new Uri(apiBaseUrl);
+});
+builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("DataForemanApi"));
+
+// Add session storage for auth tokens
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromHours(24);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+
 // Add application services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAuthTokenStorage, ServerAuthTokenStorage>();
 builder.Services.AddScoped<AuthStateProvider>();
-builder.Services.AddScoped<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider>(
-    provider => provider.GetRequiredService<AuthStateProvider>());
+builder.Services.AddScoped<AuthenticationStateProvider>(provider => provider.GetRequiredService<AuthStateProvider>());
 builder.Services.AddAuthorizationCore();
+builder.Services.AddHttpContextAccessor();
 
-await builder.Build().RunAsync();
+var app = builder.Build();
+
+// Configure the HTTP request pipeline
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseAntiforgery();
+app.UseSession();
+
+app.MapRazorComponents<DataForeman.Web.App>()
+    .AddInteractiveServerRenderMode();
+
+app.Run();
