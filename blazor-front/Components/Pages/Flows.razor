@@ -76,8 +76,8 @@
                                               Width="100%"
                                               Height="100%"
                                               Palettes="@Palettes"
-                                              SymbolHeight="50"
-                                              SymbolWidth="50"
+                                              SymbolHeight="60"
+                                              SymbolWidth="100"
                                               SymbolMargin="@SymbolMargin"
                                               GetSymbolInfo="@GetSymbolInfo">
                     </SfSymbolPaletteComponent>
@@ -409,140 +409,152 @@
             {
                 Nodes = new DiagramObjectCollection<Node>
                 {
-                    new Node
-                    {
-                        ID = "trigger-manual-1",
-                        OffsetX = 150,
-                        OffsetY = 150,
-                        Width = 120,
-                        Height = 60,
-                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
-                        Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#ffffff", StrokeWidth = 1 },
-                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
-                        {
-                            new ShapeAnnotation { Content = "▶️ Manual Trigger", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
-                        }
-                    },
-                    new Node
-                    {
-                        ID = "tag-input-1",
-                        OffsetX = 350,
-                        OffsetY = 150,
-                        Width = 120,
-                        Height = 60,
-                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
-                        Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 1 },
-                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
-                        {
-                            new ShapeAnnotation { Content = "📥 Tag Input", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
-                        }
-                    },
-                    new Node
-                    {
-                        ID = "compare-greater-1",
-                        OffsetX = 550,
-                        OffsetY = 150,
-                        Width = 120,
-                        Height = 60,
-                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
-                        Style = new ShapeStyle { Fill = "#607d8b", StrokeColor = "#ffffff", StrokeWidth = 1 },
-                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
-                        {
-                            new ShapeAnnotation { Content = "> Greater Than", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
-                        }
-                    },
-                    new Node
-                    {
-                        ID = "notification-1",
-                        OffsetX = 750,
-                        OffsetY = 150,
-                        Width = 120,
-                        Height = 60,
-                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
-                        Style = new ShapeStyle { Fill = "#e91e63", StrokeColor = "#ffffff", StrokeWidth = 1 },
-                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
-                        {
-                            new ShapeAnnotation { Content = "🔔 Notification", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
-                        }
-                    }
+                    CreateFlowNode("trigger-manual-1", "Manual Trigger", "#4caf50", 150, 150, 0, 1),
+                    CreateFlowNode("tag-input-1", "Tag Input", "#2196f3", 350, 150, 1, 1),
+                    CreateFlowNode("compare-greater-1", "Greater Than", "#607d8b", 550, 150, 2, 1),
+                    CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
                 };
                 
                 Connectors = new DiagramObjectCollection<Connector>
                 {
-                    new Connector
-                    {
-                        ID = "conn-1",
-                        SourceID = "trigger-manual-1",
-                        TargetID = "tag-input-1",
-                        Type = ConnectorSegmentType.Orthogonal,
-                        Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
-                        TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
-                    },
-                    new Connector
-                    {
-                        ID = "conn-2",
-                        SourceID = "tag-input-1",
-                        TargetID = "compare-greater-1",
-                        Type = ConnectorSegmentType.Orthogonal,
-                        Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
-                        TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
-                    },
-                    new Connector
-                    {
-                        ID = "conn-3",
-                        SourceID = "compare-greater-1",
-                        TargetID = "notification-1",
-                        Type = ConnectorSegmentType.Orthogonal,
-                        Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
-                        TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
-                    }
+                    CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
+                    CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
+                    CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
                 };
             }
         }
     }
     
+    /// <summary>
+    /// Creates a flow node with proper ports (input/output handles) similar to the original React app
+    /// </summary>
+    private Node CreateFlowNode(string id, string label, string color, double x, double y, int inputCount, int outputCount)
+    {
+        var node = new Node
+        {
+            ID = id,
+            OffsetX = x,
+            OffsetY = y,
+            Width = 140,
+            Height = 70,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>
+            {
+                new ShapeAnnotation 
+                { 
+                    Content = label, 
+                    Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true },
+                    Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
+                }
+            },
+            Ports = new DiagramObjectCollection<PointPort>()
+        };
+        
+        // Add input ports (left side)
+        for (int i = 0; i < inputCount; i++)
+        {
+            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"input-{i}",
+                Offset = new DiagramPoint { X = 0, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 12,
+                Height = 12,
+                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        // Add output ports (right side)
+        for (int i = 0; i < outputCount; i++)
+        {
+            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"output-{i}",
+                Offset = new DiagramPoint { X = 1, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 12,
+                Height = 12,
+                Style = new ShapeStyle { Fill = "#ff9800", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        return node;
+    }
+    
+    /// <summary>
+    /// Creates a connector between two ports
+    /// </summary>
+    private Connector CreateFlowConnector(string id, string sourceId, string sourcePort, string targetId, string targetPort)
+    {
+        return new Connector
+        {
+            ID = id,
+            SourceID = sourceId,
+            SourcePortID = sourcePort,
+            TargetID = targetId,
+            TargetPortID = targetPort,
+            Type = ConnectorSegmentType.Orthogonal,
+            Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+            TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow, 
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" },
+                Width = 10,
+                Height = 10
+            },
+            CornerRadius = 5
+        };
+    }
+    
     private void InitializePalettes()
     {
-        // Triggers palette
+        // Triggers palette - output only nodes
         var triggerNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("trigger-manual", "Manual", "#4caf50"),
-            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50"),
-            CreatePaletteNode("trigger-tag", "Tag Change", "#4caf50")
+            CreatePaletteNode("trigger-manual", "Manual Trigger", "#4caf50", 0, 1),
+            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50", 0, 1),
+            CreatePaletteNode("trigger-tag", "Tag Change", "#4caf50", 0, 1)
         };
         
-        // Tag Operations palette
+        // Tag Operations palette - input and output
         var tagNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("tag-input", "Tag Input", "#2196f3"),
-            CreatePaletteNode("tag-output", "Tag Output", "#ff9800"),
-            CreatePaletteNode("tag-write", "Tag Write", "#ff5722")
+            CreatePaletteNode("tag-input", "Tag Input", "#2196f3", 1, 1),
+            CreatePaletteNode("tag-output", "Tag Output", "#ff9800", 1, 0),
+            CreatePaletteNode("tag-write", "Tag Write", "#ff5722", 1, 0)
         };
         
-        // Math palette
+        // Math palette - multiple inputs, single output
         var mathNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("math-add", "Add", "#9c27b0"),
-            CreatePaletteNode("math-subtract", "Subtract", "#9c27b0"),
-            CreatePaletteNode("math-multiply", "Multiply", "#9c27b0"),
-            CreatePaletteNode("math-divide", "Divide", "#9c27b0")
+            CreatePaletteNode("math-add", "Add (+)", "#9c27b0", 2, 1),
+            CreatePaletteNode("math-subtract", "Subtract (-)", "#9c27b0", 2, 1),
+            CreatePaletteNode("math-multiply", "Multiply (×)", "#9c27b0", 2, 1),
+            CreatePaletteNode("math-divide", "Divide (÷)", "#9c27b0", 2, 1)
         };
         
-        // Logic palette
+        // Logic palette - comparison and conditionals
         var logicNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("logic-if", "If/Else", "#795548"),
-            CreatePaletteNode("compare-equal", "Equal", "#607d8b"),
-            CreatePaletteNode("compare-greater", "Greater", "#607d8b"),
-            CreatePaletteNode("compare-less", "Less", "#607d8b")
+            CreatePaletteNode("logic-if", "If/Else", "#795548", 1, 2),
+            CreatePaletteNode("compare-equal", "Equal (==)", "#607d8b", 2, 1),
+            CreatePaletteNode("compare-greater", "Greater (>)", "#607d8b", 2, 1),
+            CreatePaletteNode("compare-less", "Less (<)", "#607d8b", 2, 1)
         };
         
-        // Output palette
+        // Output palette - input only nodes
         var outputNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("debug-log", "Debug", "#f44336"),
-            CreatePaletteNode("notification", "Notify", "#e91e63"),
-            CreatePaletteNode("database-write", "DB Write", "#3f51b5")
+            CreatePaletteNode("debug-log", "Debug Log", "#f44336", 1, 0),
+            CreatePaletteNode("notification", "Notification", "#e91e63", 1, 0),
+            CreatePaletteNode("database-write", "DB Write", "#3f51b5", 1, 0)
         };
         
         Palettes = new DiagramObjectCollection<Palette>
@@ -555,15 +567,15 @@
         };
     }
     
-    private Node CreatePaletteNode(string id, string label, string color)
+    private Node CreatePaletteNode(string id, string label, string color, int inputCount, int outputCount)
     {
-        return new Node
+        var node = new Node
         {
             ID = id,
-            Width = 80,
-            Height = 40,
-            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 4 },
-            Style = new ShapeStyle { Fill = color, StrokeColor = "#333333", StrokeWidth = 1 },
+            Width = 100,
+            Height = 50,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 6 },
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
             Annotations = new DiagramObjectCollection<ShapeAnnotation>
             {
                 new ShapeAnnotation
@@ -571,8 +583,45 @@
                     Content = label,
                     Style = new TextStyle { Color = "#ffffff", FontSize = 10, Bold = true }
                 }
-            }
+            },
+            Ports = new DiagramObjectCollection<PointPort>()
         };
+        
+        // Add input ports (left side) - visible circles
+        for (int i = 0; i < inputCount; i++)
+        {
+            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"input-{i}",
+                Offset = new DiagramPoint { X = 0, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        // Add output ports (right side) - visible circles
+        for (int i = 0; i < outputCount; i++)
+        {
+            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"output-{i}",
+                Offset = new DiagramPoint { X = 1, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#ff9800", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        return node;
     }
     
     private SymbolInfo GetSymbolInfo(IDiagramObject symbol)
@@ -628,12 +677,24 @@
     {
         if (obj is Node node)
         {
-            node.Width = 120;
-            node.Height = 60;
-            // Ensure each dropped node gets a unique ID
+            // Set proper size for dropped nodes
+            node.Width = 140;
+            node.Height = 70;
+            
+            // Generate unique ID if not already an instance
             if (node.ID != null && !node.ID.Contains("-instance-"))
             {
                 node.ID = $"{node.ID}-instance-{Guid.NewGuid():N}";
+            }
+            
+            // Ensure ports are visible and enabled for connections
+            if (node.Ports != null)
+            {
+                foreach (var port in node.Ports)
+                {
+                    port.Visibility = PortVisibility.Visible;
+                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
+                }
             }
         }
     }
@@ -644,9 +705,12 @@
         {
             connector.Type = ConnectorSegmentType.Orthogonal;
             connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
+            connector.CornerRadius = 5;
             connector.TargetDecorator = new DecoratorSettings 
             { 
-                Shape = DecoratorShape.Arrow, 
+                Shape = DecoratorShape.Arrow,
+                Width = 10,
+                Height = 10,
                 Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } 
             };
         }
@@ -654,12 +718,26 @@
     
     private void OnDragDrop(DropEventArgs args)
     {
-        // Handle node drop from palette
+        // Handle node drop from palette - this fires after NodeCreating
         if (args.Element is Node node)
         {
-            // Generate unique ID for the dropped node
+            // Generate unique ID for the dropped node if not done already
             var baseId = node.ID?.Split("-instance-").FirstOrDefault() ?? "node";
-            node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
+            if (!node.ID!.Contains("-instance-"))
+            {
+                node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
+            }
+            
+            // Ensure ports are visible after drop
+            if (node.Ports != null)
+            {
+                foreach (var port in node.Ports)
+                {
+                    port.Visibility = PortVisibility.Visible;
+                    port.Width = 12;
+                    port.Height = 12;
+                }
+            }
         }
     }
     
