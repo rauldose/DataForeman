@@ -1,3 +1,102 @@
+.page {
+    display: flex;
+    min-height: 100vh;
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+.sidebar-content {
+    height: 100%;
+    background: #252526;
+    border-right: 1px solid #3c3c3c;
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #3c3c3c;
+    gap: 12px;
+}
+
+.sidebar-logo {
+    font-size: 24px;
+}
+
+.sidebar-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.sidebar-menu {
+    background: transparent !important;
+}
+
+.sidebar-menu .e-menu-item {
+    color: #cccccc !important;
+    padding: 12px 16px !important;
+}
+
+.sidebar-menu .e-menu-item:hover {
+    background: #3c3c3c !important;
+    color: #ffffff !important;
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-open {
+    margin-left: 250px;
+}
+
+.main-content.sidebar-closed {
+    margin-left: 60px;
+}
+
+.top-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    gap: 16px;
+}
+
+.sidebar-toggle-btn {
+    background: transparent;
+    border: none;
+    color: #cccccc;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.sidebar-toggle-btn:hover {
+    background: #3c3c3c;
+}
+
+.top-bar-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.top-bar-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.page-content {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;

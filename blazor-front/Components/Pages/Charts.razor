@@ -1,0 +1,462 @@
+@page "/charts"
+@rendermode InteractiveServer
+
+<PageTitle>Chart Composer - DataForeman</PageTitle>
+
+<div class="charts-page">
+    <div class="page-header">
+        <h1>Chart Composer</h1>
+        <div class="page-actions">
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Chart" OnClick="@CreateNewChart"></SfButton>
+        </div>
+    </div>
+    
+    <div class="charts-container">
+        <div class="charts-sidebar">
+            <h3>Saved Charts</h3>
+            <SfListView TValue="ChartItem" DataSource="@SavedCharts" ShowHeader="false" CssClass="chart-list">
+                <ListViewFieldSettings TValue="ChartItem" Id="Id" Text="Name"></ListViewFieldSettings>
+                <ListViewTemplates TValue="ChartItem">
+                    <Template>
+                        @{
+                            var chart = context as ChartItem;
+                            if (chart != null)
+                            {
+                                <div class="chart-list-item @(SelectedChart?.Id == chart.Id ? "selected" : "")" @onclick="@(() => SelectChart(chart))">
+                                    <span class="chart-icon">📊</span>
+                                    <div class="chart-info">
+                                        <span class="chart-name">@chart.Name</span>
+                                        <span class="chart-type">@chart.ChartType</span>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </Template>
+                </ListViewTemplates>
+            </SfListView>
+            
+            <h3>Available Tags</h3>
+            <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearchQuery" CssClass="tag-search"></SfTextBox>
+            <div class="tag-list">
+                @foreach (var tag in FilteredTags)
+                {
+                    <div class="tag-item" @onclick="@(() => AddTagToChart(tag))">
+                        <span class="tag-icon">🏷️</span>
+                        <span class="tag-path">@tag.Path</span>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        <div class="chart-editor">
+            @if (SelectedChart != null)
+            {
+                <div class="chart-toolbar">
+                    <SfTextBox @bind-Value="SelectedChart.Name" Placeholder="Chart Name" CssClass="chart-name-input"></SfTextBox>
+                    <SfDropDownList TItem="string" TValue="string" DataSource="@ChartTypes" @bind-Value="SelectedChart.ChartType" Placeholder="Chart Type"></SfDropDownList>
+                    <div class="toolbar-spacer"></div>
+                    <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" @bind-Value="SelectedTimeRange" Placeholder="Time Range">
+                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                    <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh"></SfButton>
+                    <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
+                </div>
+                
+                <div class="chart-preview">
+                    @if (SelectedChart.ChartType == "Line")
+                    {
+                        <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                            <ChartArea>
+                                <ChartAreaBorder Width="0"></ChartAreaBorder>
+                            </ChartArea>
+                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
+                                <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
+                            </ChartPrimaryXAxis>
+                            <ChartPrimaryYAxis>
+                                <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
+                            </ChartPrimaryYAxis>
+                            <ChartTooltipSettings Enable="true"></ChartTooltipSettings>
+                            <ChartLegendSettings Visible="true" Position="Syncfusion.Blazor.Charts.LegendPosition.Bottom"></ChartLegendSettings>
+                            <ChartSeriesCollection>
+                                @foreach (var series in ChartSeries)
+                                {
+                                    <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.Line">
+                                        <ChartMarker Visible="true" Height="6" Width="6"></ChartMarker>
+                                    </ChartSeries>
+                                }
+                            </ChartSeriesCollection>
+                        </SfChart>
+                    }
+                    else if (SelectedChart.ChartType == "Bar")
+                    {
+                        <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
+                            <ChartSeriesCollection>
+                                <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
+                                </ChartSeries>
+                            </ChartSeriesCollection>
+                        </SfChart>
+                    }
+                    else if (SelectedChart.ChartType == "Area")
+                    {
+                        <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
+                            <ChartSeriesCollection>
+                                @foreach (var series in ChartSeries)
+                                {
+                                    <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.SplineArea" Opacity="0.5">
+                                    </ChartSeries>
+                                }
+                            </ChartSeriesCollection>
+                        </SfChart>
+                    }
+                </div>
+                
+                <div class="series-panel">
+                    <h4>Data Series</h4>
+                    @foreach (var series in ChartSeries)
+                    {
+                        <div class="series-item">
+                            <span class="series-color" style="background: @series.Color"></span>
+                            <span class="series-name">@series.Name</span>
+                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveSeries(series))"></SfButton>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="no-chart-selected">
+                    <span class="icon">📊</span>
+                    <p>Select a chart to edit or create a new one</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .charts-page {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+    }
+    
+    .charts-container {
+        display: flex;
+        flex: 1;
+        gap: 16px;
+        overflow: hidden;
+    }
+    
+    .charts-sidebar {
+        width: 280px;
+        background: #252526;
+        border-radius: 8px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+    
+    .charts-sidebar h3 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        color: #9d9d9d;
+    }
+    
+    .chart-list-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .chart-list-item:hover, .chart-list-item.selected {
+        background: #3c3c3c;
+    }
+    
+    .chart-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .chart-name {
+        font-weight: 500;
+    }
+    
+    .chart-type {
+        font-size: 12px;
+        color: #9d9d9d;
+    }
+    
+    .tag-search {
+        margin-bottom: 12px;
+    }
+    
+    .tag-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    .tag-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .tag-item:hover {
+        background: #3c3c3c;
+    }
+    
+    .tag-path {
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .chart-editor {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #252526;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .chart-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-bottom: 1px solid #3c3c3c;
+    }
+    
+    .chart-name-input {
+        width: 200px;
+    }
+    
+    .toolbar-spacer {
+        flex: 1;
+    }
+    
+    .chart-preview {
+        flex: 1;
+        padding: 16px;
+        min-height: 300px;
+    }
+    
+    .series-panel {
+        padding: 12px;
+        border-top: 1px solid #3c3c3c;
+    }
+    
+    .series-panel h4 {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+        color: #9d9d9d;
+    }
+    
+    .series-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background: #2d2d2d;
+        border-radius: 4px;
+        margin-bottom: 4px;
+    }
+    
+    .series-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+    }
+    
+    .series-name {
+        flex: 1;
+        font-size: 13px;
+    }
+    
+    .no-chart-selected {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #9d9d9d;
+    }
+    
+    .no-chart-selected .icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+</style>
+
+@code {
+    private ChartItem? SelectedChart;
+    private string TagSearchQuery = "";
+    private string SelectedTimeRange = "1h";
+    
+    private List<string> ChartTypes = new() { "Line", "Bar", "Area", "Scatter" };
+    
+    private List<TimeRangeOption> TimeRanges = new()
+    {
+        new("Last 15 minutes", "15m"),
+        new("Last 1 hour", "1h"),
+        new("Last 6 hours", "6h"),
+        new("Last 24 hours", "24h"),
+        new("Last 7 days", "7d"),
+        new("Custom", "custom")
+    };
+    
+    private List<ChartItem> SavedCharts = new()
+    {
+        new() { Id = "1", Name = "Temperature Trends", ChartType = "Line" },
+        new() { Id = "2", Name = "Production Overview", ChartType = "Bar" },
+        new() { Id = "3", Name = "Pressure History", ChartType = "Area" }
+    };
+    
+    private List<TagItem> AvailableTags = new()
+    {
+        new() { Id = 1, Path = "PLC1.Tank1.Temperature" },
+        new() { Id = 2, Path = "PLC1.Tank1.Pressure" },
+        new() { Id = 3, Path = "PLC1.Tank1.Level" },
+        new() { Id = 4, Path = "PLC1.Tank2.Temperature" },
+        new() { Id = 5, Path = "PLC1.Tank2.Pressure" },
+        new() { Id = 6, Path = "PLC1.Pump1.Speed" },
+        new() { Id = 7, Path = "PLC1.Pump1.Running" }
+    };
+    
+    private List<TagItem> FilteredTags => string.IsNullOrEmpty(TagSearchQuery) 
+        ? AvailableTags 
+        : AvailableTags.Where(t => t.Path.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+    
+    private List<ChartSeriesData> ChartSeries = new();
+    private List<BarChartDataPoint> BarChartData = new();
+    
+    protected override void OnInitialized()
+    {
+        GenerateSampleData();
+    }
+    
+    private void GenerateSampleData()
+    {
+        var random = new Random();
+        var now = DateTime.Now;
+        
+        ChartSeries = new List<ChartSeriesData>
+        {
+            new ChartSeriesData
+            {
+                Name = "Temperature",
+                Color = "#4caf50",
+                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = 60 + random.NextDouble() * 20
+                }).ToList()
+            },
+            new ChartSeriesData
+            {
+                Name = "Pressure",
+                Color = "#2196f3",
+                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = 80 + random.NextDouble() * 15
+                }).ToList()
+            }
+        };
+        
+        BarChartData = new List<BarChartDataPoint>
+        {
+            new("Jan", 35),
+            new("Feb", 28),
+            new("Mar", 45),
+            new("Apr", 32),
+            new("May", 50),
+            new("Jun", 42)
+        };
+    }
+    
+    private void CreateNewChart()
+    {
+        SelectedChart = new ChartItem
+        {
+            Id = Guid.NewGuid().ToString(),
+            Name = "New Chart",
+            ChartType = "Line"
+        };
+        SavedCharts.Add(SelectedChart);
+    }
+    
+    private void SelectChart(ChartItem chart)
+    {
+        SelectedChart = chart;
+    }
+    
+    private void SaveChart()
+    {
+        // Save to backend
+    }
+    
+    private void AddTagToChart(TagItem tag)
+    {
+        // Add tag as a series to the chart
+    }
+    
+    private void RemoveSeries(ChartSeriesData series)
+    {
+        ChartSeries.Remove(series);
+    }
+    
+    record TimeRangeOption(string Label, string Value);
+    
+    class ChartItem
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string ChartType { get; set; } = "Line";
+    }
+    
+    class TagItem
+    {
+        public int Id { get; set; }
+        public string Path { get; set; } = "";
+    }
+    
+    class ChartSeriesData
+    {
+        public string Name { get; set; } = "";
+        public string Color { get; set; } = "#4caf50";
+        public List<TimeSeriesPoint> Data { get; set; } = new();
+    }
+    
+    class TimeSeriesPoint
+    {
+        public DateTime Timestamp { get; set; }
+        public double Value { get; set; }
+    }
+    
+    record BarChartDataPoint(string Category, double Value);
+}

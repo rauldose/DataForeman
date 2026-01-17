@@ -1,0 +1,482 @@
+@page "/flows"
+@page "/flows/{FlowId:guid}"
+@rendermode InteractiveServer
+
+<PageTitle>Flow Studio - DataForeman</PageTitle>
+
+<div class="flows-page">
+    @if (FlowId == Guid.Empty)
+    {
+        <div class="page-header">
+            <h1>Flow Studio</h1>
+            <div class="page-actions">
+                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Flow" OnClick="@CreateNewFlow"></SfButton>
+            </div>
+        </div>
+        
+        <SfGrid DataSource="@FlowsList" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
+            <GridColumns>
+                <GridColumn Field="@nameof(FlowItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                <GridColumn Field="@nameof(FlowItem.Description)" HeaderText="Description" Width="300"></GridColumn>
+                <GridColumn Field="@nameof(FlowItem.Status)" HeaderText="Status" Width="100">
+                    <Template>
+                        @{
+                            var flow = context as FlowItem;
+                            if (flow != null)
+                            {
+                                <span class="status-badge @(flow.Deployed ? "deployed" : "stopped")">
+                                    @(flow.Deployed ? "Deployed" : "Stopped")
+                                </span>
+                            }
+                        }
+                    </Template>
+                </GridColumn>
+                <GridColumn Field="@nameof(FlowItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
+                <GridColumn HeaderText="Actions" Width="150">
+                    <Template>
+                        @{
+                            var flow = context as FlowItem;
+                            if (flow != null)
+                            {
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditFlow(flow.Id))"></SfButton>
+                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteFlow(flow.Id))"></SfButton>
+                                </div>
+                            }
+                        }
+                    </Template>
+                </GridColumn>
+            </GridColumns>
+        </SfGrid>
+    }
+    else
+    {
+        <div class="flow-editor">
+            <div class="editor-toolbar">
+                <SfButton CssClass="e-flat" IconCss="e-icons e-arrow-left" Content="Back" OnClick="@GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
+                <div class="toolbar-spacer"></div>
+                <SfButton CssClass="e-outline" IconCss="e-icons e-play" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveFlow"></SfButton>
+            </div>
+            
+            <div class="editor-container">
+                @* Syncfusion Symbol Palette *@
+                <div class="symbol-palette-container">
+                    <SfSymbolPaletteComponent @ref="SymbolPalette"
+                                              Width="250px"
+                                              Height="100%"
+                                              Palettes="@Palettes"
+                                              SymbolHeight="50"
+                                              SymbolWidth="50"
+                                              SymbolMargin="@SymbolMargin"
+                                              GetSymbolInfo="@GetSymbolInfo">
+                    </SfSymbolPaletteComponent>
+                </div>
+                
+                <div class="diagram-container">
+                    <SfDiagramComponent @ref="Diagram" 
+                                        Width="100%" 
+                                        Height="100%"
+                                        Nodes="@Nodes"
+                                        Connectors="@Connectors"
+                                        NodeCreating="@OnNodeCreating"
+                                        ConnectorCreating="@OnConnectorCreating"
+                                        SelectionChanged="@OnSelectionChanged">
+                        <SnapSettings>
+                            <HorizontalGridLines LineColor="#3c3c3c" LineDashArray="2,2"></HorizontalGridLines>
+                            <VerticalGridLines LineColor="#3c3c3c" LineDashArray="2,2"></VerticalGridLines>
+                        </SnapSettings>
+                        <ScrollSettings ScrollLimit="ScrollLimitMode.Diagram"></ScrollSettings>
+                    </SfDiagramComponent>
+                </div>
+                
+                <div class="properties-panel">
+                    <h3>Properties</h3>
+                    @if (SelectedNode != null)
+                    {
+                        <div class="property-group">
+                            <label>Node ID</label>
+                            <span class="property-value">@SelectedNode.ID</span>
+                        </div>
+                        <div class="property-group">
+                            <label>Type</label>
+                            <span class="property-value">@GetNodeType(SelectedNode)</span>
+                        </div>
+                        <div class="property-group">
+                            <label>Label</label>
+                            <SfTextBox @bind-Value="SelectedNodeLabel" Placeholder="Enter label"></SfTextBox>
+                        </div>
+                        <div class="property-group">
+                            <label>Position X</label>
+                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetX" Min="0"></SfNumericTextBox>
+                        </div>
+                        <div class="property-group">
+                            <label>Position Y</label>
+                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetY" Min="0"></SfNumericTextBox>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="no-selection">Select a node to view properties</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .flows-page {
+        height: 100%;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+    }
+    
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .status-badge.deployed {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .status-badge.stopped {
+        background: #757575;
+        color: white;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .flow-editor {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+    }
+    
+    .editor-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #252526;
+        border-bottom: 1px solid #3c3c3c;
+    }
+    
+    .flow-name-input {
+        width: 250px;
+    }
+    
+    .toolbar-spacer {
+        flex: 1;
+    }
+    
+    .editor-container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+    }
+    
+    .symbol-palette-container {
+        width: 250px;
+        background: #252526;
+        border-right: 1px solid #3c3c3c;
+    }
+    
+    .diagram-container {
+        flex: 1;
+        background: #1e1e1e;
+    }
+    
+    .properties-panel {
+        width: 280px;
+        background: #252526;
+        border-left: 1px solid #3c3c3c;
+        padding: 12px;
+        overflow-y: auto;
+    }
+    
+    .properties-panel h3 {
+        margin: 0 0 16px 0;
+        font-size: 14px;
+        border-bottom: 1px solid #3c3c3c;
+        padding-bottom: 8px;
+    }
+    
+    .property-group {
+        margin-bottom: 16px;
+    }
+    
+    .property-group label {
+        display: block;
+        font-size: 12px;
+        color: #9d9d9d;
+        margin-bottom: 4px;
+    }
+    
+    .property-value {
+        font-size: 13px;
+        color: #cccccc;
+    }
+    
+    .no-selection {
+        color: #9d9d9d;
+        font-style: italic;
+        font-size: 13px;
+    }
+    
+    /* Syncfusion Symbol Palette dark theme overrides */
+    .e-symbol-palette {
+        background: #252526 !important;
+        border: none !important;
+    }
+    
+    .e-symbol-palette .e-palette-header {
+        background: #2d2d2d !important;
+        color: #ffffff !important;
+        border-bottom: 1px solid #3c3c3c !important;
+    }
+    
+    .e-symbol-palette .e-palette-content {
+        background: #252526 !important;
+    }
+    
+    .e-symbol-palette .e-symbol-draggable {
+        background: #2d2d2d !important;
+        border: 1px solid #3c3c3c !important;
+        border-radius: 4px !important;
+    }
+    
+    .e-symbol-palette .e-symbol-draggable:hover {
+        background: #3c3c3c !important;
+        border-color: #4caf50 !important;
+    }
+</style>
+
+@code {
+    [Parameter] public Guid FlowId { get; set; }
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+    
+    private SfDiagramComponent? Diagram;
+    private SfSymbolPaletteComponent? SymbolPalette;
+    
+    private DiagramObjectCollection<Node> Nodes = new();
+    private DiagramObjectCollection<Connector> Connectors = new();
+    private Node? SelectedNode;
+    private string SelectedNodeLabel = "";
+    
+    private DiagramObjectCollection<Palette> Palettes = new();
+    private SymbolMargin SymbolMargin = new() { Left = 10, Right = 10, Top = 10, Bottom = 10 };
+    
+    private FlowItem CurrentFlow = new() { Name = "New Flow" };
+    
+    private List<FlowItem> FlowsList = new()
+    {
+        new() { Id = Guid.NewGuid(), Name = "Temperature Monitor", Description = "Monitors tank temperatures", Deployed = true, UpdatedAt = DateTime.Now.AddHours(-2) },
+        new() { Id = Guid.NewGuid(), Name = "Pressure Alarm", Description = "Sends alerts on high pressure", Deployed = false, UpdatedAt = DateTime.Now.AddDays(-1) },
+        new() { Id = Guid.NewGuid(), Name = "Data Logger", Description = "Logs production data to database", Deployed = true, UpdatedAt = DateTime.Now.AddMinutes(-30) }
+    };
+    
+    protected override void OnInitialized()
+    {
+        InitializePalettes();
+    }
+    
+    protected override void OnParametersSet()
+    {
+        if (FlowId != Guid.Empty)
+        {
+            var flow = FlowsList.FirstOrDefault(f => f.Id == FlowId);
+            if (flow != null)
+            {
+                CurrentFlow = flow;
+            }
+        }
+    }
+    
+    private void InitializePalettes()
+    {
+        // Triggers palette
+        var triggerNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("trigger-manual", "Manual Trigger", "#4caf50", "▶️"),
+            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50", "⏰"),
+            CreatePaletteNode("trigger-tag-change", "Tag Change", "#4caf50", "📡")
+        };
+        
+        // Tag Operations palette
+        var tagNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("tag-input", "Tag Input", "#2196f3", "📥"),
+            CreatePaletteNode("tag-output", "Tag Output", "#ff9800", "📤"),
+            CreatePaletteNode("tag-write", "Tag Write", "#ff5722", "✏️")
+        };
+        
+        // Math palette
+        var mathNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("math-add", "Add", "#9c27b0", "➕"),
+            CreatePaletteNode("math-subtract", "Subtract", "#9c27b0", "➖"),
+            CreatePaletteNode("math-multiply", "Multiply", "#9c27b0", "✖️"),
+            CreatePaletteNode("math-divide", "Divide", "#9c27b0", "➗"),
+            CreatePaletteNode("math-abs", "Absolute", "#9c27b0", "| |"),
+            CreatePaletteNode("math-round", "Round", "#9c27b0", "⭕")
+        };
+        
+        // Logic palette
+        var logicNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("logic-if", "If/Else", "#795548", "🔀"),
+            CreatePaletteNode("logic-switch", "Switch", "#795548", "🔄"),
+            CreatePaletteNode("compare-equal", "Equal", "#607d8b", "="),
+            CreatePaletteNode("compare-greater", "Greater", "#607d8b", ">"),
+            CreatePaletteNode("compare-less", "Less", "#607d8b", "<"),
+            CreatePaletteNode("logic-and", "AND", "#607d8b", "&&"),
+            CreatePaletteNode("logic-or", "OR", "#607d8b", "||")
+        };
+        
+        // Output palette
+        var outputNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("debug-log", "Debug Log", "#f44336", "📝"),
+            CreatePaletteNode("notification", "Notification", "#e91e63", "🔔"),
+            CreatePaletteNode("database-write", "DB Write", "#3f51b5", "💾")
+        };
+        
+        Palettes = new DiagramObjectCollection<Palette>
+        {
+            new Palette { Title = "Triggers", Symbols = triggerNodes, IsExpanded = true },
+            new Palette { Title = "Tag Operations", Symbols = tagNodes, IsExpanded = true },
+            new Palette { Title = "Math", Symbols = mathNodes, IsExpanded = false },
+            new Palette { Title = "Logic", Symbols = logicNodes, IsExpanded = false },
+            new Palette { Title = "Output", Symbols = outputNodes, IsExpanded = false }
+        };
+    }
+    
+    private Node CreatePaletteNode(string id, string label, string color, string icon)
+    {
+        return new Node
+        {
+            ID = id,
+            Width = 100,
+            Height = 50,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 1 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>
+            {
+                new ShapeAnnotation
+                {
+                    Content = $"{icon} {label}",
+                    Style = new TextStyle { Color = "#ffffff", FontSize = 11 }
+                }
+            }
+        };
+    }
+    
+    private SymbolInfo GetSymbolInfo(IDiagramObject symbol)
+    {
+        return new SymbolInfo
+        {
+            Fit = true,
+            Description = new SymbolDescription { Text = (symbol as Node)?.ID ?? "" }
+        };
+    }
+    
+    private void CreateNewFlow()
+    {
+        Navigation.NavigateTo($"/flows/{Guid.NewGuid()}");
+    }
+    
+    private void EditFlow(Guid id)
+    {
+        Navigation.NavigateTo($"/flows/{id}");
+    }
+    
+    private void DeleteFlow(Guid id)
+    {
+        FlowsList.RemoveAll(f => f.Id == id);
+    }
+    
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/flows");
+    }
+    
+    private void ToggleDeploy()
+    {
+        CurrentFlow.Deployed = !CurrentFlow.Deployed;
+    }
+    
+    private void SaveFlow()
+    {
+        // Save flow to backend
+    }
+    
+    private void OnNodeCreating(IDiagramObject obj)
+    {
+        if (obj is Node node)
+        {
+            node.Width = 120;
+            node.Height = 60;
+        }
+    }
+    
+    private void OnConnectorCreating(IDiagramObject obj)
+    {
+        if (obj is Connector connector)
+        {
+            connector.Type = ConnectorSegmentType.Orthogonal;
+            connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
+            connector.TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } };
+        }
+    }
+    
+    private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
+    {
+        // Get selected nodes from the diagram
+        if (Diagram?.SelectionSettings?.Nodes?.Count > 0)
+        {
+            SelectedNode = Diagram.SelectionSettings.Nodes[0] as Node;
+            if (SelectedNode?.Annotations?.Count > 0)
+            {
+                SelectedNodeLabel = SelectedNode.Annotations[0].Content ?? "";
+            }
+        }
+        else
+        {
+            SelectedNode = null;
+            SelectedNodeLabel = "";
+        }
+    }
+    
+    private string GetNodeType(Node node)
+    {
+        return node.ID?.Split('-').FirstOrDefault()?.ToUpper() ?? "Unknown";
+    }
+    
+    class FlowItem
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool Deployed { get; set; }
+        public string Status => Deployed ? "Deployed" : "Stopped";
+        public DateTime UpdatedAt { get; set; }
+    }
+}

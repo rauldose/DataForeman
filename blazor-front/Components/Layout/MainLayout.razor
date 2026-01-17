@@ -1,9 +1,56 @@
 ﻿@inherits LayoutComponentBase
 
-@Body
+<div class="page">
+    <SfSidebar @bind-IsOpen="@SidebarToggle" Type="SidebarType.Push" Width="250px" DockSize="60px" EnableDock="true" MediaQuery="(min-width: 768px)">
+        <ChildContent>
+            <div class="sidebar-content">
+                <div class="sidebar-header">
+                    <span class="sidebar-logo">⚙️</span>
+                    <span class="sidebar-title">DataForeman</span>
+                </div>
+                <SfMenu TValue="MenuItem" CssClass="sidebar-menu" Orientation="Syncfusion.Blazor.Navigations.Orientation.Vertical">
+                    <MenuItems>
+                        <MenuItem Text="Dashboard" IconCss="e-icons e-dashboard" Url="/"></MenuItem>
+                        <MenuItem Text="Flow Studio" IconCss="e-icons e-flow-chart" Url="/flows"></MenuItem>
+                        <MenuItem Text="Chart Composer" IconCss="e-icons e-chart" Url="/charts"></MenuItem>
+                        <MenuItem Text="Connectivity" IconCss="e-icons e-link" Url="/connectivity"></MenuItem>
+                        <MenuItem Text="Diagnostics" IconCss="e-icons e-diagnostics" Url="/diagnostics"></MenuItem>
+                    </MenuItems>
+                </SfMenu>
+            </div>
+        </ChildContent>
+    </SfSidebar>
+    
+    <div class="main-content @(SidebarToggle ? "sidebar-open" : "sidebar-closed")">
+        <header class="top-bar">
+            <button class="sidebar-toggle-btn" @onclick="ToggleSidebar">
+                <span class="e-icons e-menu"></span>
+            </button>
+            <div class="top-bar-title">@PageTitle</div>
+            <div class="top-bar-actions">
+                <SfButton CssClass="e-flat" IconCss="e-icons e-user" Content="@UserName"></SfButton>
+            </div>
+        </header>
+        
+        <main class="page-content">
+            @Body
+        </main>
+    </div>
+</div>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool SidebarToggle = true;
+    private string PageTitle = "DataForeman";
+    private string UserName = "User";
+    
+    private void ToggleSidebar()
+    {
+        SidebarToggle = !SidebarToggle;
+    }
+}
