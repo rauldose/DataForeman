@@ -8,16 +8,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Syncfusion.Blazor.Buttons" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Buttons" Version="29.*" />
     <PackageReference Include="Syncfusion.Blazor.Charts" Version="29.*" />
-    <PackageReference Include="Syncfusion.Blazor.CircularGauge" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.CircularGauge" Version="29.*" />
     <PackageReference Include="Syncfusion.Blazor.Diagram" Version="29.*" />
     <PackageReference Include="Syncfusion.Blazor.Grid" Version="29.*" />
-    <PackageReference Include="Syncfusion.Blazor.Inputs" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Inputs" Version="29.*" />
     <PackageReference Include="Syncfusion.Blazor.Layouts" Version="29.*" />
-    <PackageReference Include="Syncfusion.Blazor.Navigations" Version="32.1.23" />
-    <PackageReference Include="Syncfusion.Blazor.Popups" Version="32.1.23" />
-    <PackageReference Include="Syncfusion.Blazor.ProgressBar" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Navigations" Version="29.*" />
+    <PackageReference Include="Syncfusion.Blazor.Popups" Version="29.*" />
+    <PackageReference Include="Syncfusion.Blazor.ProgressBar" Version="29.*" />
     <PackageReference Include="Syncfusion.Blazor.Themes" Version="29.*" />
   </ItemGroup>
 

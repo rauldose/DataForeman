@@ -14,40 +14,49 @@
             </div>
         </div>
         
-        <SfGrid DataSource="@FlowsList" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
-            <GridColumns>
-                <GridColumn Field="@nameof(FlowItem.Name)" HeaderText="Name" Width="200"></GridColumn>
-                <GridColumn Field="@nameof(FlowItem.Description)" HeaderText="Description" Width="300"></GridColumn>
-                <GridColumn Field="@nameof(FlowItem.Status)" HeaderText="Status" Width="100">
-                    <Template>
-                        @{
-                            var flow = context as FlowItem;
-                            if (flow != null)
-                            {
-                                <span class="status-badge @(flow.Deployed ? "deployed" : "stopped")">
-                                    @(flow.Deployed ? "Deployed" : "Stopped")
-                                </span>
+        @if (IsLoading)
+        {
+            <div class="loading-indicator">
+                <span>Loading flows...</span>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@FlowsList" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
+                <GridColumns>
+                    <GridColumn Field="@nameof(FlowItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(FlowItem.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(FlowItem.Status)" HeaderText="Status" Width="100">
+                        <Template>
+                            @{
+                                var flow = context as FlowItem;
+                                if (flow != null)
+                                {
+                                    <span class="status-badge @(flow.Deployed ? "deployed" : "stopped")">
+                                        @(flow.Deployed ? "Deployed" : "Stopped")
+                                    </span>
+                                }
                             }
-                        }
-                    </Template>
-                </GridColumn>
-                <GridColumn Field="@nameof(FlowItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
-                <GridColumn HeaderText="Actions" Width="150">
-                    <Template>
-                        @{
-                            var flow = context as FlowItem;
-                            if (flow != null)
-                            {
-                                <div class="action-buttons">
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditFlow(flow.Id))"></SfButton>
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteFlow(flow.Id))"></SfButton>
-                                </div>
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(FlowItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
+                    <GridColumn HeaderText="Actions" Width="150">
+                        <Template>
+                            @{
+                                var flow = context as FlowItem;
+                                if (flow != null)
+                                {
+                                    <div class="action-buttons">
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditFlow(flow.Id))"></SfButton>
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteFlow(flow.Id))"></SfButton>
+                                    </div>
+                                }
                             }
-                        }
-                    </Template>
-                </GridColumn>
-            </GridColumns>
-        </SfGrid>
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        }
     }
     else
     {
@@ -67,8 +76,8 @@
                                               Width="100%"
                                               Height="100%"
                                               Palettes="@Palettes"
-                                              SymbolHeight="60"
-                                              SymbolWidth="60"
+                                              SymbolHeight="50"
+                                              SymbolWidth="50"
                                               SymbolMargin="@SymbolMargin"
                                               GetSymbolInfo="@GetSymbolInfo">
                     </SfSymbolPaletteComponent>
@@ -87,8 +96,8 @@
                                         SelectionChanged="@OnSelectionChanged"
                                         DragDrop="@OnDragDrop">
                         <SnapSettings>
-                            <HorizontalGridLines LineColor="#3c3c3c" LineDashArray="2,2"></HorizontalGridLines>
-                            <VerticalGridLines LineColor="#3c3c3c" LineDashArray="2,2"></VerticalGridLines>
+                            <HorizontalGridLines LineColor="#e0e0e0" LineDashArray="2,2"></HorizontalGridLines>
+                            <VerticalGridLines LineColor="#e0e0e0" LineDashArray="2,2"></VerticalGridLines>
                         </SnapSettings>
                         <ScrollSettings ScrollLimit="ScrollLimitMode.Diagram"></ScrollSettings>
                     </SfDiagramComponent>
@@ -145,6 +154,15 @@
         margin: 0;
     }
     
+    .loading-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 40px;
+        color: #9d9d9d;
+        font-style: italic;
+    }
+    
     .status-badge {
         padding: 4px 8px;
         border-radius: 4px;
@@ -197,11 +215,12 @@
     }
     
     .symbol-palette-container {
-        width: 220px;
-        min-width: 220px;
-        background: #252526;
-        border-right: 1px solid #3c3c3c;
-        order: -1; /* Put palette on the left */
+        width: 200px;
+        min-width: 200px;
+        background: #f5f5f5;
+        border-right: 1px solid #ddd;
+        order: -1;
+        overflow: auto;
     }
     
     .diagram-container {
@@ -247,31 +266,41 @@
         font-size: 13px;
     }
     
-    /* Syncfusion Symbol Palette dark theme overrides */
+    /* Syncfusion Symbol Palette styling */
     .e-symbol-palette {
-        background: #252526 !important;
+        background: #f5f5f5 !important;
         border: none !important;
     }
     
     .e-symbol-palette .e-palette-header {
-        background: #2d2d2d !important;
-        color: #ffffff !important;
-        border-bottom: 1px solid #3c3c3c !important;
+        background: #e0e0e0 !important;
+        color: #333333 !important;
+        border-bottom: 1px solid #ccc !important;
+        font-weight: 600;
+        padding: 8px 12px;
     }
     
     .e-symbol-palette .e-palette-content {
-        background: #252526 !important;
+        background: #f5f5f5 !important;
+        padding: 8px;
     }
     
     .e-symbol-palette .e-symbol-draggable {
-        background: #2d2d2d !important;
-        border: 1px solid #3c3c3c !important;
+        background: #ffffff !important;
+        border: 1px solid #ddd !important;
         border-radius: 4px !important;
+        margin: 4px;
+        cursor: grab;
     }
     
     .e-symbol-palette .e-symbol-draggable:hover {
-        background: #3c3c3c !important;
+        background: #e8f5e9 !important;
         border-color: #4caf50 !important;
+    }
+    
+    /* Syncfusion Diagram styling */
+    .e-diagram {
+        background: #fafafa !important;
     }
 </style>
 
@@ -288,20 +317,18 @@
     private string SelectedNodeLabel = "";
     
     private DiagramObjectCollection<Palette> Palettes = new();
-    private SymbolMargin SymbolMargin = new() { Left = 8, Right = 8, Top = 8, Bottom = 8 };
+    private SymbolMargin SymbolMargin = new() { Left = 5, Right = 5, Top = 5, Bottom = 5 };
     
     private FlowItem CurrentFlow = new() { Name = "New Flow" };
+    private bool IsLoading = true;
     
-    private List<FlowItem> FlowsList = new()
-    {
-        new() { Id = Guid.NewGuid(), Name = "Temperature Monitor", Description = "Monitors tank temperatures", Deployed = true, UpdatedAt = DateTime.Now.AddHours(-2) },
-        new() { Id = Guid.NewGuid(), Name = "Pressure Alarm", Description = "Sends alerts on high pressure", Deployed = false, UpdatedAt = DateTime.Now.AddDays(-1) },
-        new() { Id = Guid.NewGuid(), Name = "Data Logger", Description = "Logs production data to database", Deployed = true, UpdatedAt = DateTime.Now.AddMinutes(-30) }
-    };
+    // Sample flows - in production this would come from API
+    private List<FlowItem> FlowsList = new();
     
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         InitializePalettes();
+        await LoadFlows();
     }
     
     protected override void OnParametersSet()
@@ -312,6 +339,164 @@
             if (flow != null)
             {
                 CurrentFlow = flow;
+                LoadFlowDefinition(flow);
+            }
+        }
+    }
+    
+    private async Task LoadFlows()
+    {
+        IsLoading = true;
+        
+        // Simulate API call - in production, use HttpClient to fetch from backend
+        await Task.Delay(100);
+        
+        FlowsList = new List<FlowItem>
+        {
+            new() { 
+                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
+                Name = "Temperature Monitor", 
+                Description = "Monitors tank temperatures and triggers alarms", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddHours(-2),
+                Definition = @"{""nodes"":[{""id"":""trigger-1"",""x"":100,""y"":100,""type"":""trigger-manual""},{""id"":""tag-1"",""x"":300,""y"":100,""type"":""tag-input""}],""connectors"":[{""sourceId"":""trigger-1"",""targetId"":""tag-1""}]}"
+            },
+            new() { 
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), 
+                Name = "Pressure Alarm", 
+                Description = "Sends alerts when pressure exceeds threshold", 
+                Deployed = false, 
+                UpdatedAt = DateTime.Now.AddDays(-1),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), 
+                Name = "Data Logger", 
+                Description = "Logs production data to database every 5 minutes", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddMinutes(-30),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), 
+                Name = "Tank Level Controller", 
+                Description = "Maintains tank levels within specified range", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddHours(-6),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555555"), 
+                Name = "Batch Report Generator", 
+                Description = "Generates production reports at end of shift", 
+                Deployed = false, 
+                UpdatedAt = DateTime.Now.AddDays(-3),
+                Definition = "{}"
+            }
+        };
+        
+        IsLoading = false;
+    }
+    
+    private void LoadFlowDefinition(FlowItem flow)
+    {
+        // Load existing nodes from flow definition
+        // This would parse the JSON definition and create nodes/connectors
+        if (!string.IsNullOrEmpty(flow.Definition) && flow.Definition != "{}")
+        {
+            // For demo, add some sample nodes for the Temperature Monitor flow
+            if (flow.Name == "Temperature Monitor")
+            {
+                Nodes = new DiagramObjectCollection<Node>
+                {
+                    new Node
+                    {
+                        ID = "trigger-manual-1",
+                        OffsetX = 150,
+                        OffsetY = 150,
+                        Width = 120,
+                        Height = 60,
+                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
+                        Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#ffffff", StrokeWidth = 1 },
+                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                        {
+                            new ShapeAnnotation { Content = "▶️ Manual Trigger", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
+                        }
+                    },
+                    new Node
+                    {
+                        ID = "tag-input-1",
+                        OffsetX = 350,
+                        OffsetY = 150,
+                        Width = 120,
+                        Height = 60,
+                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
+                        Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 1 },
+                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                        {
+                            new ShapeAnnotation { Content = "📥 Tag Input", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
+                        }
+                    },
+                    new Node
+                    {
+                        ID = "compare-greater-1",
+                        OffsetX = 550,
+                        OffsetY = 150,
+                        Width = 120,
+                        Height = 60,
+                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
+                        Style = new ShapeStyle { Fill = "#607d8b", StrokeColor = "#ffffff", StrokeWidth = 1 },
+                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                        {
+                            new ShapeAnnotation { Content = "> Greater Than", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
+                        }
+                    },
+                    new Node
+                    {
+                        ID = "notification-1",
+                        OffsetX = 750,
+                        OffsetY = 150,
+                        Width = 120,
+                        Height = 60,
+                        Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
+                        Style = new ShapeStyle { Fill = "#e91e63", StrokeColor = "#ffffff", StrokeWidth = 1 },
+                        Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                        {
+                            new ShapeAnnotation { Content = "🔔 Notification", Style = new TextStyle { Color = "#ffffff", FontSize = 11 } }
+                        }
+                    }
+                };
+                
+                Connectors = new DiagramObjectCollection<Connector>
+                {
+                    new Connector
+                    {
+                        ID = "conn-1",
+                        SourceID = "trigger-manual-1",
+                        TargetID = "tag-input-1",
+                        Type = ConnectorSegmentType.Orthogonal,
+                        Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+                        TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
+                    },
+                    new Connector
+                    {
+                        ID = "conn-2",
+                        SourceID = "tag-input-1",
+                        TargetID = "compare-greater-1",
+                        Type = ConnectorSegmentType.Orthogonal,
+                        Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+                        TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
+                    },
+                    new Connector
+                    {
+                        ID = "conn-3",
+                        SourceID = "compare-greater-1",
+                        TargetID = "notification-1",
+                        Type = ConnectorSegmentType.Orthogonal,
+                        Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+                        TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
+                    }
+                };
             }
         }
     }
@@ -321,48 +506,43 @@
         // Triggers palette
         var triggerNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("trigger-manual", "Manual Trigger", "#4caf50", "▶️"),
-            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50", "⏰"),
-            CreatePaletteNode("trigger-tag-change", "Tag Change", "#4caf50", "📡")
+            CreatePaletteNode("trigger-manual", "Manual", "#4caf50"),
+            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50"),
+            CreatePaletteNode("trigger-tag", "Tag Change", "#4caf50")
         };
         
         // Tag Operations palette
         var tagNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("tag-input", "Tag Input", "#2196f3", "📥"),
-            CreatePaletteNode("tag-output", "Tag Output", "#ff9800", "📤"),
-            CreatePaletteNode("tag-write", "Tag Write", "#ff5722", "✏️")
+            CreatePaletteNode("tag-input", "Tag Input", "#2196f3"),
+            CreatePaletteNode("tag-output", "Tag Output", "#ff9800"),
+            CreatePaletteNode("tag-write", "Tag Write", "#ff5722")
         };
         
         // Math palette
         var mathNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("math-add", "Add", "#9c27b0", "➕"),
-            CreatePaletteNode("math-subtract", "Subtract", "#9c27b0", "➖"),
-            CreatePaletteNode("math-multiply", "Multiply", "#9c27b0", "✖️"),
-            CreatePaletteNode("math-divide", "Divide", "#9c27b0", "➗"),
-            CreatePaletteNode("math-abs", "Absolute", "#9c27b0", "| |"),
-            CreatePaletteNode("math-round", "Round", "#9c27b0", "⭕")
+            CreatePaletteNode("math-add", "Add", "#9c27b0"),
+            CreatePaletteNode("math-subtract", "Subtract", "#9c27b0"),
+            CreatePaletteNode("math-multiply", "Multiply", "#9c27b0"),
+            CreatePaletteNode("math-divide", "Divide", "#9c27b0")
         };
         
         // Logic palette
         var logicNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("logic-if", "If/Else", "#795548", "🔀"),
-            CreatePaletteNode("logic-switch", "Switch", "#795548", "🔄"),
-            CreatePaletteNode("compare-equal", "Equal", "#607d8b", "="),
-            CreatePaletteNode("compare-greater", "Greater", "#607d8b", ">"),
-            CreatePaletteNode("compare-less", "Less", "#607d8b", "<"),
-            CreatePaletteNode("logic-and", "AND", "#607d8b", "&&"),
-            CreatePaletteNode("logic-or", "OR", "#607d8b", "||")
+            CreatePaletteNode("logic-if", "If/Else", "#795548"),
+            CreatePaletteNode("compare-equal", "Equal", "#607d8b"),
+            CreatePaletteNode("compare-greater", "Greater", "#607d8b"),
+            CreatePaletteNode("compare-less", "Less", "#607d8b")
         };
         
         // Output palette
         var outputNodes = new DiagramObjectCollection<NodeBase>
         {
-            CreatePaletteNode("debug-log", "Debug Log", "#f44336", "📝"),
-            CreatePaletteNode("notification", "Notification", "#e91e63", "🔔"),
-            CreatePaletteNode("database-write", "DB Write", "#3f51b5", "💾")
+            CreatePaletteNode("debug-log", "Debug", "#f44336"),
+            CreatePaletteNode("notification", "Notify", "#e91e63"),
+            CreatePaletteNode("database-write", "DB Write", "#3f51b5")
         };
         
         Palettes = new DiagramObjectCollection<Palette>
@@ -375,21 +555,21 @@
         };
     }
     
-    private Node CreatePaletteNode(string id, string label, string color, string icon)
+    private Node CreatePaletteNode(string id, string label, string color)
     {
         return new Node
         {
             ID = id,
-            Width = 100,
-            Height = 50,
-            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 5 },
-            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 1 },
+            Width = 80,
+            Height = 40,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 4 },
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#333333", StrokeWidth = 1 },
             Annotations = new DiagramObjectCollection<ShapeAnnotation>
             {
                 new ShapeAnnotation
                 {
-                    Content = $"{icon} {label}",
-                    Style = new TextStyle { Color = "#ffffff", FontSize = 11 }
+                    Content = label,
+                    Style = new TextStyle { Color = "#ffffff", FontSize = 10, Bold = true }
                 }
             }
         };
@@ -397,11 +577,15 @@
     
     private SymbolInfo GetSymbolInfo(IDiagramObject symbol)
     {
-        return new SymbolInfo
+        if (symbol is Node node)
         {
-            Fit = true,
-            Description = new SymbolDescription { Text = (symbol as Node)?.ID ?? "" }
-        };
+            return new SymbolInfo
+            {
+                Fit = true,
+                Description = new SymbolDescription { Text = node.ID ?? "" }
+            };
+        }
+        return new SymbolInfo { Fit = true };
     }
     
     private void CreateNewFlow()
@@ -429,9 +613,15 @@
         CurrentFlow.Deployed = !CurrentFlow.Deployed;
     }
     
-    private void SaveFlow()
+    private async Task SaveFlow()
     {
-        // Save flow to backend
+        // Save flow to backend - serialize nodes and connectors
+        if (Diagram != null)
+        {
+            // In production, serialize the diagram and send to API
+            CurrentFlow.UpdatedAt = DateTime.Now;
+            await Task.CompletedTask;
+        }
     }
     
     private void OnNodeCreating(IDiagramObject obj)
@@ -440,6 +630,11 @@
         {
             node.Width = 120;
             node.Height = 60;
+            // Ensure each dropped node gets a unique ID
+            if (node.ID != null && !node.ID.Contains("-instance-"))
+            {
+                node.ID = $"{node.ID}-instance-{Guid.NewGuid():N}";
+            }
         }
     }
     
@@ -449,16 +644,22 @@
         {
             connector.Type = ConnectorSegmentType.Orthogonal;
             connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
-            connector.TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } };
+            connector.TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow, 
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } 
+            };
         }
     }
     
     private void OnDragDrop(DropEventArgs args)
     {
-        // Handle node drop from palette - generate unique IDs
+        // Handle node drop from palette
         if (args.Element is Node node)
         {
-            node.ID = $"{node.ID}-{Guid.NewGuid():N}";
+            // Generate unique ID for the dropped node
+            var baseId = node.ID?.Split("-instance-").FirstOrDefault() ?? "node";
+            node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
         }
     }
     
@@ -482,7 +683,9 @@
     
     private string GetNodeType(Node node)
     {
-        return node.ID?.Split('-').FirstOrDefault()?.ToUpper() ?? "Unknown";
+        var id = node.ID ?? "";
+        var parts = id.Split("-instance-").FirstOrDefault()?.Split('-') ?? Array.Empty<string>();
+        return string.Join(" ", parts.Take(2)).ToUpper();
     }
     
     class FlowItem
@@ -493,5 +696,6 @@
         public bool Deployed { get; set; }
         public string Status => Deployed ? "Deployed" : "Stopped";
         public DateTime UpdatedAt { get; set; }
+        public string Definition { get; set; } = "{}";
     }
 }
