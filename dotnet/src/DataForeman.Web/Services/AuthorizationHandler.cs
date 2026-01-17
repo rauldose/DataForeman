@@ -5,6 +5,13 @@ namespace DataForeman.Web.Services;
 
 public class AuthorizationHandler : DelegatingHandler
 {
+    private static readonly HashSet<string> AnonymousEndpoints = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/auth/refresh"
+    };
+
     private readonly ILocalStorageService _localStorage;
 
     public AuthorizationHandler(ILocalStorageService localStorage)
@@ -15,9 +22,9 @@ public class AuthorizationHandler : DelegatingHandler
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        // Don't add auth header to login/register endpoints
-        var path = request.RequestUri?.PathAndQuery ?? "";
-        if (!path.Contains("/api/auth/login") && !path.Contains("/api/auth/register"))
+        var path = request.RequestUri?.AbsolutePath ?? "";
+        
+        if (!AnonymousEndpoints.Contains(path))
         {
             try
             {
@@ -27,7 +34,7 @@ public class AuthorizationHandler : DelegatingHandler
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 }
             }
-            catch
+            catch (InvalidOperationException)
             {
                 // LocalStorage might not be available during pre-rendering
             }

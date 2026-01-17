@@ -14,7 +14,6 @@ builder.Services.AddBlazoredLocalStorage();
 
 // Configure API base address with authorization handler
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000";
-builder.Services.AddScoped<AuthorizationHandler>();
 builder.Services.AddScoped(sp =>
 {
     var localStorage = sp.GetRequiredService<ILocalStorageService>();
