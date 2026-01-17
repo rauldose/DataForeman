@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject AuthStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
+@inject IAuthTokenStorage TokenStorage
 
 <div class="login-container">
     <div class="login-card">
@@ -14,9 +15,7 @@
             <p>Industrial Telemetry Platform</p>
         </div>
 
-        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin" FormName="login">
-            <DataAnnotationsValidator />
-
+        <div class="login-form">
             @if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="alert alert-danger">@errorMessage</div>
@@ -39,7 +38,7 @@
 
             <div class="form-group">
                 <SfButton CssClass="e-primary login-button" 
-                          Type="submit"
+                          OnClick="HandleLogin"
                           Disabled="@isLoading">
                     @if (isLoading)
                     {
@@ -51,7 +50,7 @@
                     }
                 </SfButton>
             </div>
-        </EditForm>
+        </div>
 
         <div class="login-footer">
             <p>Default: admin@example.com / password</p>
@@ -155,6 +154,19 @@
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Enable JS interop for token storage
+            if (TokenStorage is ServerAuthTokenStorage serverStorage)
+            {
+                serverStorage.SetJsInteropReady();
+                await serverStorage.InitializeAsync();
+            }
+        }
+    }
+
     private async Task HandleLogin()
     {
         isLoading = true;
@@ -166,6 +178,7 @@
             if (result != null)
             {
                 AuthStateProvider.NotifyUserAuthentication(result.Token);
+                // Navigate without force reload to keep the circuit and cached tokens
                 NavigationManager.NavigateTo("/");
             }
             else

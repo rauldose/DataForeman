@@ -17,7 +17,7 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     private string? _cachedToken;
     private string? _cachedRefreshToken;
     private bool _initialized;
-    private bool _isPrerendering = true;
+    private bool _jsReady;
 
     public ServerAuthTokenStorage(ProtectedLocalStorage localStorage)
     {
@@ -29,17 +29,23 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     /// </summary>
     public void SetJsInteropReady()
     {
-        _isPrerendering = false;
+        _jsReady = true;
     }
 
     public bool IsInitialized => _initialized;
 
     public async Task<string?> GetTokenAsync()
     {
-        if (_isPrerendering)
+        // Return cached value if available
+        if (!string.IsNullOrEmpty(_cachedToken))
         {
-            // Return cached value during prerender
             return _cachedToken;
+        }
+        
+        // Can't read from localStorage until JS is ready
+        if (!_jsReady)
+        {
+            return null;
         }
         
         if (!_initialized)
@@ -51,9 +57,14 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
 
     public async Task<string?> GetRefreshTokenAsync()
     {
-        if (_isPrerendering)
+        if (!string.IsNullOrEmpty(_cachedRefreshToken))
         {
             return _cachedRefreshToken;
+        }
+        
+        if (!_jsReady)
+        {
+            return null;
         }
         
         if (!_initialized)
@@ -67,8 +78,7 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     {
         _cachedToken = token;
         
-        if (_isPrerendering) return;
-        
+        // Always try to persist to localStorage
         try
         {
             await _localStorage.SetAsync(TokenKey, token);
@@ -79,7 +89,11 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
         }
         catch (InvalidOperationException)
         {
-            // JS interop not available during prerender
+            // JS interop not available during prerender - token still cached
+        }
+        catch (Exception)
+        {
+            // Ignore other errors, token is cached in memory
         }
     }
 
@@ -87,8 +101,7 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     {
         _cachedRefreshToken = refreshToken;
         
-        if (_isPrerendering) return;
-        
+        // Always try to persist to localStorage
         try
         {
             await _localStorage.SetAsync(RefreshTokenKey, refreshToken);
@@ -99,7 +112,11 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
         }
         catch (InvalidOperationException)
         {
-            // JS interop not available during prerender
+            // JS interop not available during prerender - token still cached
+        }
+        catch (Exception)
+        {
+            // Ignore other errors, token is cached in memory
         }
     }
 
@@ -109,7 +126,7 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
         _cachedRefreshToken = null;
         _initialized = false;
         
-        if (_isPrerendering) return;
+        if (!_jsReady) return;
         
         try
         {
@@ -128,7 +145,7 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
 
     public async Task InitializeAsync()
     {
-        if (_initialized || _isPrerendering) return;
+        if (_initialized || !_jsReady) return;
         
         try
         {
