@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json.Serialization;
 using Blazored.LocalStorage;
 using DataForeman.Shared.DTOs;
 
@@ -108,6 +109,11 @@ public class AuthService : IAuthService
         return !string.IsNullOrEmpty(token);
     }
 
-    private record LoginResult(string Token, string Refresh, string Role);
-    private record RefreshResult(string Token, string Refresh);
+    private record LoginResult(
+        [property: JsonPropertyName("token")] string Token,
+        [property: JsonPropertyName("refresh")] string Refresh,
+        [property: JsonPropertyName("role")] string Role);
+    private record RefreshResult(
+        [property: JsonPropertyName("token")] string Token,
+        [property: JsonPropertyName("refresh")] string Refresh);
 }
