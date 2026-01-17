@@ -17,6 +17,7 @@ builder.Services.AddScoped(sp => new HttpClient
 });
 
 var app = builder.Build();
+Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(builder.Configuration["SyncfusionLicenseKey"] ?? "Ngo9BigBOggjHTQxAR8/V1JGaF5cXGpCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWX5fd3VXRGVZVkZwXUdWYEs=");
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
