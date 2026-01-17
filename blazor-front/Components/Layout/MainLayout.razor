@@ -1,32 +1,54 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <SfSidebar @bind-IsOpen="@SidebarToggle" Type="SidebarType.Push" Width="250px" DockSize="60px" EnableDock="true" MediaQuery="(min-width: 768px)">
-        <ChildContent>
-            <div class="sidebar-content">
-                <div class="sidebar-header">
-                    <span class="sidebar-logo">⚙️</span>
-                    <span class="sidebar-title">DataForeman</span>
-                </div>
-                <SfMenu TValue="MenuItem" CssClass="sidebar-menu" Orientation="Syncfusion.Blazor.Navigations.Orientation.Vertical">
-                    <MenuItems>
-                        <MenuItem Text="Dashboard" IconCss="e-icons e-dashboard" Url="/"></MenuItem>
-                        <MenuItem Text="Flow Studio" IconCss="e-icons e-flow-chart" Url="/flows"></MenuItem>
-                        <MenuItem Text="Chart Composer" IconCss="e-icons e-chart" Url="/charts"></MenuItem>
-                        <MenuItem Text="Connectivity" IconCss="e-icons e-link" Url="/connectivity"></MenuItem>
-                        <MenuItem Text="Diagnostics" IconCss="e-icons e-diagnostics" Url="/diagnostics"></MenuItem>
-                    </MenuItems>
-                </SfMenu>
-            </div>
-        </ChildContent>
-    </SfSidebar>
+<div class="page-wrapper">
+    <nav class="sidebar @(SidebarToggle ? "expanded" : "collapsed")">
+        <div class="sidebar-header">
+            <span class="sidebar-logo">⚙️</span>
+            @if (SidebarToggle)
+            {
+                <span class="sidebar-title">DataForeman</span>
+            }
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item @(IsActive("/") ? "active" : "")">
+                <a href="/">
+                    <span class="menu-icon">📊</span>
+                    @if (SidebarToggle) { <span class="menu-text">Dashboard</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/flows") ? "active" : "")">
+                <a href="/flows">
+                    <span class="menu-icon">🔀</span>
+                    @if (SidebarToggle) { <span class="menu-text">Flow Studio</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/charts") ? "active" : "")">
+                <a href="/charts">
+                    <span class="menu-icon">📈</span>
+                    @if (SidebarToggle) { <span class="menu-text">Chart Composer</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/connectivity") ? "active" : "")">
+                <a href="/connectivity">
+                    <span class="menu-icon">🔗</span>
+                    @if (SidebarToggle) { <span class="menu-text">Connectivity</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/diagnostics") ? "active" : "")">
+                <a href="/diagnostics">
+                    <span class="menu-icon">🔧</span>
+                    @if (SidebarToggle) { <span class="menu-text">Diagnostics</span> }
+                </a>
+            </li>
+        </ul>
+    </nav>
     
-    <div class="main-content @(SidebarToggle ? "sidebar-open" : "sidebar-closed")">
+    <div class="main-content">
         <header class="top-bar">
             <button class="sidebar-toggle-btn" @onclick="ToggleSidebar">
-                <span class="e-icons e-menu"></span>
+                <span>☰</span>
             </button>
-            <div class="top-bar-title">@PageTitle</div>
+            <div class="top-bar-title">DataForeman</div>
             <div class="top-bar-actions">
                 <SfButton CssClass="e-flat" IconCss="e-icons e-user" Content="@UserName"></SfButton>
             </div>
@@ -45,12 +67,23 @@
 </div>
 
 @code {
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+    
     private bool SidebarToggle = true;
-    private string PageTitle = "DataForeman";
     private string UserName = "User";
     
     private void ToggleSidebar()
     {
         SidebarToggle = !SidebarToggle;
+    }
+    
+    private bool IsActive(string path)
+    {
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (path == "/")
+        {
+            return string.IsNullOrEmpty(currentPath) || currentPath == "/";
+        }
+        return ("/" + currentPath).StartsWith(path);
     }
 }

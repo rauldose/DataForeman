@@ -1,3 +1,17 @@
+/* Global Font Settings */
+html, body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', sans-serif;
+    font-size: 14px;
+    margin: 0;
+    padding: 0;
+    background-color: #1e1e1e;
+    color: #ffffff;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 h1:focus {
     outline: none;
 }
@@ -35,4 +49,14 @@ h1:focus {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+/* Syncfusion theme overrides for dark mode */
+.e-grid, .e-tab, .e-dialog {
+    background-color: #252526 !important;
+}
+
+/* Ensure buttons have proper cursor */
+button, .e-btn {
+    cursor: pointer;
 }

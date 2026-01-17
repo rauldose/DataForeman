@@ -61,28 +61,31 @@
             </div>
             
             <div class="editor-container">
-                @* Syncfusion Symbol Palette *@
+                @* Syncfusion Symbol Palette - on the left *@
                 <div class="symbol-palette-container">
                     <SfSymbolPaletteComponent @ref="SymbolPalette"
-                                              Width="250px"
+                                              Width="100%"
                                               Height="100%"
                                               Palettes="@Palettes"
-                                              SymbolHeight="50"
-                                              SymbolWidth="50"
+                                              SymbolHeight="60"
+                                              SymbolWidth="60"
                                               SymbolMargin="@SymbolMargin"
                                               GetSymbolInfo="@GetSymbolInfo">
                     </SfSymbolPaletteComponent>
                 </div>
                 
-                <div class="diagram-container">
+                @* Syncfusion Diagram *@
+                <div class="diagram-container" id="diagram-space">
                     <SfDiagramComponent @ref="Diagram" 
+                                        ID="diagram"
                                         Width="100%" 
                                         Height="100%"
                                         Nodes="@Nodes"
                                         Connectors="@Connectors"
                                         NodeCreating="@OnNodeCreating"
                                         ConnectorCreating="@OnConnectorCreating"
-                                        SelectionChanged="@OnSelectionChanged">
+                                        SelectionChanged="@OnSelectionChanged"
+                                        DragDrop="@OnDragDrop">
                         <SnapSettings>
                             <HorizontalGridLines LineColor="#3c3c3c" LineDashArray="2,2"></HorizontalGridLines>
                             <VerticalGridLines LineColor="#3c3c3c" LineDashArray="2,2"></VerticalGridLines>
@@ -194,14 +197,17 @@
     }
     
     .symbol-palette-container {
-        width: 250px;
+        width: 220px;
+        min-width: 220px;
         background: #252526;
         border-right: 1px solid #3c3c3c;
+        order: -1; /* Put palette on the left */
     }
     
     .diagram-container {
         flex: 1;
-        background: #1e1e1e;
+        background: #ffffff;
+        min-height: 500px;
     }
     
     .properties-panel {
@@ -282,7 +288,7 @@
     private string SelectedNodeLabel = "";
     
     private DiagramObjectCollection<Palette> Palettes = new();
-    private SymbolMargin SymbolMargin = new() { Left = 10, Right = 10, Top = 10, Bottom = 10 };
+    private SymbolMargin SymbolMargin = new() { Left = 8, Right = 8, Top = 8, Bottom = 8 };
     
     private FlowItem CurrentFlow = new() { Name = "New Flow" };
     
@@ -444,6 +450,15 @@
             connector.Type = ConnectorSegmentType.Orthogonal;
             connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
             connector.TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } };
+        }
+    }
+    
+    private void OnDragDrop(DropEventArgs args)
+    {
+        // Handle node drop from palette - generate unique IDs
+        if (args.Element is Node node)
+        {
+            node.ID = $"{node.ID}-{Guid.NewGuid():N}";
         }
     }
     
