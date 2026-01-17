@@ -34,12 +34,7 @@ The API will start on `http://localhost:5000` by default.
 
 ### Web Application
 
-```bash
-cd dotnet/src/DataForeman.Web
-dotnet run
-```
-
-The web application will be served and can be accessed through a browser.
+The Blazor WebAssembly application needs to be served. For development, you can configure the API project to serve it, or use a separate static file server.
 
 ## Configuration
 
@@ -51,12 +46,20 @@ The API can be configured through environment variables or `appsettings.json`:
 - `JWT_SECRET` - JWT signing secret
 - `Jwt:Issuer` - JWT issuer
 - `Jwt:Audience` - JWT audience
+- `ADMIN_EMAIL` - Admin user email (default: `admin@example.com`)
+- `ADMIN_PASSWORD` - Admin user password (default: `password`)
 
 ### Web Configuration
 
 The web application can be configured through `wwwroot/appsettings.json`:
 
-- `ApiBaseUrl` - Base URL for the API server
+- `ApiBaseUrl` - Base URL for the API server (default: `http://localhost:5000`)
+
+## Default Credentials
+
+After first startup, the database is seeded with:
+- **Email**: `admin@example.com`
+- **Password**: `password`
 
 ## Features
 
@@ -65,7 +68,12 @@ The web application can be configured through `wwwroot/appsettings.json`:
 - Dashboard management
 - Device/Connection management
 - Tag metadata management
-- Syncfusion UI components (Grid, Inputs, Navigations, etc.)
+- Syncfusion UI components (Grid, Sidebar, Menu, Inputs, Dialogs, etc.)
+- Database seeding with:
+  - Admin user
+  - Roles (admin, viewer)
+  - Poll groups
+  - Units of measure
 
 ### Planned
 - Flow Studio
@@ -79,7 +87,7 @@ The web application can be configured through `wwwroot/appsettings.json`:
 - **Frontend**: Blazor WebAssembly
 - **UI Components**: Syncfusion Blazor
 - **Database**: SQLite with Entity Framework Core
-- **Authentication**: JWT Bearer tokens
+- **Authentication**: JWT Bearer tokens with BCrypt password hashing
 
 ## License
 

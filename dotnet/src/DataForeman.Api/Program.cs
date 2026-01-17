@@ -57,6 +57,13 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 
 var app = builder.Build();
 
+// Initialize database
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<DataForemanDbContext>();
+    await DbInitializer.InitializeAsync(db);
+}
+
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -71,4 +78,4 @@ app.MapControllers();
 // Root endpoint
 app.MapGet("/", () => new { ok = true, service = "dataforeman-core" });
 
-app.Run();
+await app.RunAsync();
