@@ -1,0 +1,6 @@
+@DataForeman.API_HostAddress = http://localhost:5134
+
+GET {{DataForeman.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
