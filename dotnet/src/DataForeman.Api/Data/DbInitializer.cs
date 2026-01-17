@@ -317,7 +317,7 @@ public static class DbInitializer
                         Deployed = true,
                         ExecutionMode = "continuous",
                         ScanRateMs = 1000,
-                        Definition = "{\"nodes\":[{\"id\":\"start\",\"type\":\"trigger-tag-change\",\"position\":{\"x\":100,\"y\":200}},{\"id\":\"compare\",\"type\":\"logic-compare\",\"position\":{\"x\":300,\"y\":200}},{\"id\":\"alert\",\"type\":\"tag-output\",\"position\":{\"x\":500,\"y\":200}}],\"edges\":[{\"source\":\"start\",\"target\":\"compare\"},{\"source\":\"compare\",\"target\":\"alert\"}]}"
+                        Definition = @"{""nodes"":[{""id"":""trigger-1"",""type"":""trigger-tag-change"",""label"":""Tag Change"",""x"":150,""y"":150},{""id"":""compare-1"",""type"":""logic-compare"",""label"":""Compare"",""x"":350,""y"":150},{""id"":""output-1"",""type"":""tag-output"",""label"":""Alarm Output"",""x"":550,""y"":150}],""edges"":[{""source"":""trigger-1"",""target"":""compare-1""},{""source"":""compare-1"",""target"":""output-1""}]}"
                     },
                     new()
                     {
@@ -327,7 +327,7 @@ public static class DbInitializer
                         Deployed = false,
                         ExecutionMode = "continuous",
                         ScanRateMs = 500,
-                        Definition = "{}"
+                        Definition = @"{""nodes"":[{""id"":""trigger-1"",""type"":""trigger-schedule"",""label"":""Schedule"",""x"":100,""y"":200},{""id"":""input-1"",""type"":""tag-input"",""label"":""Tank Level"",""x"":300,""y"":100},{""id"":""input-2"",""type"":""constant"",""label"":""Setpoint (80%)"",""x"":300,""y"":300},{""id"":""compare-1"",""type"":""logic-compare"",""label"":""Level < 80%?"",""x"":500,""y"":200},{""id"":""output-1"",""type"":""tag-output"",""label"":""Pump Start"",""x"":700,""y"":200}],""edges"":[{""source"":""trigger-1"",""target"":""compare-1""},{""source"":""input-1"",""target"":""compare-1""},{""source"":""input-2"",""target"":""compare-1""},{""source"":""compare-1"",""target"":""output-1""}]}"
                     },
                     new()
                     {
@@ -336,7 +336,7 @@ public static class DbInitializer
                         OwnerUserId = adminUser.Id,
                         Deployed = true,
                         ExecutionMode = "manual",
-                        Definition = "{}"
+                        Definition = @"{""nodes"":[{""id"":""trigger-1"",""type"":""trigger-manual"",""label"":""Manual Trigger"",""x"":150,""y"":200},{""id"":""input-1"",""type"":""tag-input"",""label"":""Temperature"",""x"":350,""y"":100},{""id"":""input-2"",""type"":""tag-input"",""label"":""Pressure"",""x"":350,""y"":200},{""id"":""input-3"",""type"":""tag-input"",""label"":""Flow Rate"",""x"":350,""y"":300},{""id"":""output-1"",""type"":""tag-output"",""label"":""Log Entry"",""x"":550,""y"":200}],""edges"":[{""source"":""trigger-1"",""target"":""output-1""},{""source"":""input-1"",""target"":""output-1""},{""source"":""input-2"",""target"":""output-1""},{""source"":""input-3"",""target"":""output-1""}]}"
                     }
                 };
 

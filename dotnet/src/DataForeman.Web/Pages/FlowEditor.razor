@@ -115,102 +115,103 @@
             <!-- Node Palette -->
             <div class="node-palette">
                 <h4>Nodes</h4>
+                <p class="palette-hint">Click to add node</p>
                 <SfAccordion>
                     <AccordionItems>
                         <AccordionItem Header="Triggers">
                             <ContentTemplate>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "trigger-manual"))">
-                                    <span class="node-icon">▶️</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("trigger-manual"))">
+                                    <span class="node-icon trigger">▶️</span>
                                     <span>Manual Trigger</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "trigger-schedule"))">
-                                    <span class="node-icon">⏰</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("trigger-schedule"))">
+                                    <span class="node-icon trigger">⏰</span>
                                     <span>Schedule</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "trigger-tag-change"))">
-                                    <span class="node-icon">📊</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("trigger-tag-change"))">
+                                    <span class="node-icon trigger">📊</span>
                                     <span>Tag Change</span>
                                 </div>
                             </ContentTemplate>
                         </AccordionItem>
                         <AccordionItem Header="Data">
                             <ContentTemplate>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "tag-input"))">
-                                    <span class="node-icon">📥</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("tag-input"))">
+                                    <span class="node-icon data-in">📥</span>
                                     <span>Tag Input</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "tag-output"))">
-                                    <span class="node-icon">📤</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("tag-output"))">
+                                    <span class="node-icon data-out">📤</span>
                                     <span>Tag Output</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "constant"))">
-                                    <span class="node-icon">📌</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("constant"))">
+                                    <span class="node-icon constant">📌</span>
                                     <span>Constant</span>
                                 </div>
                             </ContentTemplate>
                         </AccordionItem>
                         <AccordionItem Header="Math">
                             <ContentTemplate>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "math-add"))">
-                                    <span class="node-icon">➕</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("math-add"))">
+                                    <span class="node-icon math">➕</span>
                                     <span>Add</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "math-subtract"))">
-                                    <span class="node-icon">➖</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("math-subtract"))">
+                                    <span class="node-icon math">➖</span>
                                     <span>Subtract</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "math-multiply"))">
-                                    <span class="node-icon">✖️</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("math-multiply"))">
+                                    <span class="node-icon math">✖️</span>
                                     <span>Multiply</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "math-divide"))">
-                                    <span class="node-icon">➗</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("math-divide"))">
+                                    <span class="node-icon math">➗</span>
                                     <span>Divide</span>
                                 </div>
                             </ContentTemplate>
                         </AccordionItem>
                         <AccordionItem Header="Logic">
                             <ContentTemplate>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "logic-compare"))">
-                                    <span class="node-icon">⚖️</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("logic-compare"))">
+                                    <span class="node-icon logic">⚖️</span>
                                     <span>Compare</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "logic-and"))">
-                                    <span class="node-icon">∧</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("logic-and"))">
+                                    <span class="node-icon logic">∧</span>
                                     <span>AND</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "logic-or"))">
-                                    <span class="node-icon">∨</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("logic-or"))">
+                                    <span class="node-icon logic">∨</span>
                                     <span>OR</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "logic-not"))">
-                                    <span class="node-icon">¬</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("logic-not"))">
+                                    <span class="node-icon logic">¬</span>
                                     <span>NOT</span>
                                 </div>
                             </ContentTemplate>
                         </AccordionItem>
                         <AccordionItem Header="Control">
                             <ContentTemplate>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "control-if"))">
-                                    <span class="node-icon">❓</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("control-if"))">
+                                    <span class="node-icon control">❓</span>
                                     <span>If/Else</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "control-switch"))">
-                                    <span class="node-icon">🔀</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("control-switch"))">
+                                    <span class="node-icon control">🔀</span>
                                     <span>Switch</span>
                                 </div>
-                                <div class="node-item" draggable="true" @ondragstart="@(e => OnNodeDragStart(e, "control-delay"))">
-                                    <span class="node-icon">⏳</span>
+                                <div class="node-item" @onclick="@(() => AddNodeFromPalette("control-delay"))">
+                                    <span class="node-icon control">⏳</span>
                                     <span>Delay</span>
                                 </div>
                             </ContentTemplate>
                         </AccordionItem>
                     </AccordionItems>
-                </SfAccordion>
+            </SfAccordion>
             </div>
 
             <!-- Diagram Canvas -->
-            <div class="diagram-container" @ondrop="OnNodeDrop" @ondragover="OnDragOver">
+            <div class="diagram-container">
                 <SfDiagramComponent @ref="diagram"
                                     Height="100%"
                                     Width="100%"
@@ -404,28 +405,51 @@
     }
 
     .node-palette {
-        width: 220px;
+        width: 240px;
         border-right: 1px solid #333;
         background: #1e1e1e;
         overflow-y: auto;
-        padding: 8px;
+        padding: 12px;
     }
-    .node-palette h4 { margin: 0 0 12px; padding: 0 8px; color: #ffffff; }
+    .node-palette h4 { margin: 0 0 4px; padding: 0 8px; color: #ffffff; }
+    .palette-hint { margin: 0 0 12px; padding: 0 8px; color: #888; font-size: 11px; }
     .node-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        margin: 4px 0;
+        gap: 10px;
+        padding: 10px 14px;
+        margin: 6px 0;
         background: #252525;
         border: 1px solid #333;
-        border-radius: 4px;
-        cursor: grab;
+        border-radius: 6px;
+        cursor: pointer;
         font-size: 13px;
-        color: #b0b0b0;
+        color: #e0e0e0;
+        transition: all 0.15s ease;
     }
-    .node-item:hover { background: #333; border-color: #2196f3; color: #ffffff; }
-    .node-icon { font-size: 16px; }
+    .node-item:hover { 
+        background: #333; 
+        border-color: #2196f3; 
+        color: #ffffff;
+        transform: translateX(2px);
+    }
+    .node-item:active {
+        transform: translateX(4px);
+        background: #2196f3;
+    }
+    .node-icon { 
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+    }
+    /* Node type color indicators */
+    .node-icon.trigger { color: #F44336; }
+    .node-icon.data-in { color: #4CAF50; }
+    .node-icon.data-out { color: #FF9800; }
+    .node-icon.constant { color: #9C27B0; }
+    .node-icon.math { color: #E91E63; }
+    .node-icon.logic { color: #00BCD4; }
+    .node-icon.control { color: #673AB7; }
 
     .diagram-container {
         flex: 1;
@@ -477,7 +501,6 @@
     private DiagramObjectCollection<Node> nodes = new();
     private DiagramObjectCollection<Connector> connectors = new();
     private Node? selectedNode;
-    private string? draggedNodeType;
     
     // Grid line intervals for diagram snap settings
     private static readonly double[] gridLineIntervals = { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 };
@@ -616,30 +639,138 @@
         nodes = new DiagramObjectCollection<Node>();
         connectors = new DiagramObjectCollection<Connector>();
         
-        // TODO: Parse currentFlow.Definition and populate nodes/connectors
-        // For now, add a sample start node only if there's no existing definition
-        if (string.IsNullOrEmpty(currentFlow?.Definition) || currentFlow?.Definition == "{}")
+        // Parse currentFlow.Definition and populate nodes/connectors
+        if (!string.IsNullOrEmpty(currentFlow?.Definition) && currentFlow?.Definition != "{}")
         {
-            var startNode = new Node
+            try
             {
-                ID = "start",
-                OffsetX = 300,
-                OffsetY = 200,
-                Width = 120,
-                Height = 50,
-                Shape = new FlowShape { Type = NodeShapes.Flow, Shape = NodeFlowShapes.Terminator },
-                Style = new ShapeStyle { Fill = "#4CAF50", StrokeColor = "#ffffff", StrokeWidth = 2 },
-                Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                var definition = System.Text.Json.JsonSerializer.Deserialize<FlowDefinition>(currentFlow.Definition);
+                if (definition?.Nodes != null)
                 {
-                    new ShapeAnnotation { Content = "Start", Style = new TextStyle { Color = "#ffffff", Bold = true } }
-                },
-                Ports = new DiagramObjectCollection<PointPort>
-                {
-                    new PointPort { ID = "right", Offset = new DiagramPoint(1, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff" } }
+                    foreach (var nodeDef in definition.Nodes)
+                    {
+                        var node = CreateNodeFromDefinition(nodeDef);
+                        if (node != null)
+                        {
+                            nodes.Add(node);
+                        }
+                    }
                 }
-            };
-            nodes.Add(startNode);
+                if (definition?.Edges != null)
+                {
+                    foreach (var edge in definition.Edges)
+                    {
+                        var connector = new Connector
+                        {
+                            ID = $"conn-{edge.Source}-{edge.Target}",
+                            SourceID = edge.Source,
+                            TargetID = edge.Target,
+                            Type = ConnectorSegmentType.Orthogonal,
+                            Style = new ShapeStyle { StrokeColor = "#2196f3", StrokeWidth = 2 },
+                            TargetDecorator = new DecoratorSettings 
+                            { 
+                                Shape = DecoratorShape.Arrow,
+                                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#2196f3" }
+                            }
+                        };
+                        connectors.Add(connector);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing flow definition: {ex.Message}");
+                // Fall back to start node
+                AddDefaultStartNode();
+            }
         }
+        else
+        {
+            // Add default start node for new flows
+            AddDefaultStartNode();
+        }
+    }
+    
+    private void AddDefaultStartNode()
+    {
+        var startNode = new Node
+        {
+            ID = "start",
+            OffsetX = 300,
+            OffsetY = 200,
+            Width = 120,
+            Height = 50,
+            Shape = new FlowShape { Type = NodeShapes.Flow, Shape = NodeFlowShapes.Terminator },
+            Style = new ShapeStyle { Fill = "#4CAF50", StrokeColor = "#ffffff", StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>
+            {
+                new ShapeAnnotation { Content = "Start", Style = new TextStyle { Color = "#ffffff", Bold = true } }
+            },
+            Ports = new DiagramObjectCollection<PointPort>
+            {
+                new PointPort { ID = "right", Offset = new DiagramPoint(1, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff" } }
+            }
+        };
+        nodes.Add(startNode);
+    }
+    
+    private Node? CreateNodeFromDefinition(FlowNodeDefinition nodeDef)
+    {
+        var nodeType = nodeDef.Type ?? "process";
+        var (fill, stroke, defaultLabel, shape) = nodeType switch
+        {
+            // Triggers - Red
+            "trigger-manual" => ("#F44336", "#ffffff", "Manual Trigger", NodeFlowShapes.Terminator),
+            "trigger-schedule" => ("#F44336", "#ffffff", "Schedule", NodeFlowShapes.Terminator),
+            "trigger-tag-change" => ("#F44336", "#ffffff", "Tag Change", NodeFlowShapes.Terminator),
+            // Data nodes - Green for input, Orange for output
+            "tag-input" => ("#4CAF50", "#ffffff", "Tag Input", NodeFlowShapes.Process),
+            "tag-output" => ("#FF9800", "#ffffff", "Tag Output", NodeFlowShapes.Process),
+            "constant" => ("#9C27B0", "#ffffff", "Constant", NodeFlowShapes.Data),
+            // Math nodes - Pink
+            "math-add" => ("#E91E63", "#ffffff", "Add", NodeFlowShapes.Process),
+            "math-subtract" => ("#E91E63", "#ffffff", "Subtract", NodeFlowShapes.Process),
+            "math-multiply" => ("#E91E63", "#ffffff", "Multiply", NodeFlowShapes.Process),
+            "math-divide" => ("#E91E63", "#ffffff", "Divide", NodeFlowShapes.Process),
+            // Logic nodes - Teal
+            "logic-compare" => ("#00BCD4", "#ffffff", "Compare", NodeFlowShapes.Decision),
+            "logic-and" => ("#00BCD4", "#ffffff", "AND", NodeFlowShapes.Process),
+            "logic-or" => ("#00BCD4", "#ffffff", "OR", NodeFlowShapes.Process),
+            "logic-not" => ("#00BCD4", "#ffffff", "NOT", NodeFlowShapes.Process),
+            // Control nodes - Purple
+            "control-if" => ("#673AB7", "#ffffff", "If/Else", NodeFlowShapes.Decision),
+            "control-switch" => ("#673AB7", "#ffffff", "Switch", NodeFlowShapes.Decision),
+            "control-delay" => ("#673AB7", "#ffffff", "Delay", NodeFlowShapes.Delay),
+            _ => ("#757575", "#ffffff", "Process", NodeFlowShapes.Process)
+        };
+
+        var label = !string.IsNullOrEmpty(nodeDef.Label) ? nodeDef.Label : defaultLabel;
+
+        return new Node
+        {
+            ID = nodeDef.Id ?? Guid.NewGuid().ToString("N"),
+            OffsetX = nodeDef.X,
+            OffsetY = nodeDef.Y,
+            Width = 140,
+            Height = 50,
+            Shape = new FlowShape { Type = NodeShapes.Flow, Shape = shape },
+            Style = new ShapeStyle { Fill = fill, StrokeColor = stroke, StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>
+            {
+                new ShapeAnnotation 
+                { 
+                    Content = label,
+                    Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true }
+                }
+            },
+            Ports = new DiagramObjectCollection<PointPort>
+            {
+                new PointPort { ID = "left", Offset = new DiagramPoint(0, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } },
+                new PointPort { ID = "right", Offset = new DiagramPoint(1, 0.5), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } },
+                new PointPort { ID = "top", Offset = new DiagramPoint(0.5, 0), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } },
+                new PointPort { ID = "bottom", Offset = new DiagramPoint(0.5, 1), Visibility = PortVisibility.Visible, Style = new ShapeStyle { Fill = "#ffffff", StrokeColor = stroke } }
+            }
+        };
     }
 
     private void ShowCreateDialog()
@@ -800,27 +931,8 @@
         showSettingsDialog = false;
     }
 
-    private void OnNodeDragStart(Microsoft.AspNetCore.Components.Web.DragEventArgs e, string nodeType)
-    {
-        draggedNodeType = nodeType;
-    }
-
-    private void OnDragOver(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
-    {
-    }
-
-    private async Task OnNodeDrop(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
-    {
-        if (string.IsNullOrEmpty(draggedNodeType) || diagram == null) return;
-
-        var node = CreateNodeFromType(draggedNodeType, e.ClientX, e.ClientY);
-        if (node != null)
-        {
-            nodes.Add(node);
-        }
-        
-        draggedNodeType = null;
-    }
+    // Node position counter to spread out added nodes
+    private int nodePositionOffset = 0;
 
     private Node? CreateNodeFromType(string nodeType, double x, double y)
     {
@@ -934,10 +1046,62 @@
         
         StateHasChanged();
     }
+    
+    private async Task AddNodeFromPalette(string nodeType)
+    {
+        // Add node at a position that spreads out newly added nodes
+        nodePositionOffset++;
+        var xOffset = 300 + ((nodePositionOffset % 5) * 50);
+        var yOffset = 150 + ((nodePositionOffset / 5) * 80);
+        
+        var node = CreateNodeFromType(nodeType, xOffset, yOffset);
+        if (node != null)
+        {
+            nodes.Add(node);
+            StateHasChanged();
+        }
+    }
 
     private record FlowsResponse(List<FlowDto> Flows);
     private record TagsResponse(List<TagMetadataDto> Tags);
     private record TagOption(string TagPath);
     private record CompareOption(string Label, string Value);
     private record ExecutionModeOption(string Label, string Value);
+    
+    // Flow definition types for JSON serialization
+    private record FlowDefinition
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("nodes")]
+        public List<FlowNodeDefinition>? Nodes { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("edges")]
+        public List<FlowEdgeDefinition>? Edges { get; set; }
+    }
+    
+    private record FlowNodeDefinition
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("id")]
+        public string? Id { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string? Type { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("label")]
+        public string? Label { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("x")]
+        public double X { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("y")]
+        public double Y { get; set; }
+    }
+    
+    private record FlowEdgeDefinition
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("source")]
+        public string? Source { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("target")]
+        public string? Target { get; set; }
+    }
 }
