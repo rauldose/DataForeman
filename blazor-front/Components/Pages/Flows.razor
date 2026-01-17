@@ -329,10 +329,8 @@
     {
         InitializePalettes();
         await LoadFlows();
-    }
-    
-    protected override void OnParametersSet()
-    {
+        
+        // Load flow definition after flows are loaded
         if (FlowId != Guid.Empty)
         {
             var flow = FlowsList.FirstOrDefault(f => f.Id == FlowId);
@@ -341,6 +339,33 @@
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
             }
+        }
+    }
+    
+    protected override void OnParametersSet()
+    {
+        // Only handle parameter changes after initial load
+        if (FlowsList.Count > 0 && FlowId != Guid.Empty)
+        {
+            var flow = FlowsList.FirstOrDefault(f => f.Id == FlowId);
+            if (flow != null && CurrentFlow.Id != flow.Id)
+            {
+                CurrentFlow = flow;
+                LoadFlowDefinition(flow);
+            }
+        }
+    }
+    
+    private bool _firstRender = true;
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_firstRender && FlowId != Guid.Empty && Diagram != null)
+        {
+            _firstRender = false;
+            // Force diagram to refresh connectors after first render
+            await Task.Delay(100);
+            StateHasChanged();
         }
     }
     
