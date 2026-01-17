@@ -12,7 +12,8 @@ builder.Services.AddRazorComponents()
 builder.Services.AddSyncfusionBlazor();
 
 // Configure HttpClient for API calls
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000";
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5021";
+Console.WriteLine($"API Base URL: {apiBaseUrl}");
 builder.Services.AddHttpClient("DataForemanApi", client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);

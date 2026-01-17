@@ -8,6 +8,7 @@ public class AuthStateProvider : AuthenticationStateProvider
 {
     private readonly IAuthTokenStorage _tokenStorage;
     private readonly HttpClient _http;
+    private string? _cachedToken;
 
     public AuthStateProvider(IAuthTokenStorage tokenStorage, HttpClient http)
     {
@@ -17,7 +18,9 @@ public class AuthStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var token = await _tokenStorage.GetTokenAsync();
+        // First check cached token (set during login)
+        var token = _cachedToken ?? await _tokenStorage.GetTokenAsync();
+        Console.WriteLine($"GetAuthenticationStateAsync - Token exists: {!string.IsNullOrEmpty(token)}");
         
         if (string.IsNullOrEmpty(token))
         {
@@ -36,6 +39,9 @@ public class AuthStateProvider : AuthenticationStateProvider
 
     public void NotifyUserAuthentication(string token)
     {
+        // Cache the token to ensure it's available immediately
+        _cachedToken = token;
+        
         var claims = ParseClaimsFromJwt(token);
         var authenticatedUser = new ClaimsPrincipal(new ClaimsIdentity(claims, "jwt"));
         var authState = Task.FromResult(new AuthenticationState(authenticatedUser));
@@ -44,6 +50,7 @@ public class AuthStateProvider : AuthenticationStateProvider
 
     public void NotifyUserLogout()
     {
+        _cachedToken = null;
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         var authState = Task.FromResult(new AuthenticationState(anonymousUser));
         NotifyAuthenticationStateChanged(authState);

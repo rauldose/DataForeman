@@ -1,8 +1,9 @@
 @page "/charts"
 @page "/charts/{Id:guid}"
-@attribute [Authorize]
+@rendermode InteractiveServer
 @inject HttpClient Http
 @inject NavigationManager NavigationManager
+@inject IAuthTokenStorage TokenStorage
 
 <PageTitle>Chart Composer - DataForeman</PageTitle>
 
@@ -585,6 +586,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await EnsureAuthHeaderAsync();
         await LoadTags();
     }
 
@@ -594,6 +596,7 @@
         if (_previousId != Id)
         {
             _previousId = Id;
+            await EnsureAuthHeaderAsync();
             
             if (Id == null)
             {
@@ -610,6 +613,15 @@
     {
         refreshTimer?.Stop();
         refreshTimer?.Dispose();
+    }
+
+    private async Task EnsureAuthHeaderAsync()
+    {
+        var token = await TokenStorage.GetTokenAsync();
+        if (!string.IsNullOrEmpty(token))
+        {
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
     }
 
     private async Task LoadCharts()

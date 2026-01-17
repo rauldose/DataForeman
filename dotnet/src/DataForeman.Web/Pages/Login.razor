@@ -1,5 +1,7 @@
 @page "/login"
 @layout EmptyLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
 @inject IAuthService AuthService
 @inject AuthStateProvider AuthStateProvider
 @inject NavigationManager NavigationManager
@@ -12,7 +14,7 @@
             <p>Industrial Telemetry Platform</p>
         </div>
 
-        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin" FormName="login">
             <DataAnnotationsValidator />
 
             @if (!string.IsNullOrEmpty(errorMessage))

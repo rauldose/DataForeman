@@ -1,6 +1,7 @@
 ﻿@page "/"
-@attribute [Authorize]
+@rendermode InteractiveServer
 @inject HttpClient Http
+@inject IAuthTokenStorage TokenStorage
 
 <PageTitle>Dashboards - DataForeman</PageTitle>
 
@@ -106,7 +107,17 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await EnsureAuthHeaderAsync();
         await LoadDashboards();
+    }
+
+    private async Task EnsureAuthHeaderAsync()
+    {
+        var token = await TokenStorage.GetTokenAsync();
+        if (!string.IsNullOrEmpty(token))
+        {
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
     }
 
     private async Task LoadDashboards()
