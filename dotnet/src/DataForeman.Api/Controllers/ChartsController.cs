@@ -98,7 +98,7 @@ public class ChartsController : ControllerBase
             ShowTimeBadge = request.ShowTimeBadge ?? true,
             TimeFrom = request.TimeFrom,
             TimeTo = request.TimeTo,
-            Options = request.Options,
+            Options = request.Options ?? "{}",
             IsSystemChart = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

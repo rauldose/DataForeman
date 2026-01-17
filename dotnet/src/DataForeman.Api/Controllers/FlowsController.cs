@@ -88,7 +88,7 @@ public class FlowsController : ControllerBase
             ScanRateMs = request.ScanRateMs ?? 1000,
             LogsEnabled = request.LogsEnabled ?? true,
             LogsRetentionDays = request.LogsRetentionDays ?? 30,
-            Definition = request.Definition,
+            Definition = request.Definition ?? "{}",
             Deployed = false,
             TestMode = false,
             CreatedAt = DateTime.UtcNow,

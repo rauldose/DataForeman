@@ -9,12 +9,21 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Configure API base address
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000";
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
-
-// Add Blazored LocalStorage for auth token storage
+// Add Blazored LocalStorage for auth token storage (must be added before HttpClient)
 builder.Services.AddBlazoredLocalStorage();
+
+// Configure API base address with authorization handler
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5000";
+builder.Services.AddScoped<AuthorizationHandler>();
+builder.Services.AddScoped(sp =>
+{
+    var localStorage = sp.GetRequiredService<ILocalStorageService>();
+    var handler = new AuthorizationHandler(localStorage)
+    {
+        InnerHandler = new HttpClientHandler()
+    };
+    return new HttpClient(handler) { BaseAddress = new Uri(apiBaseUrl) };
+});
 
 // Add Syncfusion Blazor services
 builder.Services.AddSyncfusionBlazor();
