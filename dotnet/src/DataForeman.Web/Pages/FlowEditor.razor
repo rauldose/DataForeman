@@ -630,9 +630,9 @@
         {
             var response = await Http.PostAsJsonAsync("api/flows", new
             {
-                name = newFlowName,
-                description = newFlowDescription,
-                execution_mode = "manual"
+                Name = newFlowName,
+                Description = newFlowDescription,
+                ExecutionMode = "manual"
             });
             
             if (response.IsSuccessStatusCode)

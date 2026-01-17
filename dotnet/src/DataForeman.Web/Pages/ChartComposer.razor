@@ -698,8 +698,8 @@
         {
             var response = await Http.PostAsJsonAsync("api/charts", new
             {
-                name = newChartName,
-                description = newChartDescription
+                Name = newChartName,
+                Description = newChartDescription
             });
             
             if (response.IsSuccessStatusCode)
