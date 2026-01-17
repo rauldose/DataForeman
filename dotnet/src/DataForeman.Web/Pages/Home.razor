@@ -1,0 +1,161 @@
+﻿@page "/"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Dashboards - DataForeman</PageTitle>
+
+<div class="page-header">
+    <h1>Dashboards</h1>
+    <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Dashboard" OnClick="CreateDashboard"></SfButton>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <SfSpinner Visible="true" Label="Loading dashboards..." />
+    </div>
+}
+else if (dashboards == null || !dashboards.Any())
+{
+    <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <h3>No Dashboards Yet</h3>
+        <p>Create your first dashboard to visualize your industrial data.</p>
+        <SfButton CssClass="e-primary" Content="Create Dashboard" OnClick="CreateDashboard"></SfButton>
+    </div>
+}
+else
+{
+    <SfGrid DataSource="@dashboards" AllowPaging="true" AllowSorting="true">
+        <GridColumns>
+            <GridColumn Field="@nameof(DashboardDto.Name)" HeaderText="Name" Width="200">
+                <Template>
+                    @{
+                        var dashboard = (context as DashboardDto);
+                        <a href="/dashboards/@dashboard?.Id">@dashboard?.Name</a>
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn Field="@nameof(DashboardDto.Description)" HeaderText="Description" Width="300"></GridColumn>
+            <GridColumn Field="@nameof(DashboardDto.IsShared)" HeaderText="Shared" Width="100">
+                <Template>
+                    @{
+                        var dashboard = (context as DashboardDto);
+                        @(dashboard?.IsShared == true ? "Yes" : "No")
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn Field="@nameof(DashboardDto.UpdatedAt)" HeaderText="Last Updated" Width="180" Format="g"></GridColumn>
+            <GridColumn HeaderText="Actions" Width="120">
+                <Template>
+                    @{
+                        var dashboard = (context as DashboardDto);
+                        <SfButton IconCss="e-icons e-edit" CssClass="e-flat" OnClick="@(() => EditDashboard(dashboard?.Id))"></SfButton>
+                        <SfButton IconCss="e-icons e-delete" CssClass="e-flat e-danger" OnClick="@(() => DeleteDashboard(dashboard?.Id))"></SfButton>
+                    }
+                </Template>
+            </GridColumn>
+        </GridColumns>
+        <GridPageSettings PageSize="10"></GridPageSettings>
+    </SfGrid>
+}
+
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+
+    .empty-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+    }
+
+    .empty-state h3 {
+        margin: 0 0 8px;
+    }
+
+    .empty-state p {
+        color: #666;
+        margin-bottom: 24px;
+    }
+
+    .loading-container {
+        display: flex;
+        justify-content: center;
+        padding: 60px;
+    }
+</style>
+
+@code {
+    private List<DashboardDto>? dashboards;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboards();
+    }
+
+    private async Task LoadDashboards()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<DashboardsResponse>("api/dashboards");
+            dashboards = response?.Dashboards ?? new List<DashboardDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboards: {ex.Message}");
+            dashboards = new List<DashboardDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void CreateDashboard()
+    {
+        // Navigate to dashboard creation
+    }
+
+    private void EditDashboard(Guid? id)
+    {
+        if (id != null)
+        {
+            // Navigate to dashboard edit
+        }
+    }
+
+    private async Task DeleteDashboard(Guid? id)
+    {
+        if (id != null)
+        {
+            try
+            {
+                await Http.DeleteAsync($"api/dashboards/{id}");
+                await LoadDashboards();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting dashboard: {ex.Message}");
+            }
+        }
+    }
+
+    private record DashboardsResponse(List<DashboardDto> Dashboards);
+}

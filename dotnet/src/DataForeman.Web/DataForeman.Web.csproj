@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Blazored.LocalStorage" Version="4.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.1" PrivateAssets="all" />
+    <PackageReference Include="Syncfusion.Blazor.Buttons" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.DropDowns" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Grid" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Inputs" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Layouts" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Navigations" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Themes" Version="32.1.23" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataForeman.Shared\DataForeman.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

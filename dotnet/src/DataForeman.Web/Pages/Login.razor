@@ -1,0 +1,176 @@
+@page "/login"
+@layout EmptyLayout
+@inject IAuthService AuthService
+@inject AuthStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <img src="favicon.png" alt="DataForeman" class="login-logo" />
+            <h2>DataForeman</h2>
+            <p>Industrial Telemetry Platform</p>
+        </div>
+
+        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+
+            <div class="form-group">
+                <SfTextBox @bind-Value="loginModel.Email"
+                           Placeholder="Email"
+                           FloatLabelType="FloatLabelType.Auto"
+                           CssClass="login-input" />
+            </div>
+
+            <div class="form-group">
+                <SfTextBox @bind-Value="loginModel.Password"
+                           Placeholder="Password"
+                           Type="InputType.Password"
+                           FloatLabelType="FloatLabelType.Auto"
+                           CssClass="login-input" />
+            </div>
+
+            <div class="form-group">
+                <SfButton CssClass="e-primary login-button" 
+                          Type="submit"
+                          Disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span>Logging in...</span>
+                    }
+                    else
+                    {
+                        <span>Login</span>
+                    }
+                </SfButton>
+            </div>
+        </EditForm>
+
+        <div class="login-footer">
+            <p>Default: admin@example.com / password</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+    }
+
+    .login-card {
+        background: white;
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .login-logo {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 16px;
+    }
+
+    .login-header h2 {
+        margin: 0;
+        color: #1a237e;
+    }
+
+    .login-header p {
+        margin: 8px 0 0;
+        color: #666;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .login-input {
+        width: 100%;
+    }
+
+    .login-button {
+        width: 100%;
+        height: 44px;
+    }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 20px;
+        color: #999;
+        font-size: 12px;
+    }
+
+    .alert-danger {
+        background-color: #ffebee;
+        color: #c62828;
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 16px;
+    }
+</style>
+
+@code {
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if already authenticated
+        if (await AuthService.IsAuthenticatedAsync())
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await AuthService.LoginAsync(loginModel.Email, loginModel.Password);
+            if (result != null)
+            {
+                AuthStateProvider.NotifyUserAuthentication(result.Token);
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Invalid email or password";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Login failed. Please try again.";
+            Console.WriteLine($"Login error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

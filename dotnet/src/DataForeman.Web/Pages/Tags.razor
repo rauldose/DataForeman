@@ -1,0 +1,125 @@
+@page "/connectivity/tags"
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Tags - DataForeman</PageTitle>
+
+<div class="page-header">
+    <h1>Tags</h1>
+    <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag" OnClick="ShowAddDialog"></SfButton>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <SfSpinner Visible="true" Label="Loading tags..." />
+    </div>
+}
+else
+{
+    <SfGrid DataSource="@tags" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
+        <GridColumns>
+            <GridColumn Field="@nameof(TagMetadataDto.TagPath)" HeaderText="Tag Path" Width="250"></GridColumn>
+            <GridColumn Field="@nameof(TagMetadataDto.TagName)" HeaderText="Name" Width="150"></GridColumn>
+            <GridColumn Field="@nameof(TagMetadataDto.DriverType)" HeaderText="Driver" Width="100">
+                <Template>
+                    @{
+                        var tag = (context as TagMetadataDto);
+                        <span class="driver-badge @tag?.DriverType?.ToLower()">@tag?.DriverType</span>
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn Field="@nameof(TagMetadataDto.DataType)" HeaderText="Data Type" Width="120"></GridColumn>
+            <GridColumn Field="@nameof(TagMetadataDto.IsSubscribed)" HeaderText="Subscribed" Width="110">
+                <Template>
+                    @{
+                        var tag = (context as TagMetadataDto);
+                        <SfCheckBox Checked="@tag?.IsSubscribed" Disabled="true"></SfCheckBox>
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn Field="@nameof(TagMetadataDto.PollGroupId)" HeaderText="Poll Group" Width="110"></GridColumn>
+            <GridColumn Field="@nameof(TagMetadataDto.Description)" HeaderText="Description" Width="200"></GridColumn>
+            <GridColumn HeaderText="Actions" Width="120">
+                <Template>
+                    @{
+                        var tag = (context as TagMetadataDto);
+                        <SfButton IconCss="e-icons e-edit" CssClass="e-flat" OnClick="@(() => EditTag(tag))"></SfButton>
+                    }
+                </Template>
+            </GridColumn>
+        </GridColumns>
+        <GridPageSettings PageSize="20"></GridPageSettings>
+    </SfGrid>
+}
+
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .driver-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .driver-badge.eip { background: #e3f2fd; color: #1565c0; }
+    .driver-badge.opcua { background: #f3e5f5; color: #7b1fa2; }
+    .driver-badge.s7 { background: #e8f5e9; color: #2e7d32; }
+    .driver-badge.system { background: #fff3e0; color: #e65100; }
+    .driver-badge.internal { background: #e0f2f1; color: #00695c; }
+    .driver-badge.mqtt { background: #fce4ec; color: #c2185b; }
+
+    .loading-container {
+        display: flex;
+        justify-content: center;
+        padding: 60px;
+    }
+</style>
+
+@code {
+    private List<TagMetadataDto>? tags;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTags();
+    }
+
+    private async Task LoadTags()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<TagsResponse>("api/connectivity/tags");
+            tags = response?.Tags ?? new List<TagMetadataDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading tags: {ex.Message}");
+            tags = new List<TagMetadataDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowAddDialog()
+    {
+        // TODO: Implement add tag dialog
+    }
+
+    private void EditTag(TagMetadataDto? tag)
+    {
+        // TODO: Implement edit tag
+    }
+
+    private record TagsResponse(List<TagMetadataDto> Tags);
+}

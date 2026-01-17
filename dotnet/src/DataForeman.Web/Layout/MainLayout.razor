@@ -1,0 +1,68 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject AuthStateProvider AuthStateProvider
+
+<div class="page">
+    <SfSidebar @ref="Sidebar" Width="250px" DockSize="50px" EnableDock="true" Type="SidebarType.Auto" @bind-IsOpen="sidebarOpen">
+        <ChildContent>
+            <div class="sidebar-header">
+                <img src="favicon.png" alt="DataForeman" class="logo" />
+                <span class="app-name">DataForeman</span>
+            </div>
+            <SfMenu TValue="MenuItem" CssClass="sidebar-menu" Orientation="Syncfusion.Blazor.Navigations.Orientation.Vertical">
+                <MenuItems>
+                    <MenuItem Text="Dashboards" IconCss="e-icons e-chart" Url="/">
+                    </MenuItem>
+                    <MenuItem Text="Connectivity" IconCss="e-icons e-link">
+                        <MenuItems>
+                            <MenuItem Text="Devices" Url="/connectivity/devices"></MenuItem>
+                            <MenuItem Text="Tags" Url="/connectivity/tags"></MenuItem>
+                            <MenuItem Text="Poll Groups" Url="/connectivity/poll-groups"></MenuItem>
+                        </MenuItems>
+                    </MenuItem>
+                    <MenuItem Text="Charts" IconCss="e-icons e-chart-2d" Url="/charts">
+                    </MenuItem>
+                    <MenuItem Text="Flows" IconCss="e-icons e-flow" Url="/flows">
+                    </MenuItem>
+                    <MenuItem Text="Diagnostics" IconCss="e-icons e-diagnostics" Url="/diagnostics">
+                    </MenuItem>
+                </MenuItems>
+            </SfMenu>
+        </ChildContent>
+    </SfSidebar>
+
+    <main class="main-content">
+        <div class="top-bar">
+            <SfButton IconCss="e-icons e-menu" CssClass="menu-toggle" OnClick="ToggleSidebar"></SfButton>
+            <div class="spacer"></div>
+            <AuthorizeView>
+                <Authorized>
+                    <span class="user-name">@context.User.Identity?.Name</span>
+                    <SfButton Content="Logout" CssClass="e-flat" OnClick="Logout"></SfButton>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    private SfSidebar? Sidebar;
+    private bool sidebarOpen = true;
+
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        AuthStateProvider.NotifyUserLogout();
+        NavigationManager.NavigateTo("login");
+    }
+}
