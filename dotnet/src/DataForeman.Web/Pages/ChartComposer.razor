@@ -843,10 +843,10 @@
             
             var response = await Http.PostAsJsonAsync("api/charts/query", new
             {
-                tag_ids = tagIds,
-                from = from.ToUniversalTime(),
-                to = to.ToUniversalTime(),
-                limit = 10000
+                TagIds = tagIds,
+                From = from.ToUniversalTime(),
+                To = to.ToUniversalTime(),
+                Limit = 10000
             });
             
             if (response.IsSuccessStatusCode)
