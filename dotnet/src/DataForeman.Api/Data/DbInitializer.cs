@@ -208,8 +208,8 @@ public static class DbInitializer
             db.Connections.AddRange(connections);
             await db.SaveChangesAsync();
 
-            // Get the admin user for ownership
-            var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Email == "admin@example.com");
+            // Get the admin user for ownership (use same email variable as user creation)
+            var adminUser = await db.Users.FirstOrDefaultAsync(u => u.Email == adminEmail);
             var celsiusUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "°C");
             var kpaUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "kPa");
             var lpmUnit = await db.UnitsOfMeasure.FirstOrDefaultAsync(u => u.Symbol == "L/min");

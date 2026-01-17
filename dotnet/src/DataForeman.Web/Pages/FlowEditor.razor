@@ -220,8 +220,8 @@
                                     ConnectorCreating="OnConnectorCreating"
                                     SelectionChanged="OnSelectionChanged">
                     <SnapSettings Constraints="SnapConstraints.ShowLines | SnapConstraints.SnapToLines">
-                        <HorizontalGridLines LineColor="#333" LineIntervals="@(new double[] { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 })"></HorizontalGridLines>
-                        <VerticalGridLines LineColor="#333" LineIntervals="@(new double[] { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 })"></VerticalGridLines>
+                        <HorizontalGridLines LineColor="#333" LineIntervals="@gridLineIntervals"></HorizontalGridLines>
+                        <VerticalGridLines LineColor="#333" LineIntervals="@gridLineIntervals"></VerticalGridLines>
                     </SnapSettings>
                     <ScrollSettings ScrollLimit="ScrollLimitMode.Infinity"></ScrollSettings>
                 </SfDiagramComponent>
@@ -478,6 +478,9 @@
     private DiagramObjectCollection<Connector> connectors = new();
     private Node? selectedNode;
     private string? draggedNodeType;
+    
+    // Grid line intervals for diagram snap settings
+    private static readonly double[] gridLineIntervals = { 1, 9, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75, 0.25, 9.75 };
     
     // Node properties
     private string selectedNodeName = "";
