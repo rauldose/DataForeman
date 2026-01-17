@@ -178,7 +178,6 @@
             if (result != null)
             {
                 AuthStateProvider.NotifyUserAuthentication(result.Token);
-                // Navigate without force reload to keep the circuit and cached tokens
                 NavigationManager.NavigateTo("/");
             }
             else

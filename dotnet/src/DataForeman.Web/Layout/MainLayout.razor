@@ -106,12 +106,9 @@ else
             }
             
             // Check authentication after JS interop is available
-            _isAuthenticated = await AuthService.IsAuthenticatedAsync();
-            if (_isAuthenticated)
-            {
-                var state = await AuthStateProvider.GetAuthenticationStateAsync();
-                _userName = state.User.Identity?.Name;
-            }
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = state.User.Identity?.IsAuthenticated ?? false;
+            _userName = state.User.Identity?.Name;
             _authChecked = true;
             await InvokeAsync(StateHasChanged);
         }
