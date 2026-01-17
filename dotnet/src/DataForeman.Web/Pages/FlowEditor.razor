@@ -502,28 +502,28 @@
         new("Continuous", "continuous")
     };
 
+    private Guid? _previousId;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadTags();
-        if (Id == null)
-        {
-            await LoadFlows();
-        }
-        else
-        {
-            await LoadFlow(Id.Value);
-        }
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        if (Id == null)
+        // Only reload if the Id parameter changed
+        if (_previousId != Id)
         {
-            await LoadFlows();
-        }
-        else
-        {
-            await LoadFlow(Id.Value);
+            _previousId = Id;
+            
+            if (Id == null)
+            {
+                await LoadFlows();
+            }
+            else
+            {
+                await LoadFlow(Id.Value);
+            }
         }
     }
 
@@ -586,14 +586,15 @@
 
     private void LoadFlowDefinition()
     {
-        nodes.Clear();
-        connectors.Clear();
+        // Initialize collections fresh to avoid any state issues
+        nodes = new DiagramObjectCollection<Node>();
+        connectors = new DiagramObjectCollection<Connector>();
         
         // TODO: Parse currentFlow.Definition and populate nodes/connectors
-        // For now, add a sample start node
-        if (currentFlow?.Definition == null)
+        // For now, add a sample start node only if there's no existing definition
+        if (string.IsNullOrEmpty(currentFlow?.Definition) || currentFlow?.Definition == "{}")
         {
-            nodes.Add(new Node
+            var startNode = new Node
             {
                 ID = "start",
                 OffsetX = 300,
@@ -606,7 +607,8 @@
                 {
                     new ShapeAnnotation { Content = "Start" }
                 }
-            });
+            };
+            nodes.Add(startNode);
         }
     }
 

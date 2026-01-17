@@ -581,29 +581,28 @@
 
     private string[] defaultColors = new[] { "#1976d2", "#388e3c", "#f57c00", "#7b1fa2", "#c62828", "#00838f", "#6d4c41", "#455a64" };
     private int colorIndex = 0;
+    private Guid? _previousId;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadTags();
-        if (Id == null)
-        {
-            await LoadCharts();
-        }
-        else
-        {
-            await LoadChart(Id.Value);
-        }
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        if (Id == null)
+        // Only reload if the Id parameter changed
+        if (_previousId != Id)
         {
-            await LoadCharts();
-        }
-        else
-        {
-            await LoadChart(Id.Value);
+            _previousId = Id;
+            
+            if (Id == null)
+            {
+                await LoadCharts();
+            }
+            else
+            {
+                await LoadChart(Id.Value);
+            }
         }
     }
 
