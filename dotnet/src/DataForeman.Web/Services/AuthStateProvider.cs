@@ -19,7 +19,13 @@ public class AuthStateProvider : AuthenticationStateProvider
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        // First check cached token (set during login)
+        // First check cached principal (for prerender phase)
+        if (_cachedPrincipal?.Identity?.IsAuthenticated == true)
+        {
+            return new AuthenticationState(_cachedPrincipal);
+        }
+        
+        // Try cached token
         string? token = _cachedToken;
         
         // Try to get token from storage if not cached
@@ -35,11 +41,7 @@ public class AuthStateProvider : AuthenticationStateProvider
             }
             catch (InvalidOperationException)
             {
-                // JS interop not available during prerender - return cached principal if available
-                if (_cachedPrincipal != null)
-                {
-                    return new AuthenticationState(_cachedPrincipal);
-                }
+                // JS interop not available during prerender - return anonymous
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()));
             }
         }
@@ -61,7 +63,7 @@ public class AuthStateProvider : AuthenticationStateProvider
                 // Token expired - clear it
                 _cachedToken = null;
                 _cachedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
-                await _tokenStorage.ClearTokensAsync();
+                try { await _tokenStorage.ClearTokensAsync(); } catch { }
                 return new AuthenticationState(_cachedPrincipal);
             }
         }
@@ -75,6 +77,21 @@ public class AuthStateProvider : AuthenticationStateProvider
         return new AuthenticationState(_cachedPrincipal);
     }
 
+    /// <summary>
+    /// Refresh the auth state after token storage has been initialized.
+    /// Call this after JS interop is ready.
+    /// </summary>
+    public async Task RefreshAuthStateAsync()
+    {
+        // Clear cached values to force a fresh read from storage
+        _cachedToken = null;
+        _cachedPrincipal = null;
+        
+        // Re-fetch from storage
+        var state = await GetAuthenticationStateAsync();
+        NotifyAuthenticationStateChanged(Task.FromResult(state));
+    }
+
     public void NotifyUserAuthentication(string token)
     {
         // Cache the token to ensure it's available immediately
@@ -82,6 +99,10 @@ public class AuthStateProvider : AuthenticationStateProvider
         
         var claims = ParseClaimsFromJwt(token);
         _cachedPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims, "jwt"));
+        
+        // Set authorization header
+        _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        
         var authState = Task.FromResult(new AuthenticationState(_cachedPrincipal));
         NotifyAuthenticationStateChanged(authState);
     }
@@ -90,6 +111,7 @@ public class AuthStateProvider : AuthenticationStateProvider
     {
         _cachedToken = null;
         _cachedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        _http.DefaultRequestHeaders.Authorization = null;
         var authState = Task.FromResult(new AuthenticationState(_cachedPrincipal));
         NotifyAuthenticationStateChanged(authState);
     }

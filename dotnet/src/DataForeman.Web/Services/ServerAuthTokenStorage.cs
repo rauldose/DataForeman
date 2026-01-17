@@ -17,14 +17,31 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     private string? _cachedToken;
     private string? _cachedRefreshToken;
     private bool _initialized;
+    private bool _isPrerendering = true;
 
     public ServerAuthTokenStorage(ProtectedLocalStorage localStorage)
     {
         _localStorage = localStorage;
     }
 
+    /// <summary>
+    /// Call this after the component has rendered to enable JS interop
+    /// </summary>
+    public void SetJsInteropReady()
+    {
+        _isPrerendering = false;
+    }
+
+    public bool IsInitialized => _initialized;
+
     public async Task<string?> GetTokenAsync()
     {
+        if (_isPrerendering)
+        {
+            // Return cached value during prerender
+            return _cachedToken;
+        }
+        
         if (!_initialized)
         {
             await InitializeAsync();
@@ -34,6 +51,11 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
 
     public async Task<string?> GetRefreshTokenAsync()
     {
+        if (_isPrerendering)
+        {
+            return _cachedRefreshToken;
+        }
+        
         if (!_initialized)
         {
             await InitializeAsync();
@@ -44,6 +66,9 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     public async Task SetTokenAsync(string token)
     {
         _cachedToken = token;
+        
+        if (_isPrerendering) return;
+        
         try
         {
             await _localStorage.SetAsync(TokenKey, token);
@@ -61,6 +86,9 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     public async Task SetRefreshTokenAsync(string refreshToken)
     {
         _cachedRefreshToken = refreshToken;
+        
+        if (_isPrerendering) return;
+        
         try
         {
             await _localStorage.SetAsync(RefreshTokenKey, refreshToken);
@@ -79,6 +107,10 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
     {
         _cachedToken = null;
         _cachedRefreshToken = null;
+        _initialized = false;
+        
+        if (_isPrerendering) return;
+        
         try
         {
             await _localStorage.DeleteAsync(TokenKey);
@@ -94,9 +126,9 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
         }
     }
 
-    private async Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        if (_initialized) return;
+        if (_initialized || _isPrerendering) return;
         
         try
         {
@@ -105,16 +137,16 @@ public class ServerAuthTokenStorage : IAuthTokenStorage
 
             var refreshResult = await _localStorage.GetAsync<string>(RefreshTokenKey);
             _cachedRefreshToken = refreshResult.Success ? refreshResult.Value : null;
+            
+            _initialized = true;
         }
         catch (JSDisconnectedException)
         {
-            // Circuit disconnected
+            // Circuit disconnected - will retry
         }
         catch (InvalidOperationException)
         {
-            // JS interop not available during prerender
+            // JS interop not available during prerender - will retry
         }
-        
-        _initialized = true;
     }
 }
