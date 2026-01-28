@@ -360,6 +360,13 @@
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender && Diagram != null && SymbolPalette != null)
+        {
+            // Link the Symbol Palette to the Diagram for drag-drop functionality
+            // Set Targets property programmatically
+            SymbolPalette.Targets = new DiagramObjectCollection<SfDiagramComponent> { Diagram };
+        }
+        
         if (_firstRender && FlowId != Guid.Empty && Diagram != null)
         {
             _firstRender = false;
@@ -503,7 +510,9 @@
             Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
             Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
             Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
-            Ports = new DiagramObjectCollection<PointPort>()
+            Ports = new DiagramObjectCollection<PointPort>(),
+            // Enable all node interactions: drag, resize, select, delete
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
         };
         
         // Create HTML-like multi-line annotation with icon and label
@@ -673,7 +682,9 @@
             Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 6 },
             Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
             Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
-            Ports = new DiagramObjectCollection<PointPort>()
+            Ports = new DiagramObjectCollection<PointPort>(),
+            // Enable all node interactions for palette nodes
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
         };
         
         // Icon and label in single annotation
@@ -784,6 +795,9 @@
             node.Width = 180;
             node.Height = 70;
             
+            // Ensure node has full interactivity (drag, select, resize, delete)
+            node.Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop;
+            
             // Generate unique ID if not already an instance
             if (node.ID != null && !node.ID.Contains("-instance-"))
             {
@@ -877,6 +891,9 @@
             node.Width = 180;
             node.Height = 70;
             
+            // Ensure node has full interactivity after drop
+            node.Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop;
+            
             // Ensure ports are visible after drop with proper styling
             if (node.Ports != null)
             {
@@ -885,6 +902,7 @@
                     port.Visibility = PortVisibility.Visible;
                     port.Width = 14;
                     port.Height = 14;
+                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
                 }
             }
         }
