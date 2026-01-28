@@ -357,22 +357,71 @@
     }
     
     private bool _firstRender = true;
+    private bool _connectorsAdded = false;
+    private DiagramObjectCollection<Connector> _pendingConnectors = new();
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && Diagram != null && SymbolPalette != null)
         {
             // Link the Symbol Palette to the Diagram for drag-drop functionality
-            // Set Targets property programmatically
             SymbolPalette.Targets = new DiagramObjectCollection<SfDiagramComponent> { Diagram };
         }
         
-        if (_firstRender && FlowId != Guid.Empty && Diagram != null)
+        // Add connectors after the diagram and nodes are fully rendered
+        if (_firstRender && FlowId != Guid.Empty && Diagram != null && !_connectorsAdded)
         {
             _firstRender = false;
-            // Force diagram to refresh connectors after first render
-            await Task.Delay(100);
-            StateHasChanged();
+            _connectorsAdded = true;
+            
+            // Wait for nodes to be fully rendered in the diagram
+            await Task.Delay(300);
+            
+            // Add connectors programmatically after nodes are rendered
+            if (_pendingConnectors.Count > 0)
+            {
+                foreach (var connector in _pendingConnectors)
+                {
+                    // Find source and target nodes to calculate proper connection points
+                    var sourceNode = Nodes.FirstOrDefault(n => n.ID == connector.SourceID);
+                    var targetNode = Nodes.FirstOrDefault(n => n.ID == connector.TargetID);
+                    
+                    if (sourceNode != null && targetNode != null)
+                    {
+                        // Get port offsets to calculate exact connection points
+                        var sourcePort = sourceNode.Ports?.FirstOrDefault(p => p.ID == connector.SourcePortID);
+                        var targetPort = targetNode.Ports?.FirstOrDefault(p => p.ID == connector.TargetPortID);
+                        
+                        // Calculate source point from port offset
+                        double sourceX = sourceNode.OffsetX + (sourceNode.Width ?? 180) / 2;
+                        double sourceY = sourceNode.OffsetY;
+                        if (sourcePort?.Offset != null)
+                        {
+                            sourceX = sourceNode.OffsetX + ((sourceNode.Width ?? 180) / 2) * (sourcePort.Offset.X * 2 - 1);
+                            sourceY = sourceNode.OffsetY + ((sourceNode.Height ?? 70) / 2) * (sourcePort.Offset.Y * 2 - 1);
+                        }
+                        
+                        // Calculate target point from port offset
+                        double targetX = targetNode.OffsetX - (targetNode.Width ?? 180) / 2;
+                        double targetY = targetNode.OffsetY;
+                        if (targetPort?.Offset != null)
+                        {
+                            targetX = targetNode.OffsetX + ((targetNode.Width ?? 180) / 2) * (targetPort.Offset.X * 2 - 1);
+                            targetY = targetNode.OffsetY + ((targetNode.Height ?? 70) / 2) * (targetPort.Offset.Y * 2 - 1);
+                        }
+                        
+                        connector.SourcePoint = new DiagramPoint { X = sourceX, Y = sourceY };
+                        connector.TargetPoint = new DiagramPoint { X = targetX, Y = targetY };
+                    }
+                    
+                    // Add connector to the collection
+                    Connectors.Add(connector);
+                }
+                _pendingConnectors.Clear();
+                
+                // Refresh the diagram to show the new connectors
+                StateHasChanged();
+            }
         }
     }
     
@@ -447,12 +496,17 @@
                     CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
                 };
                 
-                Connectors = new DiagramObjectCollection<Connector>
+                // Store connectors to be added after diagram renders
+                // This avoids the issue where connectors appear at (0,0) before nodes are rendered
+                _pendingConnectors = new DiagramObjectCollection<Connector>
                 {
                     CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
                     CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
                     CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
                 };
+                
+                // Clear the main Connectors collection - we'll add them programmatically after render
+                Connectors = new DiagramObjectCollection<Connector>();
             }
         }
     }
