@@ -461,6 +461,13 @@
     
     private bool _showSaveMessage = false;
     private string _saveMessage = "";
+    private System.Threading.Timer? _messageTimer;
+    
+    private void HideMessage(object? state)
+    {
+        _showSaveMessage = false;
+        InvokeAsync(StateHasChanged);
+    }
     
     private async Task SaveChart()
     {
@@ -471,14 +478,16 @@
             _showSaveMessage = true;
             StateHasChanged();
             
-            await Task.Delay(3000);
-            _showSaveMessage = false;
-            StateHasChanged();
+            // Hide message after 3 seconds using timer
+            _messageTimer?.Dispose();
+            _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
+            await Task.CompletedTask;
         }
     }
     
     private static readonly string[] SeriesColors = { "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4", "#ff5722", "#795548" };
     private int _colorIndex = 2; // Start after sample data colors
+    private static readonly Random SharedRandom = new(); // Use shared Random instance
     
     private void AddTagToChart(TagItem tag)
     {
@@ -489,7 +498,6 @@
         }
         
         // Generate sample data for the tag
-        var random = new Random();
         var now = DateTime.Now;
         var color = SeriesColors[_colorIndex % SeriesColors.Length];
         _colorIndex++;
@@ -501,7 +509,7 @@
             Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
             {
                 Timestamp = now.AddMinutes(-50 + i),
-                Value = 50 + random.NextDouble() * 30
+                Value = 50 + SharedRandom.NextDouble() * 30
             }).ToList()
         };
         

@@ -821,13 +821,20 @@
             if (response != null)
             {
                 newId = response.Id;
+                Navigation.NavigateTo($"/flows/{newId}");
+            }
+            else
+            {
+                // API didn't return an ID, use local ID
+                Navigation.NavigateTo($"/flows/{newId}");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to create flow in API: {ex.Message}");
+            // Still navigate to allow local editing
+            Navigation.NavigateTo($"/flows/{newId}");
         }
-        Navigation.NavigateTo($"/flows/{newId}");
     }
     
     private void EditFlow(Guid id)
@@ -840,13 +847,26 @@
         try
         {
             // Try to delete from backend
-            await ApiService.DeleteFlowAsync(id);
+            var success = await ApiService.DeleteFlowAsync(id);
+            if (success)
+            {
+                FlowsList.RemoveAll(f => f.Id == id);
+                StateHasChanged();
+            }
+            else
+            {
+                // API failed - still remove locally for demo purposes
+                FlowsList.RemoveAll(f => f.Id == id);
+                StateHasChanged();
+            }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to delete flow from API: {ex.Message}");
+            // Still remove locally for demo purposes
+            FlowsList.RemoveAll(f => f.Id == id);
+            StateHasChanged();
         }
-        FlowsList.RemoveAll(f => f.Id == id);
     }
     
     private void GoBack()
@@ -867,13 +887,9 @@
                 _saveMessage = CurrentFlow.Deployed ? "Flow deployed successfully!" : "Flow stopped.";
                 _showSaveMessage = true;
                 StateHasChanged();
-                // Hide message after 3 seconds
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(3000);
-                    _showSaveMessage = false;
-                    await InvokeAsync(StateHasChanged);
-                });
+                // Hide message after 3 seconds using timer
+                _messageTimer?.Dispose();
+                _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
             }
         }
         catch (Exception ex)
@@ -929,14 +945,18 @@
             _showSaveMessage = true;
             StateHasChanged();
             
-            // Hide message after 3 seconds
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(3000);
-                _showSaveMessage = false;
-                await InvokeAsync(StateHasChanged);
-            });
+            // Hide message after 3 seconds using timer
+            _messageTimer?.Dispose();
+            _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
         }
+    }
+    
+    private System.Threading.Timer? _messageTimer;
+    
+    private void HideMessage(object? state)
+    {
+        _showSaveMessage = false;
+        InvokeAsync(StateHasChanged);
     }
     
     private string SerializeFlowDefinition()
