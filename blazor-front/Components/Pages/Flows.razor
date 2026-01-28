@@ -76,14 +76,14 @@
                                               Width="100%"
                                               Height="100%"
                                               Palettes="@Palettes"
-                                              SymbolHeight="60"
-                                              SymbolWidth="100"
+                                              SymbolHeight="70"
+                                              SymbolWidth="120"
                                               SymbolMargin="@SymbolMargin"
                                               GetSymbolInfo="@GetSymbolInfo">
                     </SfSymbolPaletteComponent>
                 </div>
                 
-                @* Syncfusion Diagram *@
+                @* Syncfusion Diagram with HTML Node Templates *@
                 <div class="diagram-container" id="diagram-space">
                     <SfDiagramComponent @ref="Diagram" 
                                         ID="diagram"
@@ -451,32 +451,101 @@
     }
     
     /// <summary>
-    /// Creates a flow node with proper ports (input/output handles) similar to the original React app
+    /// Node type metadata with icons and category info matching the original React app
+    /// </summary>
+    private static readonly Dictionary<string, NodeTypeInfo> NodeTypes = new()
+    {
+        ["trigger-manual"] = new("⚡", "Triggers", "Manual trigger node"),
+        ["trigger-schedule"] = new("⏰", "Triggers", "Schedule-based trigger"),
+        ["trigger-tag"] = new("🏷️", "Triggers", "Tag change trigger"),
+        ["tag-input"] = new("📥", "Tag Operations", "Read tag value"),
+        ["tag-output"] = new("📤", "Tag Operations", "Write tag value"),
+        ["tag-write"] = new("✏️", "Tag Operations", "Write to tag"),
+        ["math-add"] = new("➕", "Math", "Add two values"),
+        ["math-subtract"] = new("➖", "Math", "Subtract two values"),
+        ["math-multiply"] = new("✖️", "Math", "Multiply two values"),
+        ["math-divide"] = new("➗", "Math", "Divide two values"),
+        ["logic-if"] = new("🔀", "Logic", "Conditional branch"),
+        ["compare-equal"] = new("⚖️", "Logic", "Compare equal"),
+        ["compare-greater"] = new("📈", "Logic", "Compare greater than"),
+        ["compare-less"] = new("📉", "Logic", "Compare less than"),
+        ["debug-log"] = new("🐛", "Output", "Debug logging"),
+        ["notification"] = new("🔔", "Output", "Send notification"),
+        ["database-write"] = new("💾", "Output", "Write to database")
+    };
+    
+    private record NodeTypeInfo(string Icon, string Category, string Description);
+    
+    /// <summary>
+    /// Gets the icon for a node type
+    /// </summary>
+    private string GetNodeIcon(string nodeType)
+    {
+        var baseType = nodeType.Split("-instance-").FirstOrDefault() ?? nodeType;
+        return NodeTypes.TryGetValue(baseType, out var info) ? info.Icon : "📦";
+    }
+    
+    /// <summary>
+    /// Creates a flow node with HTML template styling similar to the original React app
     /// </summary>
     private Node CreateFlowNode(string id, string label, string color, double x, double y, int inputCount, int outputCount)
     {
+        var baseType = id.Split("-instance-").FirstOrDefault()?.Replace("-1", "").Replace("-2", "") ?? id;
+        var icon = GetNodeIcon(baseType);
+        
         var node = new Node
         {
             ID = id,
             OffsetX = x,
             OffsetY = y,
-            Width = 140,
+            Width = 180,
             Height = 70,
             Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
-            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
-            Annotations = new DiagramObjectCollection<ShapeAnnotation>
-            {
-                new ShapeAnnotation 
-                { 
-                    Content = label, 
-                    Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true },
-                    Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
-                }
-            },
+            Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
             Ports = new DiagramObjectCollection<PointPort>()
         };
         
-        // Add input ports (left side)
+        // Create HTML-like multi-line annotation with icon and label
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = $"{icon}  {label}",
+            Style = new TextStyle 
+            { 
+                Color = "#ffffff", 
+                FontSize = 13, 
+                Bold = true,
+                FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.35 },
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        
+        // Add category/type subtitle
+        var category = NodeTypes.TryGetValue(baseType, out var info) ? info.Category : "Node";
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = category,
+            Style = new TextStyle 
+            { 
+                Color = "#9d9d9d", 
+                FontSize = 10, 
+                Italic = true,
+                FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.7 },
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        
+        // Add colored accent bar at top
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = "",
+            Style = new TextStyle { Color = color },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.02 }
+        });
+        
+        // Add input ports (left side) - styled like React app
         for (int i = 0; i < inputCount; i++)
         {
             var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
@@ -486,14 +555,14 @@
                 Offset = new DiagramPoint { X = 0, Y = yOffset },
                 Visibility = PortVisibility.Visible,
                 Shape = PortShapes.Circle,
-                Width = 12,
-                Height = 12,
+                Width = 14,
+                Height = 14,
                 Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 2 },
                 Constraints = PortConstraints.Default | PortConstraints.Draw
             });
         }
         
-        // Add output ports (right side)
+        // Add output ports (right side) - styled like React app
         for (int i = 0; i < outputCount; i++)
         {
             var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
@@ -503,8 +572,8 @@
                 Offset = new DiagramPoint { X = 1, Y = yOffset },
                 Visibility = PortVisibility.Visible,
                 Shape = PortShapes.Circle,
-                Width = 12,
-                Height = 12,
+                Width = 14,
+                Height = 14,
                 Style = new ShapeStyle { Fill = "#ff9800", StrokeColor = "#ffffff", StrokeWidth = 2 },
                 Constraints = PortConstraints.Default | PortConstraints.Draw
             });
@@ -594,23 +663,32 @@
     
     private Node CreatePaletteNode(string id, string label, string color, int inputCount, int outputCount)
     {
+        var icon = GetNodeIcon(id);
+        
         var node = new Node
         {
             ID = id,
-            Width = 100,
-            Height = 50,
+            Width = 110,
+            Height = 60,
             Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 6 },
-            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
-            Annotations = new DiagramObjectCollection<ShapeAnnotation>
-            {
-                new ShapeAnnotation
-                {
-                    Content = label,
-                    Style = new TextStyle { Color = "#ffffff", FontSize = 10, Bold = true }
-                }
-            },
+            Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
             Ports = new DiagramObjectCollection<PointPort>()
         };
+        
+        // Icon and label in single annotation
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = $"{icon}  {label}",
+            Style = new TextStyle 
+            { 
+                Color = "#ffffff", 
+                FontSize = 10, 
+                Bold = true,
+                FontFamily = "Segoe UI, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
+        });
         
         // Add input ports (left side) - visible circles
         for (int i = 0; i < inputCount; i++)
@@ -702,14 +780,54 @@
     {
         if (obj is Node node)
         {
-            // Set proper size for dropped nodes
-            node.Width = 140;
+            // Set proper size for dropped nodes matching our design
+            node.Width = 180;
             node.Height = 70;
             
             // Generate unique ID if not already an instance
             if (node.ID != null && !node.ID.Contains("-instance-"))
             {
-                node.ID = $"{node.ID}-instance-{Guid.NewGuid():N}";
+                var baseId = node.ID;
+                node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
+                
+                // Get category for subtitle
+                var category = NodeTypes.TryGetValue(baseId, out var info) ? info.Category : "Node";
+                var icon = GetNodeIcon(baseId);
+                var label = node.Annotations?.FirstOrDefault()?.Content?.ToString()?.Replace($"{icon}  ", "") ?? baseId;
+                
+                // Update styling to match flow nodes (dark background with colored border)
+                node.Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = node.Style?.StrokeColor ?? "#4caf50", StrokeWidth = 2 };
+                
+                // Clear and recreate annotations for proper styling
+                node.Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                {
+                    new ShapeAnnotation
+                    {
+                        Content = $"{icon}  {label}",
+                        Style = new TextStyle 
+                        { 
+                            Color = "#ffffff", 
+                            FontSize = 13, 
+                            Bold = true,
+                            FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+                        },
+                        Offset = new DiagramPoint { X = 0.5, Y = 0.35 },
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    },
+                    new ShapeAnnotation
+                    {
+                        Content = category,
+                        Style = new TextStyle 
+                        { 
+                            Color = "#9d9d9d", 
+                            FontSize = 10, 
+                            Italic = true,
+                            FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+                        },
+                        Offset = new DiagramPoint { X = 0.5, Y = 0.7 },
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    }
+                };
             }
             
             // Ensure ports are visible and enabled for connections
@@ -718,6 +836,8 @@
                 foreach (var port in node.Ports)
                 {
                     port.Visibility = PortVisibility.Visible;
+                    port.Width = 14;
+                    port.Height = 14;
                     port.Constraints = PortConstraints.Default | PortConstraints.Draw;
                 }
             }
@@ -753,14 +873,18 @@
                 node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
             }
             
-            // Ensure ports are visible after drop
+            // Ensure proper size
+            node.Width = 180;
+            node.Height = 70;
+            
+            // Ensure ports are visible after drop with proper styling
             if (node.Ports != null)
             {
                 foreach (var port in node.Ports)
                 {
                     port.Visibility = PortVisibility.Visible;
-                    port.Width = 12;
-                    port.Height = 12;
+                    port.Width = 14;
+                    port.Height = 14;
                 }
             }
         }
