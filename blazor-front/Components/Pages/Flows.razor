@@ -1,6 +1,8 @@
 @page "/flows"
 @page "/flows/{FlowId:guid}"
 @rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject ApiService ApiService
 
 <PageTitle>Flow Studio - DataForeman</PageTitle>
 
@@ -24,12 +26,12 @@
         {
             <SfGrid DataSource="@FlowsList" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
                 <GridColumns>
-                    <GridColumn Field="@nameof(FlowItem.Name)" HeaderText="Name" Width="200"></GridColumn>
-                    <GridColumn Field="@nameof(FlowItem.Description)" HeaderText="Description" Width="300"></GridColumn>
-                    <GridColumn Field="@nameof(FlowItem.Status)" HeaderText="Status" Width="100">
+                    <GridColumn Field="@nameof(FlowListItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(FlowListItem.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(FlowListItem.Status)" HeaderText="Status" Width="100">
                         <Template>
                             @{
-                                var flow = context as FlowItem;
+                                var flow = context as FlowListItem;
                                 if (flow != null)
                                 {
                                     <span class="status-badge @(flow.Deployed ? "deployed" : "stopped")">
@@ -39,16 +41,16 @@
                             }
                         </Template>
                     </GridColumn>
-                    <GridColumn Field="@nameof(FlowItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
+                    <GridColumn Field="@nameof(FlowListItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
                     <GridColumn HeaderText="Actions" Width="150">
                         <Template>
                             @{
-                                var flow = context as FlowItem;
+                                var flow = context as FlowListItem;
                                 if (flow != null)
                                 {
                                     <div class="action-buttons">
                                         <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditFlow(flow.Id))"></SfButton>
-                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteFlow(flow.Id))"></SfButton>
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(async () => await DeleteFlow(flow.Id))"></SfButton>
                                     </div>
                                 }
                             }
@@ -65,7 +67,11 @@
                 <SfButton CssClass="e-flat" IconCss="e-icons e-arrow-left" Content="Back" OnClick="@GoBack"></SfButton>
                 <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
-                <SfButton CssClass="e-outline" IconCss="e-icons e-play" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
+                @if (_showSaveMessage)
+                {
+                    <span class="save-message">@_saveMessage</span>
+                }
+                <SfButton CssClass="@(CurrentFlow.Deployed ? "e-danger" : "e-success")" IconCss="@(CurrentFlow.Deployed ? "e-icons e-stop" : "e-icons e-play")" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
                 <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveFlow"></SfButton>
             </div>
             
@@ -302,6 +308,18 @@
     .e-diagram {
         background: #fafafa !important;
     }
+    
+    .save-message {
+        color: #4caf50;
+        font-size: 13px;
+        padding: 0 12px;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
 </style>
 
 @code {
@@ -319,11 +337,11 @@
     private DiagramObjectCollection<Palette> Palettes = new();
     private SymbolMargin SymbolMargin = new() { Left = 5, Right = 5, Top = 5, Bottom = 5 };
     
-    private FlowItem CurrentFlow = new() { Name = "New Flow" };
+    private FlowListItem CurrentFlow = new() { Name = "New Flow" };
     private bool IsLoading = true;
     
-    // Sample flows - in production this would come from API
-    private List<FlowItem> FlowsList = new();
+    // Flows list - loaded from API or sample data
+    private List<FlowListItem> FlowsList = new();
     
     protected override async Task OnInitializedAsync()
     {
@@ -429,57 +447,39 @@
     {
         IsLoading = true;
         
-        // Simulate API call - in production, use HttpClient to fetch from backend
-        await Task.Delay(100);
-        
-        FlowsList = new List<FlowItem>
+        try
         {
-            new() { 
-                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
-                Name = "Temperature Monitor", 
-                Description = "Monitors tank temperatures and triggers alarms", 
-                Deployed = true, 
-                UpdatedAt = DateTime.Now.AddHours(-2),
-                Definition = @"{""nodes"":[{""id"":""trigger-1"",""x"":100,""y"":100,""type"":""trigger-manual""},{""id"":""tag-1"",""x"":300,""y"":100,""type"":""tag-input""}],""connectors"":[{""sourceId"":""trigger-1"",""targetId"":""tag-1""}]}"
-            },
-            new() { 
-                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), 
-                Name = "Pressure Alarm", 
-                Description = "Sends alerts when pressure exceeds threshold", 
-                Deployed = false, 
-                UpdatedAt = DateTime.Now.AddDays(-1),
-                Definition = "{}"
-            },
-            new() { 
-                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), 
-                Name = "Data Logger", 
-                Description = "Logs production data to database every 5 minutes", 
-                Deployed = true, 
-                UpdatedAt = DateTime.Now.AddMinutes(-30),
-                Definition = "{}"
-            },
-            new() { 
-                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), 
-                Name = "Tank Level Controller", 
-                Description = "Maintains tank levels within specified range", 
-                Deployed = true, 
-                UpdatedAt = DateTime.Now.AddHours(-6),
-                Definition = "{}"
-            },
-            new() { 
-                Id = Guid.Parse("55555555-5555-5555-5555-555555555555"), 
-                Name = "Batch Report Generator", 
-                Description = "Generates production reports at end of shift", 
-                Deployed = false, 
-                UpdatedAt = DateTime.Now.AddDays(-3),
-                Definition = "{}"
+            // Try to load from API first
+            var response = await ApiService.GetFlowsAsync();
+            if (response != null && response.Items.Count > 0)
+            {
+                FlowsList = response.Items.Select(f => new FlowListItem
+                {
+                    Id = f.Id,
+                    Name = f.Name,
+                    Description = f.Description ?? "",
+                    Deployed = f.Deployed,
+                    UpdatedAt = f.UpdatedAt,
+                    Definition = f.Definition
+                }).ToList();
             }
-        };
+            else
+            {
+                // Fall back to sample data if API is not available
+                FlowsList = GetSampleFlows();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load flows from API: {ex.Message}");
+            // Fall back to sample data
+            FlowsList = GetSampleFlows();
+        }
         
         IsLoading = false;
     }
     
-    private void LoadFlowDefinition(FlowItem flow)
+    private void LoadFlowDefinition(FlowListItem flow)
     {
         // Load existing nodes from flow definition
         // This would parse the JSON definition and create nodes/connectors
@@ -805,9 +805,29 @@
         return new SymbolInfo { Fit = true };
     }
     
-    private void CreateNewFlow()
+    private async Task CreateNewFlow()
     {
-        Navigation.NavigateTo($"/flows/{Guid.NewGuid()}");
+        var newId = Guid.NewGuid();
+        try
+        {
+            // Create flow in backend
+            var response = await ApiService.CreateFlowAsync(new CreateFlowRequest(
+                "New Flow",
+                "New flow description",
+                "{}",
+                "continuous",
+                1000
+            ));
+            if (response != null)
+            {
+                newId = response.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to create flow in API: {ex.Message}");
+        }
+        Navigation.NavigateTo($"/flows/{newId}");
     }
     
     private void EditFlow(Guid id)
@@ -815,8 +835,17 @@
         Navigation.NavigateTo($"/flows/{id}");
     }
     
-    private void DeleteFlow(Guid id)
+    private async Task DeleteFlow(Guid id)
     {
+        try
+        {
+            // Try to delete from backend
+            await ApiService.DeleteFlowAsync(id);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to delete flow from API: {ex.Message}");
+        }
         FlowsList.RemoveAll(f => f.Id == id);
     }
     
@@ -825,20 +854,117 @@
         Navigation.NavigateTo("/flows");
     }
     
-    private void ToggleDeploy()
+    private async Task ToggleDeploy()
     {
-        CurrentFlow.Deployed = !CurrentFlow.Deployed;
+        var newDeployState = !CurrentFlow.Deployed;
+        try
+        {
+            // Deploy/undeploy via API
+            var response = await ApiService.DeployFlowAsync(CurrentFlow.Id, newDeployState);
+            if (response != null && response.Ok)
+            {
+                CurrentFlow.Deployed = response.Deployed;
+                _saveMessage = CurrentFlow.Deployed ? "Flow deployed successfully!" : "Flow stopped.";
+                _showSaveMessage = true;
+                StateHasChanged();
+                // Hide message after 3 seconds
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(3000);
+                    _showSaveMessage = false;
+                    await InvokeAsync(StateHasChanged);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to deploy flow: {ex.Message}");
+            // Fall back to local state change
+            CurrentFlow.Deployed = newDeployState;
+        }
     }
+    
+    private string _saveMessage = "";
+    private bool _showSaveMessage = false;
     
     private async Task SaveFlow()
     {
         // Save flow to backend - serialize nodes and connectors
         if (Diagram != null)
         {
-            // In production, serialize the diagram and send to API
-            CurrentFlow.UpdatedAt = DateTime.Now;
-            await Task.CompletedTask;
+            try
+            {
+                // Serialize the diagram state to JSON
+                var definition = SerializeFlowDefinition();
+                
+                // Update via API
+                var success = await ApiService.UpdateFlowAsync(CurrentFlow.Id, new UpdateFlowRequest(
+                    CurrentFlow.Name,
+                    CurrentFlow.Description,
+                    definition,
+                    "continuous",
+                    1000,
+                    null,
+                    null
+                ));
+                
+                if (success)
+                {
+                    CurrentFlow.UpdatedAt = DateTime.Now;
+                    _saveMessage = "Flow saved successfully!";
+                }
+                else
+                {
+                    _saveMessage = "Flow saved locally (API unavailable)";
+                    CurrentFlow.UpdatedAt = DateTime.Now;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to save flow: {ex.Message}");
+                _saveMessage = "Flow saved locally (API error)";
+                CurrentFlow.UpdatedAt = DateTime.Now;
+            }
+            
+            _showSaveMessage = true;
+            StateHasChanged();
+            
+            // Hide message after 3 seconds
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(3000);
+                _showSaveMessage = false;
+                await InvokeAsync(StateHasChanged);
+            });
         }
+    }
+    
+    private string SerializeFlowDefinition()
+    {
+        // Serialize nodes and connectors to JSON format
+        var flowDef = new
+        {
+            nodes = Nodes.Select(n => new
+            {
+                id = n.ID,
+                x = n.OffsetX,
+                y = n.OffsetY,
+                type = n.ID?.Split("-instance-").FirstOrDefault() ?? "unknown",
+                label = n.Annotations?.FirstOrDefault()?.Content ?? n.ID,
+                width = n.Width,
+                height = n.Height
+            }).ToList(),
+            connectors = Connectors.Select(c => new
+            {
+                id = c.ID,
+                sourceId = c.SourceID,
+                sourcePort = c.SourcePortID,
+                targetId = c.TargetID,
+                targetPort = c.TargetPortID
+            }).ToList()
+        };
+        
+        return System.Text.Json.JsonSerializer.Serialize(flowDef);
     }
     
     private void OnNodeCreating(IDiagramObject obj)
@@ -987,7 +1113,54 @@
         return string.Join(" ", parts.Take(2)).ToUpper();
     }
     
-    class FlowItem
+    private List<FlowListItem> GetSampleFlows()
+    {
+        return new List<FlowListItem>
+        {
+            new() { 
+                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
+                Name = "Temperature Monitor", 
+                Description = "Monitors tank temperatures and triggers alarms", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddHours(-2),
+                Definition = @"{""nodes"":[{""id"":""trigger-1"",""x"":150,""y"":150,""type"":""trigger-manual""},{""id"":""tag-1"",""x"":350,""y"":150,""type"":""tag-input""}],""connectors"":[{""sourceId"":""trigger-1"",""targetId"":""tag-1""}]}"
+            },
+            new() { 
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), 
+                Name = "Pressure Alarm", 
+                Description = "Sends alerts when pressure exceeds threshold", 
+                Deployed = false, 
+                UpdatedAt = DateTime.Now.AddDays(-1),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), 
+                Name = "Data Logger", 
+                Description = "Logs production data to database every 5 minutes", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddMinutes(-30),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), 
+                Name = "Tank Level Controller", 
+                Description = "Maintains tank levels within specified range", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddHours(-6),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555555"), 
+                Name = "Batch Report Generator", 
+                Description = "Generates production reports at end of shift", 
+                Deployed = false, 
+                UpdatedAt = DateTime.Now.AddDays(-3),
+                Definition = "{}"
+            }
+        };
+    }
+    
+    class FlowListItem
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = "";

@@ -1,4 +1,5 @@
 using DataForeman.BlazorUI.Components;
+using DataForeman.BlazorUI.Services;
 using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,9 @@ builder.Services.AddScoped(sp => new HttpClient
 { 
     BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5100") 
 });
+
+// Add API service
+builder.Services.AddScoped<ApiService>();
 
 var app = builder.Build();
 Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(builder.Configuration["SyncfusionLicenseKey"] ?? "Ngo9BigBOggjHTQxAR8/V1JGaF5cXGpCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWX5fd3VXRGVZVkZwXUdWYEs=");

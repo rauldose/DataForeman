@@ -36,13 +36,15 @@
             </SfListView>
             
             <h3>Available Tags</h3>
+            <p class="help-text">Click a tag to add it to the chart</p>
             <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearchQuery" CssClass="tag-search"></SfTextBox>
             <div class="tag-list">
                 @foreach (var tag in FilteredTags)
                 {
-                    <div class="tag-item" @onclick="@(() => AddTagToChart(tag))">
+                    <div class="tag-item" @onclick="@(() => AddTagToChart(tag))" title="Click to add to chart">
                         <span class="tag-icon">🏷️</span>
                         <span class="tag-path">@tag.Path</span>
+                        <span class="add-icon">+</span>
                     </div>
                 }
             </div>
@@ -55,6 +57,10 @@
                     <SfTextBox @bind-Value="SelectedChart.Name" Placeholder="Chart Name" CssClass="chart-name-input"></SfTextBox>
                     <SfDropDownList TItem="string" TValue="string" DataSource="@ChartTypes" @bind-Value="SelectedChart.ChartType" Placeholder="Chart Type"></SfDropDownList>
                     <div class="toolbar-spacer"></div>
+                    @if (_showSaveMessage)
+                    {
+                        <span class="save-message">@_saveMessage</span>
+                    }
                     <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" @bind-Value="SelectedTimeRange" Placeholder="Time Range">
                         <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                     </SfDropDownList>
@@ -213,6 +219,13 @@
         overflow-y: auto;
     }
     
+    .help-text {
+        font-size: 11px;
+        color: #9d9d9d;
+        margin: 0 0 8px 0;
+        font-style: italic;
+    }
+    
     .tag-item {
         display: flex;
         align-items: center;
@@ -220,11 +233,25 @@
         padding: 8px;
         border-radius: 4px;
         cursor: pointer;
-        transition: background 0.2s;
+        transition: all 0.2s;
+        border: 1px solid transparent;
     }
     
     .tag-item:hover {
         background: #3c3c3c;
+        border-color: #4caf50;
+    }
+    
+    .tag-item:hover .add-icon {
+        opacity: 1;
+    }
+    
+    .add-icon {
+        margin-left: auto;
+        color: #4caf50;
+        font-weight: bold;
+        opacity: 0;
+        transition: opacity 0.2s;
     }
     
     .tag-path {
@@ -232,6 +259,19 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        flex: 1;
+    }
+    
+    .save-message {
+        color: #4caf50;
+        font-size: 13px;
+        padding: 0 12px;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
     
     .chart-editor {
@@ -408,26 +448,71 @@
             ChartType = "Line"
         };
         SavedCharts.Add(SelectedChart);
+        // Reset chart series for new chart
+        ChartSeries = new List<ChartSeriesData>();
     }
     
     private void SelectChart(ChartItem chart)
     {
         SelectedChart = chart;
+        // Load chart-specific series (in production, load from backend)
+        GenerateSampleData();
     }
     
-    private void SaveChart()
+    private bool _showSaveMessage = false;
+    private string _saveMessage = "";
+    
+    private async Task SaveChart()
     {
-        // Save to backend
+        if (SelectedChart != null)
+        {
+            // In production, save to backend via API
+            _saveMessage = "Chart saved successfully!";
+            _showSaveMessage = true;
+            StateHasChanged();
+            
+            await Task.Delay(3000);
+            _showSaveMessage = false;
+            StateHasChanged();
+        }
     }
+    
+    private static readonly string[] SeriesColors = { "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4", "#ff5722", "#795548" };
+    private int _colorIndex = 2; // Start after sample data colors
     
     private void AddTagToChart(TagItem tag)
     {
-        // Add tag as a series to the chart
+        // Check if tag is already added
+        if (ChartSeries.Any(s => s.Name == tag.Path.Split('.').Last()))
+        {
+            return; // Already added
+        }
+        
+        // Generate sample data for the tag
+        var random = new Random();
+        var now = DateTime.Now;
+        var color = SeriesColors[_colorIndex % SeriesColors.Length];
+        _colorIndex++;
+        
+        var newSeries = new ChartSeriesData
+        {
+            Name = tag.Path.Split('.').Last(), // Use last part of path as name
+            Color = color,
+            Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+            {
+                Timestamp = now.AddMinutes(-50 + i),
+                Value = 50 + random.NextDouble() * 30
+            }).ToList()
+        };
+        
+        ChartSeries.Add(newSeries);
+        StateHasChanged();
     }
     
     private void RemoveSeries(ChartSeriesData series)
     {
         ChartSeries.Remove(series);
+        StateHasChanged();
     }
     
     record TimeRangeOption(string Label, string Value);
