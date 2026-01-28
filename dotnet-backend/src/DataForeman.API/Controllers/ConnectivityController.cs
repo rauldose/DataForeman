@@ -8,7 +8,7 @@ using DataForeman.Infrastructure.Data;
 
 namespace DataForeman.API.Controllers;
 
-[Authorize]
+[AllowAnonymous]
 [ApiController]
 [Route("api/[controller]")]
 public class ConnectivityController : ControllerBase

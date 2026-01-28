@@ -8,7 +8,7 @@ using DataForeman.Infrastructure.Data;
 
 namespace DataForeman.API.Controllers;
 
-[Authorize]
+[AllowAnonymous]
 [ApiController]
 [Route("api/[controller]")]
 public class DashboardsController : ControllerBase
@@ -29,7 +29,7 @@ public class DashboardsController : ControllerBase
         [FromQuery] int offset = 0)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         IQueryable<Dashboard> query = _context.Dashboards
             .Where(d => !d.IsDeleted);
@@ -65,7 +65,7 @@ public class DashboardsController : ControllerBase
     public async Task<IActionResult> GetDashboard(Guid id)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var dashboard = await _context.Dashboards
             .Where(d => d.Id == id && !d.IsDeleted && (d.UserId == userId || d.IsShared))
@@ -96,11 +96,11 @@ public class DashboardsController : ControllerBase
     public async Task<IActionResult> CreateDashboard([FromBody] CreateDashboardRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var dashboard = new Dashboard
         {
-            UserId = userId.Value,
+            UserId = userId,
             Name = request.Name ?? "New Dashboard",
             Description = request.Description,
             Layout = request.Layout ?? "{}",
@@ -121,7 +121,7 @@ public class DashboardsController : ControllerBase
     public async Task<IActionResult> UpdateDashboard(Guid id, [FromBody] UpdateDashboardRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var dashboard = await _context.Dashboards
             .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId && !d.IsDeleted);
@@ -148,7 +148,7 @@ public class DashboardsController : ControllerBase
     public async Task<IActionResult> DeleteDashboard(Guid id)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var dashboard = await _context.Dashboards
             .FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId && !d.IsDeleted);
@@ -167,7 +167,10 @@ public class DashboardsController : ControllerBase
         return Ok(new { ok = true });
     }
 
-    private Guid? GetUserIdFromClaims()
+    // Default user ID for anonymous access (single-user local application)
+    private static readonly Guid DefaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    private Guid GetUserIdFromClaims()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
             ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
@@ -176,7 +179,7 @@ public class DashboardsController : ControllerBase
         {
             return userId;
         }
-        return null;
+        return DefaultUserId;
     }
 }
 

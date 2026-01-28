@@ -8,7 +8,7 @@ using DataForeman.Infrastructure.Data;
 
 namespace DataForeman.API.Controllers;
 
-[Authorize]
+[AllowAnonymous]
 [ApiController]
 [Route("api/[controller]")]
 public class ChartsController : ControllerBase
@@ -29,7 +29,7 @@ public class ChartsController : ControllerBase
         [FromQuery] int offset = 0)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         IQueryable<ChartConfig> query = _context.ChartConfigs
             .Where(c => !c.IsDeleted);
@@ -69,7 +69,7 @@ public class ChartsController : ControllerBase
     public async Task<IActionResult> GetChart(Guid id)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var chart = await _context.ChartConfigs
             .Where(c => c.Id == id && !c.IsDeleted && (c.UserId == userId || c.IsShared || c.IsSystemChart))
@@ -87,11 +87,11 @@ public class ChartsController : ControllerBase
     public async Task<IActionResult> CreateChart([FromBody] CreateChartRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var chart = new ChartConfig
         {
-            UserId = userId.Value,
+            UserId = userId,
             Name = request.Name ?? "New Chart",
             Description = request.Description,
             ChartType = request.ChartType ?? "line",
@@ -119,7 +119,7 @@ public class ChartsController : ControllerBase
     public async Task<IActionResult> UpdateChart(Guid id, [FromBody] UpdateChartRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var chart = await _context.ChartConfigs
             .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && !c.IsDeleted);
@@ -153,7 +153,7 @@ public class ChartsController : ControllerBase
     public async Task<IActionResult> DeleteChart(Guid id)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var chart = await _context.ChartConfigs
             .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && !c.IsDeleted);
@@ -172,7 +172,10 @@ public class ChartsController : ControllerBase
         return Ok(new { ok = true });
     }
 
-    private Guid? GetUserIdFromClaims()
+    // Default user ID for anonymous access (single-user local application)
+    private static readonly Guid DefaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    private Guid GetUserIdFromClaims()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
             ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
@@ -181,7 +184,7 @@ public class ChartsController : ControllerBase
         {
             return userId;
         }
-        return null;
+        return DefaultUserId;
     }
 }
 

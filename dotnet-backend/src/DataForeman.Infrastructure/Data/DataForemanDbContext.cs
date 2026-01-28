@@ -320,6 +320,21 @@ public class DataForemanDbContext : DbContext
 
     private static void SeedData(ModelBuilder modelBuilder)
     {
+        // Seed default user for anonymous access
+        var defaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        modelBuilder.Entity<User>().HasData(
+            new User 
+            { 
+                Id = defaultUserId, 
+                Email = "default@local", 
+                DisplayName = "Default User",
+                PasswordHash = "", // No password for local user
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+
         // Seed PollGroups
         modelBuilder.Entity<PollGroup>().HasData(
             new PollGroup { GroupId = 1, Name = "Ultra Fast", PollRateMs = 50, Description = "Critical real-time control (50ms)" },

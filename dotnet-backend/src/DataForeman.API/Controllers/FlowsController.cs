@@ -8,7 +8,7 @@ using DataForeman.Infrastructure.Data;
 
 namespace DataForeman.API.Controllers;
 
-[Authorize]
+[AllowAnonymous]
 [ApiController]
 [Route("api/[controller]")]
 public class FlowsController : ControllerBase
@@ -29,7 +29,7 @@ public class FlowsController : ControllerBase
         [FromQuery] int offset = 0)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         IQueryable<Flow> query = _context.Flows;
 
@@ -68,7 +68,7 @@ public class FlowsController : ControllerBase
     public async Task<IActionResult> GetFlow(Guid id)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var flow = await _context.Flows
             .Where(f => f.Id == id && (f.OwnerUserId == userId || f.Shared))
@@ -86,11 +86,11 @@ public class FlowsController : ControllerBase
     public async Task<IActionResult> CreateFlow([FromBody] CreateFlowRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var flow = new Flow
         {
-            OwnerUserId = userId.Value,
+            OwnerUserId = userId,
             Name = request.Name ?? "New Flow",
             Description = request.Description,
             ExecutionMode = request.ExecutionMode ?? "continuous",
@@ -111,7 +111,7 @@ public class FlowsController : ControllerBase
     public async Task<IActionResult> UpdateFlow(Guid id, [FromBody] UpdateFlowRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var flow = await _context.Flows
             .FirstOrDefaultAsync(f => f.Id == id && f.OwnerUserId == userId);
@@ -146,7 +146,7 @@ public class FlowsController : ControllerBase
     public async Task<IActionResult> DeployFlow(Guid id, [FromBody] DeployRequest request)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var flow = await _context.Flows
             .FirstOrDefaultAsync(f => f.Id == id && f.OwnerUserId == userId);
@@ -195,7 +195,7 @@ public class FlowsController : ControllerBase
     public async Task<IActionResult> DeleteFlow(Guid id)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var flow = await _context.Flows
             .FirstOrDefaultAsync(f => f.Id == id && f.OwnerUserId == userId);
@@ -217,7 +217,7 @@ public class FlowsController : ControllerBase
     public async Task<IActionResult> GetFlowExecutions(Guid id, [FromQuery] int limit = 50)
     {
         var userId = GetUserIdFromClaims();
-        if (userId == null) return Unauthorized();
+        
 
         var flow = await _context.Flows
             .FirstOrDefaultAsync(f => f.Id == id && (f.OwnerUserId == userId || f.Shared));
@@ -293,7 +293,10 @@ public class FlowsController : ControllerBase
         return Ok(new { categories });
     }
 
-    private Guid? GetUserIdFromClaims()
+    // Default user ID for anonymous access (single-user local application)
+    private static readonly Guid DefaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    private Guid GetUserIdFromClaims()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
             ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
@@ -302,7 +305,8 @@ public class FlowsController : ControllerBase
         {
             return userId;
         }
-        return null;
+        // Return default user ID for anonymous access
+        return DefaultUserId;
     }
 }
 
