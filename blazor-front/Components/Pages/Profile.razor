@@ -1,0 +1,348 @@
+@page "/profile"
+@rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject CustomAuthStateProvider AuthProvider
+@inject ApiService ApiService
+@inject AppStateService AppState
+@inject NavigationManager Navigation
+@attribute [Authorize]
+
+<PageTitle>Profile - DataForeman</PageTitle>
+
+<div class="profile-page">
+    <div class="page-header">
+        <h1>My Profile</h1>
+    </div>
+
+    <div class="profile-content">
+        <div class="profile-section">
+            <h3>Account Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">@CurrentUser?.Email</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Display Name</span>
+                    <span class="info-value">@(CurrentUser?.DisplayName ?? "Not set")</span>
+                </div>
+            </div>
+            <SfButton CssClass="e-outline" Content="Edit Profile" OnClick="@OpenEditDialog"></SfButton>
+        </div>
+
+        <div class="profile-section">
+            <h3>Security</h3>
+            <p class="section-description">Update your password to keep your account secure.</p>
+            <SfButton CssClass="e-outline" Content="Change Password" OnClick="@OpenPasswordDialog"></SfButton>
+        </div>
+
+        <div class="profile-section">
+            <h3>Sessions</h3>
+            <p class="section-description">Sign out of all devices except this one.</p>
+            <SfButton CssClass="e-danger e-outline" Content="Sign Out Everywhere" OnClick="@SignOutEverywhere"></SfButton>
+        </div>
+
+        <div class="profile-section danger-zone">
+            <h3>Danger Zone</h3>
+            <p class="section-description">Sign out of your current session.</p>
+            <SfButton CssClass="e-danger" Content="Sign Out" OnClick="@SignOut"></SfButton>
+        </div>
+    </div>
+</div>
+
+@* Edit Profile Dialog *@
+<SfDialog @bind-Visible="ShowEditDialog" Header="Edit Profile" Width="400px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <div class="dialog-form">
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <SfTextBox @bind-Value="EditDisplayName" Placeholder="Enter your display name"></SfTextBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@CloseEditDialog"></DialogButton>
+        <DialogButton Content="Save" IsPrimary="true" OnClick="@SaveProfile"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+@* Change Password Dialog *@
+<SfDialog @bind-Visible="ShowPasswordDialog" Header="Change Password" Width="400px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <div class="dialog-form">
+                @if (!string.IsNullOrEmpty(PasswordError))
+                {
+                    <div class="error-message">@PasswordError</div>
+                }
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <SfTextBox @bind-Value="CurrentPassword" Placeholder="Enter current password" Type="InputType.Password"></SfTextBox>
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <SfTextBox @bind-Value="NewPassword" Placeholder="Enter new password" Type="InputType.Password"></SfTextBox>
+                </div>
+                <div class="form-group">
+                    <label>Confirm New Password</label>
+                    <SfTextBox @bind-Value="ConfirmPassword" Placeholder="Confirm new password" Type="InputType.Password"></SfTextBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@ClosePasswordDialog"></DialogButton>
+        <DialogButton Content="Change Password" IsPrimary="true" OnClick="@ChangePassword"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+@* Success Message *@
+@if (ShowSuccessMessage)
+{
+    <div class="success-toast">
+        <span>✓</span>
+        <span>@SuccessMessage</span>
+    </div>
+}
+
+<style>
+    .profile-page {
+        max-width: 800px;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0;
+    }
+
+    .profile-content {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .profile-section {
+        background: #252526;
+        border-radius: 8px;
+        padding: 24px;
+    }
+
+    .profile-section h3 {
+        margin: 0 0 16px;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .section-description {
+        color: #9d9d9d;
+        font-size: 14px;
+        margin: 0 0 16px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .info-label {
+        font-size: 12px;
+        color: #9d9d9d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 15px;
+        color: #fff;
+    }
+
+    .danger-zone {
+        border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+
+    .danger-zone h3 {
+        color: #f44336;
+    }
+
+    .dialog-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .form-group label {
+        font-size: 13px;
+        color: #9d9d9d;
+    }
+
+    .error-message {
+        padding: 12px;
+        background: rgba(244, 67, 54, 0.1);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 4px;
+        color: #f44336;
+        font-size: 13px;
+    }
+
+    .success-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        background: #4caf50;
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease;
+    }
+
+    @@keyframes slideIn {
+        from { transform: translateY(100px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+</style>
+
+@code {
+    private UserInfo? CurrentUser;
+    
+    // Edit dialog
+    private bool ShowEditDialog = false;
+    private string EditDisplayName = "";
+    
+    // Password dialog
+    private bool ShowPasswordDialog = false;
+    private string CurrentPassword = "";
+    private string NewPassword = "";
+    private string ConfirmPassword = "";
+    private string PasswordError = "";
+    
+    // Success message
+    private bool ShowSuccessMessage = false;
+    private string SuccessMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        CurrentUser = await AuthProvider.GetCurrentUserAsync();
+    }
+
+    private void OpenEditDialog()
+    {
+        EditDisplayName = CurrentUser?.DisplayName ?? "";
+        ShowEditDialog = true;
+    }
+
+    private void CloseEditDialog()
+    {
+        ShowEditDialog = false;
+    }
+
+    private async Task SaveProfile()
+    {
+        if (CurrentUser != null)
+        {
+            var request = new UpdateUserRequest(EditDisplayName, null, null, null);
+            var success = await ApiService.UpdateUserAsync(CurrentUser.Id, request);
+            
+            if (success)
+            {
+                CurrentUser.DisplayName = EditDisplayName;
+                ShowEditDialog = false;
+                await ShowSuccess("Profile updated successfully");
+            }
+        }
+    }
+
+    private void OpenPasswordDialog()
+    {
+        CurrentPassword = "";
+        NewPassword = "";
+        ConfirmPassword = "";
+        PasswordError = "";
+        ShowPasswordDialog = true;
+    }
+
+    private void ClosePasswordDialog()
+    {
+        ShowPasswordDialog = false;
+    }
+
+    private async Task ChangePassword()
+    {
+        if (string.IsNullOrEmpty(CurrentPassword) || string.IsNullOrEmpty(NewPassword))
+        {
+            PasswordError = "Please fill in all fields.";
+            return;
+        }
+
+        if (NewPassword != ConfirmPassword)
+        {
+            PasswordError = "New passwords do not match.";
+            return;
+        }
+
+        if (NewPassword.Length < 6)
+        {
+            PasswordError = "Password must be at least 6 characters.";
+            return;
+        }
+
+        var success = await ApiService.ChangePasswordAsync(CurrentPassword, NewPassword);
+        
+        if (success)
+        {
+            ShowPasswordDialog = false;
+            await ShowSuccess("Password changed successfully");
+        }
+        else
+        {
+            PasswordError = "Failed to change password. Please check your current password.";
+        }
+    }
+
+    private async Task SignOutEverywhere()
+    {
+        // This would revoke all refresh tokens
+        await AuthProvider.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+
+    private async Task SignOut()
+    {
+        await AuthProvider.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login");
+    }
+
+    private async Task ShowSuccess(string message)
+    {
+        SuccessMessage = message;
+        ShowSuccessMessage = true;
+        StateHasChanged();
+        
+        await Task.Delay(3000);
+        ShowSuccessMessage = false;
+        StateHasChanged();
+    }
+}

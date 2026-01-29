@@ -1,5 +1,6 @@
 using DataForeman.BlazorUI.Components;
 using DataForeman.BlazorUI.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,8 +21,23 @@ builder.Services.AddScoped(sp => new HttpClient
 // Add API service
 builder.Services.AddScoped<ApiService>();
 
+// Add App State service
+builder.Services.AddScoped<AppStateService>();
+
+// Add Authentication services
+builder.Services.AddScoped<CustomAuthStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(provider => 
+    provider.GetRequiredService<CustomAuthStateProvider>());
+builder.Services.AddAuthorizationCore();
+
 var app = builder.Build();
-Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(builder.Configuration["SyncfusionLicenseKey"] ?? "Ngo9BigBOggjHTQxAR8/V1JGaF5cXGpCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdlWX5fd3VXRGVZVkZwXUdWYEs=");
+
+// Register Syncfusion license (must be configured via appsettings.json or environment variable)
+var syncfusionKey = builder.Configuration["SyncfusionLicenseKey"];
+if (!string.IsNullOrEmpty(syncfusionKey))
+{
+    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(syncfusionKey);
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

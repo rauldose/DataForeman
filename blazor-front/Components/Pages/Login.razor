@@ -1,0 +1,257 @@
+@page "/login"
+@layout EmptyLayout
+@using DataForeman.BlazorUI.Services
+@inject CustomAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Login - DataForeman</PageTitle>
+
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-header">
+            <span class="logo">⚙️</span>
+            <h1>DataForeman</h1>
+            <p class="subtitle">Please log in to continue</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="error-message">
+                <span class="error-icon">⚠️</span>
+                <span>@ErrorMessage</span>
+            </div>
+        }
+
+        <div class="login-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <SfTextBox @bind-Value="Email" 
+                           Placeholder="Enter your email" 
+                           Type="InputType.Email"
+                           CssClass="form-input"
+                           Enabled="@(!IsLoading)"></SfTextBox>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <SfTextBox @bind-Value="Password" 
+                           Placeholder="Enter your password" 
+                           Type="InputType.Password"
+                           CssClass="form-input"
+                           Enabled="@(!IsLoading)"></SfTextBox>
+            </div>
+
+            <SfButton CssClass="e-primary login-button" 
+                      Content="@(IsLoading ? "Logging in..." : "Login")"
+                      OnClick="@HandleLogin"
+                      Disabled="@IsLoading">
+            </SfButton>
+            
+            <div class="register-link">
+                <span>Don't have an account?</span>
+                <a href="/register">Register</a>
+            </div>
+        </div>
+
+        @if (ShowDemoMode)
+        {
+            <div class="demo-section">
+                <div class="demo-header">
+                    <span class="demo-icon">ℹ️</span>
+                    <span>Demo Mode Available</span>
+                </div>
+                <p class="demo-text">
+                    Try DataForeman with a demo account. You'll have limited permissions.
+                </p>
+                <SfButton CssClass="e-outline demo-button" 
+                          Content="Use Demo Account"
+                          OnClick="@UseDemoAccount">
+                </SfButton>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .login-page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+
+    .login-container {
+        width: 100%;
+        max-width: 400px;
+        padding: 40px;
+        background: #252526;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+
+    .login-header .logo {
+        font-size: 48px;
+        display: block;
+        margin-bottom: 16px;
+    }
+
+    .login-header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+        color: #fff;
+    }
+
+    .login-header .subtitle {
+        margin: 8px 0 0;
+        color: #9d9d9d;
+        font-size: 14px;
+    }
+
+    .error-message {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(244, 67, 54, 0.1);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 8px;
+        color: #f44336;
+        margin-bottom: 24px;
+    }
+
+    .login-form {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .form-group label {
+        font-size: 14px;
+        color: #9d9d9d;
+        font-weight: 500;
+    }
+
+    .form-input {
+        width: 100%;
+    }
+
+    .login-button {
+        width: 100%;
+        height: 44px;
+        margin-top: 8px;
+    }
+
+    .register-link {
+        text-align: center;
+        font-size: 14px;
+        color: #9d9d9d;
+    }
+
+    .register-link a {
+        color: #4caf50;
+        text-decoration: none;
+        margin-left: 4px;
+    }
+
+    .register-link a:hover {
+        text-decoration: underline;
+    }
+
+    .demo-section {
+        margin-top: 32px;
+        padding: 20px;
+        background: rgba(33, 150, 243, 0.1);
+        border: 1px solid rgba(33, 150, 243, 0.3);
+        border-radius: 8px;
+    }
+
+    .demo-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        color: #2196f3;
+        margin-bottom: 8px;
+    }
+
+    .demo-text {
+        font-size: 13px;
+        color: #9d9d9d;
+        margin: 0 0 16px;
+    }
+
+    .demo-button {
+        width: 100%;
+    }
+</style>
+
+@code {
+    private string Email = "";
+    private string Password = "";
+    private string ErrorMessage = "";
+    private bool IsLoading = false;
+    private bool ShowDemoMode = false; // Can be enabled via config
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if already authenticated
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
+        {
+            ErrorMessage = "Please enter your email and password.";
+            return;
+        }
+
+        IsLoading = true;
+        ErrorMessage = "";
+
+        try
+        {
+            var result = await AuthProvider.LoginAsync(Email, Password);
+
+            if (result.Success)
+            {
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                ErrorMessage = result.Error ?? "Login failed. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void UseDemoAccount()
+    {
+        Email = "demo@dataforeman.local";
+        Password = "demo123";
+    }
+}

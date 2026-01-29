@@ -1,4 +1,8 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthProvider
+@inject AppStateService AppState
 
 <div class="page-wrapper">
     <nav class="sidebar @(SidebarToggle ? "expanded" : "collapsed")">
@@ -40,6 +44,15 @@
                     @if (SidebarToggle) { <span class="menu-text">Diagnostics</span> }
                 </a>
             </li>
+            @if (ShowUsersMenu)
+            {
+                <li class="menu-item @(IsActive("/users") ? "active" : "")">
+                    <a href="/users">
+                        <span class="menu-icon">👥</span>
+                        @if (SidebarToggle) { <span class="menu-text">Users</span> }
+                    </a>
+                </li>
+            }
         </ul>
     </nav>
     
@@ -50,7 +63,22 @@
             </button>
             <div class="top-bar-title">DataForeman</div>
             <div class="top-bar-actions">
-                <SfButton CssClass="e-flat" IconCss="e-icons e-user" Content="@UserName"></SfButton>
+                <div class="user-menu">
+                    <SfButton CssClass="e-flat" IconCss="e-icons e-user" Content="@UserName" OnClick="@ToggleUserMenu"></SfButton>
+                    @if (ShowUserMenu)
+                    {
+                        <div class="user-dropdown-menu">
+                            <div class="user-dropdown-item" @onclick="@GoToProfile">
+                                <span class="menu-icon">👤</span>
+                                <span>My Profile</span>
+                            </div>
+                            <div class="user-dropdown-item" @onclick="@SignOut">
+                                <span class="menu-icon">🚪</span>
+                                <span>Sign Out</span>
+                            </div>
+                        </div>
+                    }
+                </div>
             </div>
         </header>
         
@@ -67,14 +95,46 @@
 </div>
 
 @code {
-    [Inject] NavigationManager Navigation { get; set; } = default!;
-    
     private bool SidebarToggle = true;
     private string UserName = "User";
+    private bool ShowUsersMenu = false;
+    private bool ShowUserMenu = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserInfo();
+        AppState.OnChange += StateHasChanged;
+    }
+    
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            var user = await AuthProvider.GetCurrentUserAsync();
+            if (user != null)
+            {
+                UserName = user.DisplayName ?? user.Email;
+                AppState.SetCurrentUser(user);
+                
+                // Load permissions
+                await AppState.LoadPermissionsAsync(user.Id);
+                ShowUsersMenu = AppState.HasPermission("users", "read");
+            }
+        }
+        catch (Exception)
+        {
+            // User info not available - will be redirected to login if not authenticated
+        }
+    }
     
     private void ToggleSidebar()
     {
         SidebarToggle = !SidebarToggle;
+    }
+    
+    private void ToggleUserMenu()
+    {
+        ShowUserMenu = !ShowUserMenu;
     }
     
     private bool IsActive(string path)
@@ -86,5 +146,24 @@
         }
         var fullPath = string.IsNullOrEmpty(currentPath) ? "/" : "/" + currentPath;
         return fullPath.StartsWith(path);
+    }
+    
+    private void GoToProfile()
+    {
+        ShowUserMenu = false;
+        Navigation.NavigateTo("/profile");
+    }
+    
+    private async Task SignOut()
+    {
+        ShowUserMenu = false;
+        await AuthProvider.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login");
+    }
+    
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
     }
 }

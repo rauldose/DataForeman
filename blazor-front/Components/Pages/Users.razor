@@ -1,0 +1,383 @@
+@page "/users"
+@rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject ApiService ApiService
+@inject AppStateService AppState
+@attribute [Authorize]
+
+<PageTitle>Users - DataForeman</PageTitle>
+
+<div class="users-page">
+    <div class="page-header">
+        <h1>Users</h1>
+        <div class="page-actions">
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add User" OnClick="@OpenAddUserDialog"></SfButton>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="loading-indicator">
+            <SfSpinner Visible="true"></SfSpinner>
+            <span>Loading users...</span>
+        </div>
+    }
+    else
+    {
+        <SfGrid DataSource="@UsersList" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
+            <GridColumns>
+                <GridColumn Field="@nameof(UserListItem.Email)" HeaderText="Email" Width="250"></GridColumn>
+                <GridColumn Field="@nameof(UserListItem.DisplayName)" HeaderText="Display Name" Width="200"></GridColumn>
+                <GridColumn HeaderText="Status" Width="100">
+                    <Template>
+                        @{
+                            var user = context as UserListItem;
+                            if (user != null)
+                            {
+                                <span class="status-badge @(user.IsActive ? "active" : "inactive")">
+                                    @(user.IsActive ? "Active" : "Inactive")
+                                </span>
+                            }
+                        }
+                    </Template>
+                </GridColumn>
+                <GridColumn Field="@nameof(UserListItem.CreatedAt)" HeaderText="Created" Width="150" Format="g"></GridColumn>
+                <GridColumn Field="@nameof(UserListItem.LastLoginAt)" HeaderText="Last Login" Width="150" Format="g"></GridColumn>
+                <GridColumn HeaderText="Actions" Width="150">
+                    <Template>
+                        @{
+                            var user = context as UserListItem;
+                            if (user != null)
+                            {
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditUser(user))" title="Edit"></SfButton>
+                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-key" OnClick="@(() => ManagePermissions(user))" title="Permissions"></SfButton>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" OnClick="@(() => DeleteUser(user))" title="Delete"></SfButton>
+                                </div>
+                            }
+                        }
+                    </Template>
+                </GridColumn>
+            </GridColumns>
+        </SfGrid>
+    }
+</div>
+
+@* Add/Edit User Dialog *@
+<SfDialog @bind-Visible="ShowUserDialog" Header="@(IsEditMode ? "Edit User" : "Add User")" Width="500px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <div class="dialog-form">
+                <div class="form-group">
+                    <label>Email</label>
+                    <SfTextBox @bind-Value="EditingUser.Email" Placeholder="Enter email address" Enabled="@(!IsEditMode)"></SfTextBox>
+                </div>
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <SfTextBox @bind-Value="EditingUser.DisplayName" Placeholder="Enter display name"></SfTextBox>
+                </div>
+                @if (!IsEditMode)
+                {
+                    <div class="form-group">
+                        <label>Password</label>
+                        <SfTextBox @bind-Value="EditingUser.Password" Placeholder="Enter password" Type="InputType.Password"></SfTextBox>
+                    </div>
+                }
+                <div class="form-group">
+                    <label>Active</label>
+                    <SfSwitch @bind-Checked="EditingUser.IsActive" TChecked="bool"></SfSwitch>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@CloseUserDialog"></DialogButton>
+        <DialogButton Content="@(IsEditMode ? "Update" : "Create")" IsPrimary="true" OnClick="@SaveUser"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+@* Permissions Dialog *@
+<SfDialog @bind-Visible="ShowPermissionsDialog" Header="@($"Permissions - {SelectedUser?.Email}")" Width="700px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <div class="permissions-form">
+                <SfGrid DataSource="@UserPermissions" AllowPaging="false">
+                    <GridEditSettings AllowEditing="true" Mode="EditMode.Normal"></GridEditSettings>
+                    <GridColumns>
+                        <GridColumn Field="@nameof(UserPermissionInfo.Feature)" HeaderText="Feature" Width="200" IsPrimaryKey="true" AllowEditing="false"></GridColumn>
+                        <GridColumn Field="@nameof(UserPermissionInfo.CanRead)" HeaderText="Read" Width="80">
+                            <Template>
+                                @{
+                                    var perm = context as UserPermissionInfo;
+                                    if (perm != null)
+                                    {
+                                        <SfCheckBox @bind-Checked="perm.CanRead" TChecked="bool"></SfCheckBox>
+                                    }
+                                }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn Field="@nameof(UserPermissionInfo.CanCreate)" HeaderText="Create" Width="80">
+                            <Template>
+                                @{
+                                    var perm = context as UserPermissionInfo;
+                                    if (perm != null)
+                                    {
+                                        <SfCheckBox @bind-Checked="perm.CanCreate" TChecked="bool"></SfCheckBox>
+                                    }
+                                }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn Field="@nameof(UserPermissionInfo.CanUpdate)" HeaderText="Update" Width="80">
+                            <Template>
+                                @{
+                                    var perm = context as UserPermissionInfo;
+                                    if (perm != null)
+                                    {
+                                        <SfCheckBox @bind-Checked="perm.CanUpdate" TChecked="bool"></SfCheckBox>
+                                    }
+                                }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn Field="@nameof(UserPermissionInfo.CanDelete)" HeaderText="Delete" Width="80">
+                            <Template>
+                                @{
+                                    var perm = context as UserPermissionInfo;
+                                    if (perm != null)
+                                    {
+                                        <SfCheckBox @bind-Checked="perm.CanDelete" TChecked="bool"></SfCheckBox>
+                                    }
+                                }
+                            </Template>
+                        </GridColumn>
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@ClosePermissionsDialog"></DialogButton>
+        <DialogButton Content="Save Permissions" IsPrimary="true" OnClick="@SavePermissions"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+<style>
+    .users-page {
+        height: 100%;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0;
+    }
+
+    .loading-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 48px;
+        color: #9d9d9d;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+
+    .status-badge.active {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .status-badge.inactive {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 4px;
+    }
+
+    .dialog-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .form-group label {
+        font-size: 13px;
+        color: #9d9d9d;
+    }
+
+    .permissions-form {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+</style>
+
+@code {
+    private bool IsLoading = true;
+    private List<UserListItem> UsersList = new();
+    
+    // Dialog state
+    private bool ShowUserDialog = false;
+    private bool IsEditMode = false;
+    private EditUserModel EditingUser = new();
+    
+    private bool ShowPermissionsDialog = false;
+    private UserListItem? SelectedUser;
+    private List<UserPermissionInfo> UserPermissions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        IsLoading = true;
+        try
+        {
+            var response = await ApiService.GetUsersAsync();
+            if (response != null)
+            {
+                UsersList = response.Users;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void OpenAddUserDialog()
+    {
+        EditingUser = new EditUserModel { IsActive = true };
+        IsEditMode = false;
+        ShowUserDialog = true;
+    }
+
+    private void EditUser(UserListItem user)
+    {
+        EditingUser = new EditUserModel
+        {
+            Id = user.Id,
+            Email = user.Email,
+            DisplayName = user.DisplayName ?? "",
+            IsActive = user.IsActive
+        };
+        IsEditMode = true;
+        ShowUserDialog = true;
+    }
+
+    private void CloseUserDialog()
+    {
+        ShowUserDialog = false;
+    }
+
+    private async Task SaveUser()
+    {
+        if (IsEditMode)
+        {
+            var request = new UpdateUserRequest(
+                EditingUser.DisplayName,
+                null, // Don't update email
+                EditingUser.IsActive,
+                null // Password not changed
+            );
+            await ApiService.UpdateUserAsync(EditingUser.Id, request);
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(EditingUser.Password))
+            {
+                // Password is required for new users
+                return;
+            }
+            // Create user via register endpoint
+            await ApiService.RegisterAsync(EditingUser.Email, EditingUser.Password, EditingUser.DisplayName);
+        }
+        
+        ShowUserDialog = false;
+        await LoadUsers();
+    }
+
+    private async Task DeleteUser(UserListItem user)
+    {
+        // TODO: Add confirmation dialog in production
+        await ApiService.DeleteUserAsync(user.Id);
+        await LoadUsers();
+    }
+
+    private async Task ManagePermissions(UserListItem user)
+    {
+        SelectedUser = user;
+        var response = await ApiService.GetUserPermissionsAsync(user.Id);
+        
+        if (response != null)
+        {
+            UserPermissions = response.Permissions;
+        }
+        else
+        {
+            // Default permissions
+            UserPermissions = new List<UserPermissionInfo>
+            {
+                new() { Feature = "dashboards", CanRead = true, CanCreate = true, CanUpdate = true, CanDelete = false },
+                new() { Feature = "flows", CanRead = true, CanCreate = true, CanUpdate = true, CanDelete = false },
+                new() { Feature = "chart_composer", CanRead = true, CanCreate = true, CanUpdate = true, CanDelete = false },
+                new() { Feature = "connectivity.devices", CanRead = true, CanCreate = false, CanUpdate = false, CanDelete = false },
+                new() { Feature = "connectivity.tags", CanRead = true, CanCreate = false, CanUpdate = false, CanDelete = false },
+                new() { Feature = "diagnostics", CanRead = true, CanCreate = false, CanUpdate = false, CanDelete = false },
+                new() { Feature = "users", CanRead = false, CanCreate = false, CanUpdate = false, CanDelete = false }
+            };
+        }
+        
+        ShowPermissionsDialog = true;
+    }
+
+    private void ClosePermissionsDialog()
+    {
+        ShowPermissionsDialog = false;
+        SelectedUser = null;
+    }
+
+    private async Task SavePermissions()
+    {
+        if (SelectedUser != null)
+        {
+            await ApiService.UpdateUserPermissionsAsync(SelectedUser.Id, UserPermissions);
+        }
+        ShowPermissionsDialog = false;
+    }
+
+    class EditUserModel
+    {
+        public Guid Id { get; set; }
+        public string Email { get; set; } = "";
+        public string? DisplayName { get; set; }
+        public string? Password { get; set; }
+        public bool IsActive { get; set; }
+    }
+}
