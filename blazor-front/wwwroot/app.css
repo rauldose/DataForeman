@@ -25,15 +25,15 @@
     --status-error: #800000;
 }
 
-/* Global Font Settings - Classic Small Fonts */
+/* Global Font Settings - Classic Small Fonts (12px for accessibility) */
 html, body {
     font-family: 'Segoe UI', 'Tahoma', 'MS Sans Serif', Arial, sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     margin: 0;
     padding: 0;
     background-color: var(--win-face);
     color: var(--win-text);
-    line-height: 1.3;
+    line-height: 1.4;
 }
 
 * {
@@ -378,7 +378,7 @@ select:focus {
 }
 
 .e-chart {
-    font-size: 11px !important;
+    font-size: 12px !important;
 }
 
 /* Ensure buttons have proper cursor */
@@ -386,29 +386,31 @@ button, .e-btn {
     cursor: pointer;
 }
 
-/* Scrollbar Classic Style */
-::-webkit-scrollbar {
-    width: 16px;
-    height: 16px;
-}
+/* Scrollbar Classic Style (WebKit browsers only - graceful degradation for others) */
+@supports selector(::-webkit-scrollbar) {
+    ::-webkit-scrollbar {
+        width: 16px;
+        height: 16px;
+    }
 
-::-webkit-scrollbar-track {
-    background: var(--win-bg);
-    border: 1px solid var(--win-dark);
-}
+    ::-webkit-scrollbar-track {
+        background: var(--win-bg);
+        border: 1px solid var(--win-dark);
+    }
 
-::-webkit-scrollbar-thumb {
-    background: var(--win-face);
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
-}
+    ::-webkit-scrollbar-thumb {
+        background: var(--win-face);
+        border: 2px solid;
+        border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+    }
 
-::-webkit-scrollbar-button {
-    background: var(--win-face);
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
-    width: 16px;
-    height: 16px;
+    ::-webkit-scrollbar-button {
+        background: var(--win-face);
+        border: 2px solid;
+        border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+        width: 16px;
+        height: 16px;
+    }
 }
 
 /* Card Components - Classic Style */
@@ -424,7 +426,7 @@ button, .e-btn {
     color: var(--win-highlight-text);
     padding: 2px 6px;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 12px;
 }
 
 .card-body {

@@ -4,99 +4,98 @@
 @inject CustomAuthStateProvider AuthProvider
 @inject AppStateService AppState
 
-<div class="app-window">
+<div class="app-window" @onclick="CloseAllMenus">
     <!-- Classic Title Bar -->
     <div class="title-bar">
         <div class="title-bar-text">
-            <span class="title-bar-icon">&#9881;</span>
+            <span class="title-bar-icon" aria-hidden="true">&#9881;</span>
             <span>DataForeman - Industrial Data Management</span>
-        </div>
-        <div class="title-bar-buttons">
-            <button class="title-btn" title="Minimize">_</button>
-            <button class="title-btn" title="Maximize">&#9633;</button>
-            <button class="title-btn" title="Close">X</button>
         </div>
     </div>
     
     <!-- Classic Menu Bar -->
-    <div class="menu-bar">
-        <div class="menu-bar-item @(ShowFileMenu ? "active" : "")" @onclick="ToggleFileMenu" @onclick:stopPropagation="true">
-            <span style="text-decoration:underline">F</span>ile
+    <div class="menu-bar" role="menubar">
+        <div class="menu-bar-item @(ShowFileMenu ? "active" : "")" 
+             @onclick="ToggleFileMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowFileMenu">
+            <u>F</u>ile
             @if (ShowFileMenu)
             {
-                <div class="dropdown-menu">
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/"))">
-                        <span class="dropdown-item-icon">&#9632;</span> Dashboard
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/"))" role="menuitem">
+                        <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> Dashboard
                     </div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))">
+                    <div class="dropdown-divider" role="separator"></div>
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
                         <span class="dropdown-item-icon"></span> Connections...
                     </div>
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
                         <span class="dropdown-item-icon"></span> Flow Editor...
                     </div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" @onclick="SignOut">
+                    <div class="dropdown-divider" role="separator"></div>
+                    <div class="dropdown-item" @onclick="SignOut" role="menuitem">
                         <span class="dropdown-item-icon"></span> Exit
                     </div>
                 </div>
             }
         </div>
-        <div class="menu-bar-item @(ShowViewMenu ? "active" : "")" @onclick="ToggleViewMenu" @onclick:stopPropagation="true">
-            <span style="text-decoration:underline">V</span>iew
+        <div class="menu-bar-item @(ShowViewMenu ? "active" : "")" 
+             @onclick="ToggleViewMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowViewMenu">
+            <u>V</u>iew
             @if (ShowViewMenu)
             {
-                <div class="dropdown-menu">
-                    <div class="dropdown-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))">
-                        <span class="dropdown-item-icon">@(IsActive("/") ? ">" : "")</span> Dashboard
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))" role="menuitem">>
+                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/") ? ">" : "")</span> Dashboard
                     </div>
-                    <div class="dropdown-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))">
-                        <span class="dropdown-item-icon">@(IsActive("/charts") ? ">" : "")</span> Charts
+                    <div class="dropdown-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" role="menuitem">
+                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/charts") ? ">" : "")</span> Charts
                     </div>
-                    <div class="dropdown-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))">
-                        <span class="dropdown-item-icon">@(IsActive("/diagnostics") ? ">" : "")</span> Diagnostics
-                    </div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item">
-                        <span class="dropdown-item-icon"></span> Status Bar
+                    <div class="dropdown-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" role="menuitem">
+                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/diagnostics") ? ">" : "")</span> Diagnostics
                     </div>
                 </div>
             }
         </div>
-        <div class="menu-bar-item @(ShowToolsMenu ? "active" : "")" @onclick="ToggleToolsMenu" @onclick:stopPropagation="true">
-            <span style="text-decoration:underline">T</span>ools
+        <div class="menu-bar-item @(ShowToolsMenu ? "active" : "")" 
+             @onclick="ToggleToolsMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowToolsMenu">
+            <u>T</u>ools
             @if (ShowToolsMenu)
             {
-                <div class="dropdown-menu">
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))">
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
                         <span class="dropdown-item-icon"></span> Flow Studio
                     </div>
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
                         <span class="dropdown-item-icon"></span> Connectivity Manager
                     </div>
-                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-divider" role="separator"></div>
                     @if (ShowUsersMenu)
                     {
-                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/users"))">
+                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/users"))" role="menuitem">
                             <span class="dropdown-item-icon"></span> User Management...
                         </div>
                     }
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/profile"))">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/profile"))" role="menuitem">
                         <span class="dropdown-item-icon"></span> Options...
                     </div>
                 </div>
             }
         </div>
-        <div class="menu-bar-item @(ShowHelpMenu ? "active" : "")" @onclick="ToggleHelpMenu" @onclick:stopPropagation="true">
-            <span style="text-decoration:underline">H</span>elp
+        <div class="menu-bar-item @(ShowHelpMenu ? "active" : "")" 
+             @onclick="ToggleHelpMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowHelpMenu">
+            <u>H</u>elp
             @if (ShowHelpMenu)
             {
-                <div class="dropdown-menu">
-                    <div class="dropdown-item">
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item" role="menuitem">
                         <span class="dropdown-item-icon"></span> Help Topics
                     </div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item">
+                    <div class="dropdown-divider" role="separator"></div>
+                    <div class="dropdown-item" role="menuitem">
                         <span class="dropdown-item-icon"></span> About DataForeman
                     </div>
                 </div>
@@ -199,15 +198,14 @@
     </div>
     
     <!-- Classic Status Bar -->
-    <div class="status-bar">
+    <div class="status-bar" role="status" aria-live="polite">
         <div class="status-pane main">Ready</div>
         <div class="status-pane fixed">@CurrentPage</div>
         <div class="status-pane fixed">@DateTime.Now.ToString("HH:mm")</div>
-        <div class="resize-grip"></div>
     </div>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
+<div id="blazor-error-ui" data-nosnippet role="alert">
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">X</span>

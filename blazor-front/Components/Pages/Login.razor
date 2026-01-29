@@ -10,17 +10,14 @@
     <div class="login-window">
         <!-- Window Title Bar -->
         <div class="window-title">
-            <span class="window-icon">&#9881;</span>
+            <span class="window-icon" aria-hidden="true">&#9881;</span>
             <span>DataForeman - Login</span>
-            <div class="window-buttons">
-                <button class="window-btn">X</button>
-            </div>
         </div>
         
         <!-- Window Content -->
         <div class="window-content">
             <div class="login-header">
-                <span class="app-icon">&#9881;</span>
+                <span class="app-icon" aria-hidden="true">&#9881;</span>
                 <div class="app-info">
                     <strong>DataForeman</strong>
                     <span>Industrial Data Management</span>
@@ -29,27 +26,27 @@
             
             @if (!string.IsNullOrEmpty(ErrorMessage))
             {
-                <div class="error-box">
-                    <span>X</span> @ErrorMessage
+                <div class="error-box" role="alert">
+                    <span aria-hidden="true">X</span> @ErrorMessage
                 </div>
             }
             
             <div class="login-form">
                 <div class="form-row">
                     <label for="email">User ID:</label>
-                    <input type="email" @bind="Email" placeholder="admin@dataforeman.local" disabled="@IsLoading" />
+                    <input type="email" id="email" @bind="Email" placeholder="admin@dataforeman.local" disabled="@IsLoading" />
                 </div>
                 
                 <div class="form-row">
                     <label for="password">Password:</label>
-                    <input type="password" @bind="Password" disabled="@IsLoading" />
+                    <input type="password" id="password" @bind="Password" disabled="@IsLoading" />
                 </div>
                 
                 <div class="form-buttons">
                     <button class="btn-classic btn-default" @onclick="HandleLogin" disabled="@IsLoading">
                         @(IsLoading ? "Logging in..." : "OK")
                     </button>
-                    <button class="btn-classic" @onclick="HandleCancel">Cancel</button>
+                    <button class="btn-classic" @onclick="ClearForm">Clear</button>
                 </div>
             </div>
             
@@ -90,7 +87,7 @@
         align-items: center;
         gap: 4px;
         font-weight: bold;
-        font-size: 11px;
+        font-size: 12px;
     }
     
     .window-icon {
@@ -99,26 +96,6 @@
     
     .window-title span:not(.window-icon) {
         flex: 1;
-    }
-    
-    .window-buttons {
-        display: flex;
-        gap: 2px;
-    }
-    
-    .window-btn {
-        width: 16px;
-        height: 14px;
-        background: #d4d0c8;
-        border: 2px solid;
-        border-color: #ffffff #808080 #808080 #ffffff;
-        font-size: 8px;
-        font-weight: bold;
-        cursor: pointer;
-        padding: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
     
     .window-content {
@@ -142,7 +119,7 @@
     .app-info {
         display: flex;
         flex-direction: column;
-        font-size: 11px;
+        font-size: 12px;
     }
     
     .app-info strong {
@@ -160,7 +137,7 @@
         color: #800000;
         padding: 6px 8px;
         margin-bottom: 12px;
-        font-size: 11px;
+        font-size: 12px;
     }
     
     .login-form {
@@ -175,7 +152,7 @@
     
     .form-row label {
         width: 70px;
-        font-size: 11px;
+        font-size: 12px;
         text-align: right;
         padding-right: 8px;
     }
@@ -186,13 +163,14 @@
         border: 2px solid;
         border-color: #808080 #ffffff #ffffff #808080;
         padding: 2px 4px;
-        font-size: 11px;
+        font-size: 12px;
         font-family: inherit;
-        height: 21px;
+        height: 22px;
     }
     
     .form-row input:focus {
-        outline: none;
+        outline: 1px dotted #000080;
+        outline-offset: -2px;
     }
     
     .form-buttons {
@@ -207,8 +185,8 @@
         border: 2px solid;
         border-color: #ffffff #808080 #808080 #ffffff;
         padding: 2px 16px;
-        font-size: 11px;
-        min-height: 21px;
+        font-size: 12px;
+        min-height: 22px;
         min-width: 75px;
         cursor: pointer;
         font-family: inherit;
@@ -220,6 +198,11 @@
     
     .btn-classic:active {
         border-color: #808080 #ffffff #ffffff #808080;
+    }
+    
+    .btn-classic:focus {
+        outline: 1px dotted #000000;
+        outline-offset: -4px;
     }
     
     .btn-classic:disabled {
@@ -238,7 +221,7 @@
         padding: 8px;
         border: 1px solid #808080;
         background: #ffffcc;
-        font-size: 11px;
+        font-size: 12px;
     }
     
     .demo-header {
@@ -302,7 +285,7 @@
         }
     }
     
-    private void HandleCancel()
+    private void ClearForm()
     {
         Email = "";
         Password = "";

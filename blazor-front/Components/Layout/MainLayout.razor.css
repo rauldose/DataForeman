@@ -310,26 +310,6 @@
     justify-content: center;
 }
 
-/* Resize Grip */
-.resize-grip {
-    width: 12px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-    padding: 2px;
-}
-
-.resize-grip::after {
-    content: '';
-    width: 10px;
-    height: 10px;
-    background: 
-        linear-gradient(135deg, transparent 50%, #808080 50%, #808080 60%, transparent 60%),
-        linear-gradient(135deg, transparent 50%, #ffffff 50%, #ffffff 60%, transparent 60%);
-    background-size: 4px 4px;
-    background-position: 0 0, 1px 1px;
-}
-
 /* User Menu in Toolbar */
 .user-menu {
     position: relative;
