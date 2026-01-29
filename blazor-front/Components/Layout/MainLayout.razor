@@ -106,32 +106,32 @@
     <!-- Classic Toolbar -->
     <div class="toolbar">
         <button class="toolbar-btn @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))" title="Dashboard">
-            <span class="e-icons e-chart" style="font-size:14px;"></span>
+            <span class="tb-icon">&#9632;</span>
         </button>
         <button class="toolbar-btn @(IsActive("/flows") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/flows"))" title="Flow Studio">
-            <span class="e-icons e-flow" style="font-size:14px;"></span>
+            <span class="tb-icon">&#9733;</span>
         </button>
         <button class="toolbar-btn @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" title="Charts">
-            <span class="e-icons e-line-chart" style="font-size:14px;"></span>
+            <span class="tb-icon">&#9650;</span>
         </button>
         <div class="toolbar-separator"></div>
         <button class="toolbar-btn @(IsActive("/connectivity") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" title="Connectivity">
-            <span class="e-icons e-link" style="font-size:14px;"></span>
+            <span class="tb-icon">&#8644;</span>
         </button>
         <button class="toolbar-btn @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" title="Diagnostics">
-            <span class="e-icons e-diagnose" style="font-size:14px;"></span>
+            <span class="tb-icon">&#9881;</span>
         </button>
         <div class="toolbar-separator"></div>
         @if (ShowUsersMenu)
         {
             <button class="toolbar-btn @(IsActive("/users") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/users"))" title="Users">
-                <span class="e-icons e-people" style="font-size:14px;"></span>
+                <span class="tb-icon">&#128101;</span>
             </button>
         }
         <div class="toolbar-spacer"></div>
         <div class="user-menu">
-            <button class="toolbar-btn" @onclick="ToggleUserMenu" title="@UserName">
-                <span class="e-icons e-user" style="font-size:14px;"></span>
+            <button class="toolbar-btn" @onclick="ToggleUserMenu" @onclick:stopPropagation="true" title="@UserName">
+                <span class="tb-icon">&#128100;</span>
                 <span>@UserName</span>
                 <span style="font-size:8px;">&#9660;</span>
             </button>
@@ -155,34 +155,34 @@
         <!-- Left Navigation Panel -->
         <div class="left-panel">
             <div class="panel-header">
-                <span class="e-icons e-folder" style="font-size:12px;"></span>
+                <span class="nav-icon">&#128193;</span>
                 Navigator
             </div>
             <div class="tree-container">
                 <div class="tree-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))">
-                    <span class="tree-item-icon e-icons e-chart"></span>
+                    <span class="tree-item-icon">&#9632;</span>
                     Dashboard
                 </div>
                 <div class="tree-item @(IsActive("/flows") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/flows"))">
-                    <span class="tree-item-icon e-icons e-flow"></span>
+                    <span class="tree-item-icon">&#9733;</span>
                     Flow Studio
                 </div>
                 <div class="tree-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))">
-                    <span class="tree-item-icon e-icons e-line-chart"></span>
+                    <span class="tree-item-icon">&#9650;</span>
                     Charts
                 </div>
                 <div class="tree-item @(IsActive("/connectivity") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/connectivity"))">
-                    <span class="tree-item-icon e-icons e-link"></span>
+                    <span class="tree-item-icon">&#8644;</span>
                     Connectivity
                 </div>
                 <div class="tree-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))">
-                    <span class="tree-item-icon e-icons e-diagnose"></span>
+                    <span class="tree-item-icon">&#9881;</span>
                     Diagnostics
                 </div>
                 @if (ShowUsersMenu)
                 {
                     <div class="tree-item @(IsActive("/users") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/users"))">
-                        <span class="tree-item-icon e-icons e-people"></span>
+                        <span class="tree-item-icon">&#128101;</span>
                         Users
                     </div>
                 }
@@ -220,13 +220,27 @@
     private bool ShowToolsMenu = false;
     private bool ShowHelpMenu = false;
     private string CurrentPage = "Dashboard";
+    private bool _initialized = false;
     
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        await LoadUserInfo();
         AppState.OnChange += StateHasChanged;
         Navigation.LocationChanged += OnLocationChanged;
         UpdateCurrentPage();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Mark JS interop as available now that we've rendered
+            AuthProvider.MarkJsInteropAvailable();
+            _initialized = true;
+            
+            // Now we can safely load user info
+            await LoadUserInfo();
+            StateHasChanged();
+        }
     }
     
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

@@ -19,17 +19,34 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     private const string RefreshTokenKey = "df_refresh_token";
     private const string UserKey = "df_user";
     
+    // Flag to track if JS interop is available (after first render)
+    private bool _jsInteropAvailable = false;
+    
     public CustomAuthStateProvider(IJSRuntime jsRuntime, ApiService apiService, ILogger<CustomAuthStateProvider> logger)
     {
         _jsRuntime = jsRuntime;
         _apiService = apiService;
         _logger = logger;
     }
+    
+    /// <summary>
+    /// Mark JS interop as available. Should be called from OnAfterRenderAsync.
+    /// </summary>
+    public void MarkJsInteropAvailable()
+    {
+        _jsInteropAvailable = true;
+    }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
         try
         {
+            // During prerendering, JS interop is not available - return anonymous
+            if (!_jsInteropAvailable)
+            {
+                return new AuthenticationState(_anonymous);
+            }
+            
             var token = await GetTokenAsync();
             if (string.IsNullOrEmpty(token))
             {
@@ -69,6 +86,12 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
             _apiService.SetAuthToken(token);
             
             return new AuthenticationState(user);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop"))
+        {
+            // JS interop not available during prerendering - this is expected
+            _logger.LogDebug("JS interop not available during prerendering");
+            return new AuthenticationState(_anonymous);
         }
         catch (Exception ex)
         {
@@ -171,6 +194,11 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     /// </summary>
     public async Task<UserInfo?> GetCurrentUserAsync()
     {
+        if (!_jsInteropAvailable)
+        {
+            return null;
+        }
+        
         try
         {
             var userJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", UserKey);
@@ -180,6 +208,11 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
             }
             return System.Text.Json.JsonSerializer.Deserialize<UserInfo>(userJson);
         }
+        catch (InvalidOperationException)
+        {
+            // JS interop not available during prerendering
+            return null;
+        }
         catch
         {
             return null;
@@ -188,9 +221,19 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
 
     private async Task<string?> GetTokenAsync()
     {
+        if (!_jsInteropAvailable)
+        {
+            return null;
+        }
+        
         try
         {
             return await _jsRuntime.InvokeAsync<string>("localStorage.getItem", TokenKey);
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop not available during prerendering
+            return null;
         }
         catch (Exception ex)
         {
@@ -201,9 +244,19 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
 
     private async Task<string?> GetRefreshTokenAsync()
     {
+        if (!_jsInteropAvailable)
+        {
+            return null;
+        }
+        
         try
         {
             return await _jsRuntime.InvokeAsync<string>("localStorage.getItem", RefreshTokenKey);
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop not available during prerendering
+            return null;
         }
         catch (Exception ex)
         {
@@ -214,22 +267,26 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
 
     private async Task SetTokenAsync(string token)
     {
+        if (!_jsInteropAvailable) return;
         await _jsRuntime.InvokeVoidAsync("localStorage.setItem", TokenKey, token);
     }
 
     private async Task SetRefreshTokenAsync(string refreshToken)
     {
+        if (!_jsInteropAvailable) return;
         await _jsRuntime.InvokeVoidAsync("localStorage.setItem", RefreshTokenKey, refreshToken);
     }
 
     private async Task SetUserAsync(UserInfo user)
     {
+        if (!_jsInteropAvailable) return;
         var json = System.Text.Json.JsonSerializer.Serialize(user);
         await _jsRuntime.InvokeVoidAsync("localStorage.setItem", UserKey, json);
     }
 
     private async Task ClearTokensAsync()
     {
+        if (!_jsInteropAvailable) return;
         await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", TokenKey);
         await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", RefreshTokenKey);
         await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", UserKey);
