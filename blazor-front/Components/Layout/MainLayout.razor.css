@@ -46,6 +46,14 @@
     height: 24px;
 }
 
+.toolbar-spacer {
+    flex: 1;
+}
+
+.user-menu {
+    margin-left: auto;
+}
+
 .menu-bar-item {
     padding: 3px 10px;
     cursor: pointer;
@@ -266,6 +274,11 @@
     flex-direction: column;
     background: var(--bg-dark);
     overflow: hidden;
+}
+
+/* Full width content panel (no left navigation) */
+.content-panel-full {
+    width: 100%;
 }
 
 .content-area {

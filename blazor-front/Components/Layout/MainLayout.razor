@@ -101,96 +101,32 @@
                 </div>
             }
         </div>
-    </div>
-    
-    <!-- Classic Toolbar -->
-    <div class="toolbar">
-        <button class="toolbar-btn @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))" title="Dashboard">
-            <span class="tb-icon" aria-hidden="true">&#9632;</span>
-        </button>
-        <button class="toolbar-btn @(IsActive("/flows") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/flows"))" title="Flow Studio">
-            <span class="tb-icon" aria-hidden="true">&#9733;</span>
-        </button>
-        <button class="toolbar-btn @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" title="Charts">
-            <span class="tb-icon" aria-hidden="true">&#9650;</span>
-        </button>
-        <div class="toolbar-separator"></div>
-        <button class="toolbar-btn @(IsActive("/connectivity") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" title="Connectivity">
-            <span class="tb-icon" aria-hidden="true">&#8644;</span>
-        </button>
-        <button class="toolbar-btn @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" title="Diagnostics">
-            <span class="tb-icon" aria-hidden="true">&#9881;</span>
-        </button>
-        <div class="toolbar-separator"></div>
-        @if (ShowUsersMenu)
-        {
-            <button class="toolbar-btn @(IsActive("/users") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/users"))" title="Users">
-                <span class="tb-icon" aria-hidden="true">&#128101;</span>
-            </button>
-        }
         <div class="toolbar-spacer"></div>
         <div class="user-menu">
-            <button class="toolbar-btn" @onclick="ToggleUserMenu" @onclick:stopPropagation="true" title="@UserName">
-                <span class="tb-icon" aria-hidden="true">&#128100;</span>
-                <span>@UserName</span>
-                <span style="font-size:8px;" aria-hidden="true">&#9660;</span>
-            </button>
-            @if (ShowUserMenu)
-            {
-                <div class="user-dropdown">
-                    <div class="dropdown-item" @onclick="GoToProfile">
-                        <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> My Profile
+            <div class="menu-bar-item @(ShowUserMenu ? "active" : "")" 
+                 @onclick="ToggleUserMenu" @onclick:stopPropagation="true"
+                 role="menuitem" aria-haspopup="true" aria-expanded="@ShowUserMenu">
+                <span aria-hidden="true">&#128100;</span> @UserName
+                @if (ShowUserMenu)
+                {
+                    <div class="dropdown-menu" role="menu" style="right: 0; left: auto;">
+                        <div class="dropdown-item" @onclick="GoToProfile" role="menuitem">
+                            <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> My Profile
+                        </div>
+                        <div class="dropdown-divider" role="separator"></div>
+                        <div class="dropdown-item" @onclick="SignOut" role="menuitem">
+                            <span class="dropdown-item-icon"></span> Sign Out
+                        </div>
                     </div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" @onclick="SignOut">
-                        <span class="dropdown-item-icon"></span> Sign Out
-                    </div>
-                </div>
-            }
+                }
+            </div>
         </div>
     </div>
     
     <!-- Main Content Area -->
     <div class="main-area">
-        <!-- Left Navigation Panel -->
-        <div class="left-panel">
-            <div class="panel-header">
-                <span class="nav-icon" aria-hidden="true">&#128193;</span>
-                Navigator
-            </div>
-            <div class="tree-container">
-                <div class="tree-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))">
-                    <span class="tree-item-icon" aria-hidden="true">&#9632;</span>
-                    Dashboard
-                </div>
-                <div class="tree-item @(IsActive("/flows") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/flows"))">
-                    <span class="tree-item-icon" aria-hidden="true">&#9733;</span>
-                    Flow Studio
-                </div>
-                <div class="tree-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))">
-                    <span class="tree-item-icon" aria-hidden="true">&#9650;</span>
-                    Charts
-                </div>
-                <div class="tree-item @(IsActive("/connectivity") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/connectivity"))">
-                    <span class="tree-item-icon" aria-hidden="true">&#8644;</span>
-                    Connectivity
-                </div>
-                <div class="tree-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))">
-                    <span class="tree-item-icon" aria-hidden="true">&#9881;</span>
-                    Diagnostics
-                </div>
-                @if (ShowUsersMenu)
-                {
-                    <div class="tree-item @(IsActive("/users") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/users"))">
-                        <span class="tree-item-icon" aria-hidden="true">&#128101;</span>
-                        Users
-                    </div>
-                }
-            </div>
-        </div>
-        
         <!-- Content Panel -->
-        <div class="content-panel">
+        <div class="content-panel content-panel-full">
             <div class="content-area">
                 @Body
             </div>
