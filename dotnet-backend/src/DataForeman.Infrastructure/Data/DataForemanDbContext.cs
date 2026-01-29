@@ -792,11 +792,11 @@ public class DataForemanDbContext : DbContext
                 },
                 {
                     ""id"": ""node_6"",
-                    ""type"": ""javascript"",
+                    ""type"": ""csharp"",
                     ""label"": ""Alert Logic"",
                     ""position"": { ""x"": 700, ""y"": 175 },
                     ""config"": {
-                        ""code"": ""// Determine alert status\nconst highAlert = $input.highTemp || false;\nconst lowAlert = $input.lowTemp || false;\nconst avgTemp = $input.average || 0;\n\nif (highAlert) {\n  return { alert: true, level: 'high', message: 'Temperature too high!', value: avgTemp };\n} else if (lowAlert) {\n  return { alert: true, level: 'low', message: 'Temperature too low!', value: avgTemp };\n} else {\n  return { alert: false, level: 'normal', message: 'Temperature normal', value: avgTemp };\n}""
+                        ""code"": ""// Determine alert status\nvar highAlert = input.highTemp as bool? ?? false;\nvar lowAlert = input.lowTemp as bool? ?? false;\nvar avgTemp = input.average as double? ?? 0.0;\n\nif (highAlert)\n{\n    return new { alert = true, level = \""high\"", message = \""Temperature too high!\"", value = avgTemp };\n}\nelse if (lowAlert)\n{\n    return new { alert = true, level = \""low\"", message = \""Temperature too low!\"", value = avgTemp };\n}\nelse\n{\n    return new { alert = false, level = \""normal\"", message = \""Temperature normal\"", value = avgTemp };\n}""
                     }
                 }
             ],
@@ -881,11 +881,11 @@ public class DataForemanDbContext : DbContext
                 },
                 {
                     ""id"": ""node_4"",
-                    ""type"": ""javascript"",
+                    ""type"": ""csharp"",
                     ""label"": ""Format Result"",
                     ""position"": { ""x"": 650, ""y"": 150 },
                     ""config"": {
-                        ""code"": ""// Calculate efficiency percentage\nconst efficiency = ($input.value || 0);\nconst percentage = Math.min(100, Math.max(0, efficiency * 10));\nreturn {\n  efficiency: efficiency.toFixed(2),\n  percentage: percentage.toFixed(1),\n  rating: percentage > 80 ? 'Excellent' : percentage > 60 ? 'Good' : 'Poor'\n};""
+                        ""code"": ""// Calculate efficiency percentage\nvar efficiency = input.value as double? ?? 0.0;\nvar percentage = Math.Min(100, Math.Max(0, efficiency * 10));\n\nreturn new\n{\n    efficiency = efficiency.ToString(\""F2\""),\n    percentage = percentage.ToString(\""F1\""),\n    rating = percentage > 80 ? \""Excellent\"" : percentage > 60 ? \""Good\"" : \""Poor\""\n};""
                     }
                 }
             ],

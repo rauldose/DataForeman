@@ -405,8 +405,8 @@ POST   /api/charts/{id}/axes            → Add axis to chart
         ├─> Execute Nodes in Order
         │   (Topological sort)
         │
-        ├─> Run JavaScript Nodes
-        │   (With $input, $tags, $flow)
+        ├─> Run C# Script Nodes
+        │   (With input, tags, flow context via Roslyn)
         │
         ├─> Perform Calculations
         │   (Math, Comparison)

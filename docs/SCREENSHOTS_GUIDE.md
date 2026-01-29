@@ -143,7 +143,7 @@ Time Axis: Last 1 hour with 1-minute data points
   - Collapsible categories:
     - **Triggers**: Manual Trigger
     - **Tag Operations**: Tag Input, Tag Output
-    - **Data Processing**: Math, Comparison, JavaScript
+    - **Data Processing**: Math, Comparison, C# Script
     - **Logic**: (additional nodes)
     - **Output**: (output nodes)
   - Each node type draggable to canvas
@@ -197,7 +197,7 @@ Time Axis: Last 1 hour with 1-minute data points
   - Node configuration
   - Tag selector (for Tag Input nodes)
   - Operation selector (for Math nodes)
-  - Code editor (for JavaScript nodes)
+  - Code editor (for C# Script nodes with Roslyn)
   - Parameters and settings
 
 **Features Visible**:
@@ -213,41 +213,47 @@ Time Axis: Last 1 hour with 1-minute data points
 
 ### 6. Flow Editor - Configuration Panel
 
-**When JavaScript node selected**, right panel shows:
+**When C# Script node selected**, right panel shows:
 - **Node Label**: "Alert Logic"
-- **Node Type**: JavaScript
+- **Node Type**: C# Script (Roslyn)
 - **Code Editor** with syntax highlighting:
-```javascript
+```csharp
 // Determine alert status
-const highAlert = $input.highTemp || false;
-const lowAlert = $input.lowTemp || false;
-const avgTemp = $input.average || 0;
+var highAlert = input.highTemp as bool? ?? false;
+var lowAlert = input.lowTemp as bool? ?? false;
+var avgTemp = input.average as double? ?? 0.0;
 
-if (highAlert) {
-  return { 
-    alert: true, 
-    level: 'high', 
-    message: 'Temperature too high!', 
-    value: avgTemp 
-  };
-} else if (lowAlert) {
-  return { 
-    alert: true, 
-    level: 'low', 
-    message: 'Temperature too low!', 
-    value: avgTemp 
-  };
-} else {
-  return { 
-    alert: false, 
-    level: 'normal', 
-    message: 'Temperature normal', 
-    value: avgTemp 
-  };
+if (highAlert)
+{
+    return new { 
+        alert = true, 
+        level = "high", 
+        message = "Temperature too high!", 
+        value = avgTemp 
+    };
+}
+else if (lowAlert)
+{
+    return new { 
+        alert = true, 
+        level = "low", 
+        message = "Temperature too low!", 
+        value = avgTemp 
+    };
+}
+else
+{
+    return new { 
+        alert = false, 
+        level = "normal", 
+        message = "Temperature normal", 
+        value = avgTemp 
+    };
 }
 ```
-- **Available Variables**: $input, $tags, $flow
+- **Available Context**: input, tags, flow objects
 - **Timeout Setting**: 5000ms
+- **Roslyn Compilation**: Full .NET library access
 - **Test Output** section (when testing)
 
 ---

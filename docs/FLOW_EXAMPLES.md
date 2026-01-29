@@ -28,36 +28,41 @@ Tank 2 Temp ──────┼──────────────┘  
 - **Math (Calculate Average)**: Computes average of both tank temperatures
 - **Comparison (High Temp Alert)**: Checks if Tank 1 temp > 75°C
 - **Comparison (Low Temp Alert)**: Checks if Tank 2 temp < 30°C
-- **JavaScript (Alert Logic)**: Determines alert status and generates message
+- **C# Script (Alert Logic)**: Determines alert status and generates message
 
-**JavaScript Node Code**:
-```javascript
+**C# Script Node Code**:
+```csharp
 // Determine alert status
-const highAlert = $input.highTemp || false;
-const lowAlert = $input.lowTemp || false;
-const avgTemp = $input.average || 0;
+var highAlert = input.highTemp as bool? ?? false;
+var lowAlert = input.lowTemp as bool? ?? false;
+var avgTemp = input.average as double? ?? 0.0;
 
-if (highAlert) {
-  return { 
-    alert: true, 
-    level: 'high', 
-    message: 'Temperature too high!', 
-    value: avgTemp 
-  };
-} else if (lowAlert) {
-  return { 
-    alert: true, 
-    level: 'low', 
-    message: 'Temperature too low!', 
-    value: avgTemp 
-  };
-} else {
-  return { 
-    alert: false, 
-    level: 'normal', 
-    message: 'Temperature normal', 
-    value: avgTemp 
-  };
+if (highAlert)
+{
+    return new { 
+        alert = true, 
+        level = "high", 
+        message = "Temperature too high!", 
+        value = avgTemp 
+    };
+}
+else if (lowAlert)
+{
+    return new { 
+        alert = true, 
+        level = "low", 
+        message = "Temperature too low!", 
+        value = avgTemp 
+    };
+}
+else
+{
+    return { 
+        alert = false, 
+        level = "normal", 
+        message = "Temperature normal", 
+        value = avgTemp 
+    };
 }
 ```
 
@@ -92,18 +97,19 @@ Motor Power ──────────┘
 - **Tag Input (Production Rate)**: Reads from Simulator/Process/Production_Rate (units/hour)
 - **Tag Input (Motor Power)**: Reads from Simulator/Motor1/Power (kW)
 - **Math (Efficiency)**: Divides production rate by power (units/kW)
-- **JavaScript (Format Result)**: Formats efficiency and calculates percentage rating
+- **C# Script (Format Result)**: Formats efficiency and calculates percentage rating
 
-**JavaScript Node Code**:
-```javascript
+**C# Script Node Code**:
+```csharp
 // Calculate efficiency percentage
-const efficiency = ($input.value || 0);
-const percentage = Math.min(100, Math.max(0, efficiency * 10));
+var efficiency = input.value as double? ?? 0.0;
+var percentage = Math.Min(100, Math.Max(0, efficiency * 10));
 
-return {
-  efficiency: efficiency.toFixed(2),
-  percentage: percentage.toFixed(1),
-  rating: percentage > 80 ? 'Excellent' : percentage > 60 ? 'Good' : 'Poor'
+return new
+{
+    efficiency = efficiency.ToString("F2"),
+    percentage = percentage.ToString("F1"),
+    rating = percentage > 80 ? "Excellent" : percentage > 60 ? "Good" : "Poor"
 };
 ```
 
@@ -199,12 +205,12 @@ Tag 2 (Pressure) ─────────┘
 
 ### Error Handling
 - Set appropriate **Maximum Data Age** on Tag Input nodes
-- Handle null values in JavaScript nodes
+- Handle null values in C# script nodes
 - Test with various input conditions
 
 ### Performance
 - Use appropriate scan rates (don't scan faster than needed)
-- Minimize complex JavaScript operations
+- Minimize complex C# script operations
 - Consider data aggregation for high-frequency tags
 
 ### Testing
@@ -226,7 +232,7 @@ Flows are stored in JSON format with this structure:
   "nodes": [
     {
       "id": "unique_node_id",
-      "type": "tag-input | math | comparison | javascript",
+      "type": "tag-input | math | comparison | csharp",
       "label": "Human-readable label",
       "position": { "x": 100, "y": 100 },
       "config": {
@@ -268,7 +274,7 @@ Nodes execute in dependency order (topological sort):
 To add more temperature sensors:
 1. Add new Tag Input nodes
 2. Connect to the Math (Average) node
-3. Update the JavaScript logic if needed
+3. Update the C# script logic if needed
 
 ### Adding Output Tags
 
@@ -282,7 +288,7 @@ To write results to database:
 
 To send alerts:
 1. Add Comparison nodes for thresholds
-2. Use JavaScript to format alert messages
+2. Use C# script to format alert messages
 3. Connect to Tag Output for alert flags
 4. Optionally integrate with external systems
 
