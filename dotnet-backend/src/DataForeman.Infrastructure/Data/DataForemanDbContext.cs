@@ -446,16 +446,18 @@ public class DataForemanDbContext : DbContext
         
         // Seed sample tags for the Simulator connection
         modelBuilder.Entity<TagMetadata>().HasData(
+            // Tank 1 Tags
             new TagMetadata
             {
                 TagId = 1,
                 ConnectionId = simulatorConnectionId,
-                TagPath = "Simulator/Temperature_001",
-                TagName = "Temperature_001",
+                TagPath = "Simulator/Tank1/Temperature",
+                TagName = "Tank1_Temperature",
                 DataType = "Float",
                 Description = "Tank 1 Temperature Sensor",
                 DriverType = "SIMULATOR",
                 PollGroupId = 5,
+                UnitId = 1, // Celsius
                 IsSubscribed = true,
                 Status = "active",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -465,12 +467,13 @@ public class DataForemanDbContext : DbContext
             {
                 TagId = 2,
                 ConnectionId = simulatorConnectionId,
-                TagPath = "Simulator/Pressure_001",
-                TagName = "Pressure_001",
+                TagPath = "Simulator/Tank1/Pressure",
+                TagName = "Tank1_Pressure",
                 DataType = "Float",
                 Description = "Tank 1 Pressure Sensor",
                 DriverType = "SIMULATOR",
                 PollGroupId = 5,
+                UnitId = 5, // kPa
                 IsSubscribed = true,
                 Status = "active",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -480,12 +483,13 @@ public class DataForemanDbContext : DbContext
             {
                 TagId = 3,
                 ConnectionId = simulatorConnectionId,
-                TagPath = "Simulator/Level_001",
-                TagName = "Level_001",
+                TagPath = "Simulator/Tank1/Level",
+                TagName = "Tank1_Level",
                 DataType = "Float",
                 Description = "Tank 1 Level Sensor",
                 DriverType = "SIMULATOR",
                 PollGroupId = 5,
+                UnitId = 15, // Percent
                 IsSubscribed = true,
                 Status = "active",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -495,12 +499,13 @@ public class DataForemanDbContext : DbContext
             {
                 TagId = 4,
                 ConnectionId = simulatorConnectionId,
-                TagPath = "Simulator/Flow_001",
-                TagName = "Flow_001",
+                TagPath = "Simulator/Tank1/Flow_Inlet",
+                TagName = "Tank1_Flow_Inlet",
                 DataType = "Float",
-                Description = "Inlet Flow Rate",
+                Description = "Tank 1 Inlet Flow Rate",
                 DriverType = "SIMULATOR",
                 PollGroupId = 5,
+                UnitId = 12, // L/min
                 IsSubscribed = true,
                 Status = "active",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -510,12 +515,176 @@ public class DataForemanDbContext : DbContext
             {
                 TagId = 5,
                 ConnectionId = simulatorConnectionId,
-                TagPath = "Simulator/Status_001",
-                TagName = "Status_001",
+                TagPath = "Simulator/Tank1/Pump_Status",
+                TagName = "Tank1_Pump_Status",
                 DataType = "Boolean",
-                Description = "Pump 1 Running Status",
+                Description = "Tank 1 Pump Running Status",
                 DriverType = "SIMULATOR",
                 PollGroupId = 5,
+                UnitId = 22, // Boolean
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            // Tank 2 Tags
+            new TagMetadata
+            {
+                TagId = 6,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Tank2/Temperature",
+                TagName = "Tank2_Temperature",
+                DataType = "Float",
+                Description = "Tank 2 Temperature Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                UnitId = 1, // Celsius
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 7,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Tank2/Pressure",
+                TagName = "Tank2_Pressure",
+                DataType = "Float",
+                Description = "Tank 2 Pressure Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                UnitId = 5, // kPa
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 8,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Tank2/Level",
+                TagName = "Tank2_Level",
+                DataType = "Float",
+                Description = "Tank 2 Level Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                UnitId = 15, // Percent
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            // Motor Tags
+            new TagMetadata
+            {
+                TagId = 9,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Motor1/Speed",
+                TagName = "Motor1_Speed",
+                DataType = "Float",
+                Description = "Motor 1 Speed",
+                DriverType = "SIMULATOR",
+                PollGroupId = 4,
+                UnitId = 16, // RPM
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 10,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Motor1/Current",
+                TagName = "Motor1_Current",
+                DataType = "Float",
+                Description = "Motor 1 Current Draw",
+                DriverType = "SIMULATOR",
+                PollGroupId = 4,
+                UnitId = 9, // Ampere
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 11,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Motor1/Power",
+                TagName = "Motor1_Power",
+                DataType = "Float",
+                Description = "Motor 1 Power Consumption",
+                DriverType = "SIMULATOR",
+                PollGroupId = 4,
+                UnitId = 11, // kW
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            // Process Tags
+            new TagMetadata
+            {
+                TagId = 12,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Process/Production_Rate",
+                TagName = "Production_Rate",
+                DataType = "Float",
+                Description = "Production Rate",
+                DriverType = "SIMULATOR",
+                PollGroupId = 6,
+                UnitId = 21, // Count
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 13,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Process/Quality_Index",
+                TagName = "Quality_Index",
+                DataType = "Float",
+                Description = "Quality Index (0-100)",
+                DriverType = "SIMULATOR",
+                PollGroupId = 6,
+                UnitId = 15, // Percent
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 14,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Process/Efficiency",
+                TagName = "Process_Efficiency",
+                DataType = "Float",
+                Description = "Overall Process Efficiency",
+                DriverType = "SIMULATOR",
+                PollGroupId = 6,
+                UnitId = 15, // Percent
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 15,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Process/Alarm_Count",
+                TagName = "Alarm_Count",
+                DataType = "Float",
+                Description = "Active Alarm Count",
+                DriverType = "SIMULATOR",
+                PollGroupId = 7,
+                UnitId = 21, // Count
                 IsSubscribed = true,
                 Status = "active",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),

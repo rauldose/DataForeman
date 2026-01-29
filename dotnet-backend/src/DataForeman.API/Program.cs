@@ -71,11 +71,32 @@ app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
    .WithName("HealthCheck");
 
-// Ensure database is created
+// Ensure database is created and optionally seed historical data
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DataForemanDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
     db.Database.EnsureCreated();
+    
+    // Seed historical data if enabled via configuration
+    var seedHistoricalData = builder.Configuration.GetValue<bool>("SeedHistoricalData", false);
+    if (seedHistoricalData)
+    {
+        var seeder = new HistoricalDataSeeder(db, scope.ServiceProvider.GetRequiredService<ILogger<HistoricalDataSeeder>>());
+        var hasData = await seeder.HasHistoricalDataAsync();
+        
+        if (!hasData)
+        {
+            logger.LogInformation("Seeding historical tag value data...");
+            await seeder.SeedHistoricalDataAsync(daysOfHistory: 7, samplesPerHour: 60);
+            logger.LogInformation("Historical data seeding completed");
+        }
+        else
+        {
+            logger.LogInformation("Historical data already exists, skipping seeding");
+        }
+    }
 }
 
 app.Run();

@@ -175,6 +175,70 @@ public class ChartsController : ControllerBase
     // Default user ID for anonymous access (single-user local application)
     private static readonly Guid DefaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
+    [HttpGet("data")]
+    public async Task<IActionResult> GetChartData(
+        [FromQuery] int[] tagIds,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] int limit = 10000)
+    {
+        if (tagIds == null || tagIds.Length == 0)
+        {
+            return BadRequest(new { error = "tagIds_required" });
+        }
+
+        var fromTime = from ?? DateTime.UtcNow.AddHours(-24);
+        var toTime = to ?? DateTime.UtcNow;
+
+        var data = await _context.TagValues
+            .Where(tv => tagIds.Contains(tv.TagId) && tv.Timestamp >= fromTime && tv.Timestamp <= toTime)
+            .OrderBy(tv => tv.Timestamp)
+            .Take(Math.Min(limit, 50000))
+            .Select(tv => new
+            {
+                tv.TagId,
+                tv.Timestamp,
+                tv.NumericValue,
+                tv.StringValue,
+                tv.BooleanValue,
+                tv.Quality
+            })
+            .ToListAsync();
+
+        // Group by tag ID for easier consumption
+        var groupedData = data.GroupBy(d => d.TagId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(v => new
+                {
+                    timestamp = v.Timestamp,
+                    value = v.NumericValue ?? (v.BooleanValue.HasValue ? (v.BooleanValue.Value ? 1.0 : 0.0) : 0.0),
+                    quality = v.Quality
+                }).ToList()
+            );
+
+        return Ok(new { data = groupedData, from = fromTime, to = toTime, count = data.Count });
+    }
+
+    [HttpGet("tags")]
+    public async Task<IActionResult> GetAvailableTags()
+    {
+        var tags = await _context.TagMetadata
+            .Where(t => t.IsSubscribed && !t.IsDeleted)
+            .Select(t => new
+            {
+                t.TagId,
+                t.TagPath,
+                t.TagName,
+                t.Description,
+                t.DataType,
+                Unit = t.Unit != null ? new { t.Unit.Symbol, t.Unit.Name } : null
+            })
+            .ToListAsync();
+
+        return Ok(new { tags, count = tags.Count });
+    }
+
     private Guid GetUserIdFromClaims()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
