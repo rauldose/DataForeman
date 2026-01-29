@@ -101,7 +101,7 @@
                 </div>
             }
         </div>
-        <div class="toolbar-spacer"></div>
+        <div class="menu-bar-spacer"></div>
         <div class="user-menu">
             <div class="menu-bar-item @(ShowUserMenu ? "active" : "")" 
                  @onclick="ToggleUserMenu" @onclick:stopPropagation="true"
@@ -109,7 +109,7 @@
                 <span aria-hidden="true">&#128100;</span> @UserName
                 @if (ShowUserMenu)
                 {
-                    <div class="dropdown-menu" role="menu" style="right: 0; left: auto;">
+                    <div class="dropdown-menu dropdown-menu-right" role="menu">
                         <div class="dropdown-item" @onclick="GoToProfile" role="menuitem">
                             <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> My Profile
                         </div>
@@ -126,7 +126,7 @@
     <!-- Main Content Area -->
     <div class="main-area">
         <!-- Content Panel -->
-        <div class="content-panel content-panel-full">
+        <div class="content-panel">
             <div class="content-area">
                 @Body
             </div>

@@ -46,7 +46,7 @@
     height: 24px;
 }
 
-.toolbar-spacer {
+.menu-bar-spacer {
     flex: 1;
 }
 
@@ -118,6 +118,11 @@
     color: var(--accent-primary);
 }
 
+.dropdown-menu-right {
+    right: 0;
+    left: auto;
+}
+
 /* Main Content Area */
 .main-area {
     flex: 1;
@@ -132,11 +137,6 @@
     flex-direction: column;
     background: var(--bg-dark);
     overflow: hidden;
-}
-
-/* Full width content panel (no left navigation) */
-.content-panel-full {
-    width: 100%;
 }
 
 .content-area {
