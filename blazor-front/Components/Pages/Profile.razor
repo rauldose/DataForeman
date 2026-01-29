@@ -2,7 +2,7 @@
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
 @inject CustomAuthStateProvider AuthProvider
-@inject ApiService ApiService
+@inject DataService DataService
 @inject AppStateService AppState
 @inject NavigationManager Navigation
 @attribute [Authorize]
@@ -262,8 +262,7 @@
     {
         if (CurrentUser != null)
         {
-            var request = new UpdateUserRequest(EditDisplayName, null, null, null);
-            var success = await ApiService.UpdateUserAsync(CurrentUser.Id, request);
+            var success = await DataService.UpdateUserAsync(CurrentUser.Id, EditDisplayName, null, null, null);
             
             if (success)
             {
@@ -308,16 +307,19 @@
             return;
         }
 
-        var success = await ApiService.ChangePasswordAsync(CurrentPassword, NewPassword);
-        
-        if (success)
+        if (CurrentUser != null)
         {
-            ShowPasswordDialog = false;
-            await ShowSuccess("Password changed successfully");
-        }
-        else
-        {
-            PasswordError = "Failed to change password. Please check your current password.";
+            var success = await DataService.ChangePasswordAsync(CurrentUser.Id, CurrentPassword, NewPassword);
+            
+            if (success)
+            {
+                ShowPasswordDialog = false;
+                await ShowSuccess("Password changed successfully");
+            }
+            else
+            {
+                PasswordError = "Failed to change password. Please check your current password.";
+            }
         }
     }
 

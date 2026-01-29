@@ -1,7 +1,7 @@
 @page "/connectivity"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
-@inject ApiService ApiService
+@inject DataService DataService
 
 <PageTitle>Connectivity - DataForeman</PageTitle>
 
@@ -346,47 +346,47 @@
         
         try
         {
-            // Load connections from API
-            var connectionsTask = ApiService.GetConnectionsAsync();
-            var tagsTask = ApiService.GetTagsAsync();
-            var pollGroupsTask = ApiService.GetPollGroupsAsync();
-            var unitsTask = ApiService.GetUnitsAsync();
+            // Load connections from DataService
+            var connectionsTask = DataService.GetConnectionsAsync();
+            var tagsTask = DataService.GetTagsAsync();
+            var pollGroupsTask = DataService.GetPollGroupsAsync();
+            var unitsTask = DataService.GetUnitsAsync();
             
             await Task.WhenAll(connectionsTask, tagsTask, pollGroupsTask, unitsTask);
             
-            var connectionsResponse = await connectionsTask;
-            if (connectionsResponse?.Connections != null)
+            var connections = await connectionsTask;
+            if (connections != null)
             {
-                Connections = connectionsResponse.Connections.Select(c => new ConnectionDisplayItem
+                Connections = connections.Select(c => new ConnectionDisplayItem
                 {
                     Id = c.Id,
                     Name = c.Name,
                     Type = c.Type,
-                    Enabled = c.Status == "Connected",
-                    TagCount = c.TagCount
+                    Enabled = c.Enabled,
+                    TagCount = 0 // Would need to count tags
                 }).ToList();
             }
             
-            var tagsResponse = await tagsTask;
-            if (tagsResponse?.Tags != null)
+            var tags = await tagsTask;
+            if (tags != null)
             {
-                Tags = tagsResponse.Tags.Select(t => new TagDisplayItem
+                Tags = tags.Select(t => new TagDisplayItem
                 {
-                    TagId = t.Id,
-                    TagPath = t.Path,
+                    TagId = t.TagId,
+                    TagPath = t.TagPath,
                     DataType = t.DataType ?? "Unknown",
-                    CurrentValue = t.CurrentValue?.ToString() ?? "-",
+                    CurrentValue = "-",
                     PollGroupName = "Standard",
                     IsSubscribed = false
                 }).ToList();
             }
             
-            var pollGroupsResponse = await pollGroupsTask;
-            if (pollGroupsResponse?.PollGroups != null)
+            var pollGroups = await pollGroupsTask;
+            if (pollGroups != null)
             {
-                PollGroups = pollGroupsResponse.PollGroups.Select(pg => new PollGroupDisplayItem
+                PollGroups = pollGroups.Select(pg => new PollGroupDisplayItem
                 {
-                    GroupId = pg.Id,
+                    GroupId = pg.GroupId,
                     Name = pg.Name,
                     PollRateMs = pg.PollRateMs,
                     Description = "",
@@ -395,10 +395,10 @@
                 }).ToList();
             }
             
-            var unitsResponse = await unitsTask;
-            if (unitsResponse?.Units != null)
+            var units = await unitsTask;
+            if (units != null)
             {
-                Units = unitsResponse.Units.Select(u => new UnitDisplayItem
+                Units = units.Select(u => new UnitDisplayItem
                 {
                     Id = u.Id,
                     Name = u.Name,
@@ -409,7 +409,7 @@
         }
         catch (Exception)
         {
-            // API not available
+            // Data not available
         }
         
         IsLoading = false;
@@ -470,7 +470,7 @@
     
     class TagDisplayItem
     {
-        public Guid TagId { get; set; }
+        public int TagId { get; set; }
         public string TagPath { get; set; } = "";
         public string DataType { get; set; } = "";
         public string CurrentValue { get; set; } = "";
@@ -480,7 +480,7 @@
     
     class PollGroupDisplayItem
     {
-        public Guid GroupId { get; set; }
+        public int GroupId { get; set; }
         public string Name { get; set; } = "";
         public int PollRateMs { get; set; }
         public string Description { get; set; } = "";
@@ -490,7 +490,7 @@
     
     class UnitDisplayItem
     {
-        public Guid Id { get; set; }
+        public int Id { get; set; }
         public string Name { get; set; } = "";
         public string Symbol { get; set; } = "";
         public string Category { get; set; } = "";

@@ -6,12 +6,12 @@ namespace DataForeman.BlazorUI.Services;
 /// </summary>
 public class AppStateService
 {
-    private readonly ApiService _apiService;
+    private readonly DataService _dataService;
     private readonly ILogger<AppStateService> _logger;
 
-    public AppStateService(ApiService apiService, ILogger<AppStateService> logger)
+    public AppStateService(DataService dataService, ILogger<AppStateService> logger)
     {
-        _apiService = apiService;
+        _dataService = dataService;
         _logger = logger;
     }
 
@@ -60,16 +60,23 @@ public class AppStateService
     }
 
     /// <summary>
-    /// Load user permissions from API.
+    /// Load user permissions from database.
     /// </summary>
     public async Task LoadPermissionsAsync(Guid userId)
     {
         try
         {
-            var response = await _apiService.GetUserPermissionsAsync(userId);
-            if (response != null)
+            var permissions = await _dataService.GetUserPermissionsAsync(userId);
+            if (permissions != null)
             {
-                Permissions = response.Permissions;
+                Permissions = permissions.Select(p => new UserPermissionInfo
+                {
+                    Feature = p.Feature,
+                    CanCreate = p.CanCreate,
+                    CanRead = p.CanRead,
+                    CanUpdate = p.CanUpdate,
+                    CanDelete = p.CanDelete
+                }).ToList();
                 NotifyStateChanged();
             }
         }

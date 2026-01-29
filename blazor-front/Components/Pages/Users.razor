@@ -1,7 +1,7 @@
 @page "/users"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
-@inject ApiService ApiService
+@inject DataService DataService
 @inject AppStateService AppState
 @attribute [Authorize]
 
@@ -255,10 +255,18 @@
         IsLoading = true;
         try
         {
-            var response = await ApiService.GetUsersAsync();
-            if (response != null)
+            var (users, _) = await DataService.GetUsersAsync();
+            if (users != null)
             {
-                UsersList = response.Users;
+                UsersList = users.Select(u => new UserListItem
+                {
+                    Id = u.Id,
+                    Email = u.Email,
+                    DisplayName = u.DisplayName,
+                    IsActive = u.IsActive,
+                    CreatedAt = u.CreatedAt,
+                    LastLoginAt = u.UpdatedAt
+                }).ToList();
             }
         }
         catch (Exception ex)
@@ -300,13 +308,13 @@
     {
         if (IsEditMode)
         {
-            var request = new UpdateUserRequest(
+            await DataService.UpdateUserAsync(
+                EditingUser.Id,
                 EditingUser.DisplayName,
                 null, // Don't update email
                 EditingUser.IsActive,
                 null // Password not changed
             );
-            await ApiService.UpdateUserAsync(EditingUser.Id, request);
         }
         else
         {
@@ -315,8 +323,8 @@
                 // Password is required for new users
                 return;
             }
-            // Create user via register endpoint
-            await ApiService.RegisterAsync(EditingUser.Email, EditingUser.Password, EditingUser.DisplayName);
+            // Create user
+            await DataService.CreateUserAsync(EditingUser.Email, EditingUser.Password, EditingUser.DisplayName);
         }
         
         ShowUserDialog = false;
@@ -326,18 +334,25 @@
     private async Task DeleteUser(UserListItem user)
     {
         // TODO: Add confirmation dialog in production
-        await ApiService.DeleteUserAsync(user.Id);
+        await DataService.DeleteUserAsync(user.Id);
         await LoadUsers();
     }
 
     private async Task ManagePermissions(UserListItem user)
     {
         SelectedUser = user;
-        var response = await ApiService.GetUserPermissionsAsync(user.Id);
+        var permissions = await DataService.GetUserPermissionsAsync(user.Id);
         
-        if (response != null)
+        if (permissions != null)
         {
-            UserPermissions = response.Permissions;
+            UserPermissions = permissions.Select(p => new UserPermissionInfo
+            {
+                Feature = p.Feature,
+                CanCreate = p.CanCreate,
+                CanRead = p.CanRead,
+                CanUpdate = p.CanUpdate,
+                CanDelete = p.CanDelete
+            }).ToList();
         }
         else
         {
@@ -367,7 +382,8 @@
     {
         if (SelectedUser != null)
         {
-            await ApiService.UpdateUserPermissionsAsync(SelectedUser.Id, UserPermissions);
+            // TODO: Implement UpdateUserPermissionsAsync in DataService
+            // await DataService.UpdateUserPermissionsAsync(SelectedUser.Id, UserPermissions);
         }
         ShowPermissionsDialog = false;
     }

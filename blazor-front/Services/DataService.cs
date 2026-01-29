@@ -243,6 +243,39 @@ public class DataService
         }
     }
 
+    /// <summary>
+    /// Gets permissions for a user.
+    /// </summary>
+    public async Task<List<UserPermission>?> GetUserPermissionsAsync(Guid userId)
+    {
+        try
+        {
+            var permissions = await _dbContext.UserPermissions
+                .Where(p => p.UserId == userId)
+                .ToListAsync();
+            
+            // If no specific permissions, return default read-only for all features
+            if (!permissions.Any())
+            {
+                return new List<UserPermission>
+                {
+                    new UserPermission { Feature = "dashboard", CanRead = true },
+                    new UserPermission { Feature = "flows", CanRead = true },
+                    new UserPermission { Feature = "charts", CanRead = true },
+                    new UserPermission { Feature = "connectivity", CanRead = true },
+                    new UserPermission { Feature = "diagnostics", CanRead = true }
+                };
+            }
+            
+            return permissions;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting permissions for user {UserId}", userId);
+            return null;
+        }
+    }
+
     #endregion
 
     #region Flows

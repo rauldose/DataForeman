@@ -1,7 +1,7 @@
 @page "/diagnostics"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
-@inject ApiService ApiService
+@inject DataService DataService
 
 <PageTitle>Diagnostics - DataForeman</PageTitle>
 
@@ -532,30 +532,30 @@
     {
         try
         {
-            // Load actual data from API
-            var connectionsTask = ApiService.GetConnectionsAsync();
-            var flowsTask = ApiService.GetFlowsAsync();
-            var tagsTask = ApiService.GetTagsAsync();
+            // Load actual data from DataService
+            var connectionsTask = DataService.GetConnectionsAsync();
+            var flowsTask = DataService.GetFlowsAsync();
+            var tagsTask = DataService.GetTagsAsync();
             
             await Task.WhenAll(connectionsTask, flowsTask, tagsTask);
             
             var connections = await connectionsTask;
-            var flows = await flowsTask;
+            var (flows, _) = await flowsTask;
             var tags = await tagsTask;
             
-            ActiveConnections = connections?.Connections?.Count(c => c.Status == "Connected") ?? 0;
-            RunningFlows = flows?.Items?.Count(f => f.Deployed) ?? 0;
-            SubscribedTags = tags?.Tags?.Count ?? 0;
+            ActiveConnections = connections?.Count(c => c.Enabled) ?? 0;
+            RunningFlows = flows?.Count(f => f.Deployed) ?? 0;
+            SubscribedTags = tags?.Count ?? 0;
             
             // Build network connections from actual data
-            if (connections?.Connections != null)
+            if (connections != null)
             {
-                NetworkConnections = connections.Connections.Select(c => new NetworkConnection
+                NetworkConnections = connections.Select(c => new NetworkConnection
                 {
                     Name = c.Name,
                     Host = "configured",
                     Port = 0,
-                    Connected = c.Status == "Connected",
+                    Connected = c.Enabled,
                     Latency = 0,
                     LastActivity = DateTime.Now
                 }).ToList();
@@ -569,7 +569,7 @@
         }
         catch (Exception)
         {
-            // API not available - show empty state
+            // Data not available - show empty state
         }
     }
     

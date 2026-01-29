@@ -2,7 +2,7 @@
 @page "/flows/{FlowId:guid}"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
-@inject ApiService ApiService
+@inject DataService DataService
 @inject NodePluginRegistry NodeRegistry
 
 <PageTitle>Flow Studio - DataForeman</PageTitle>
@@ -676,11 +676,11 @@
         
         try
         {
-            // Try to load from API first
-            var response = await ApiService.GetFlowsAsync();
-            if (response != null && response.Items.Count > 0)
+            // Load from DataService
+            var (flows, _) = await DataService.GetFlowsAsync();
+            if (flows != null && flows.Count > 0)
             {
-                FlowsList = response.Items.Select(f => new FlowListItem
+                FlowsList = flows.Select(f => new FlowListItem
                 {
                     Id = f.Id,
                     Name = f.Name,
@@ -692,13 +692,13 @@
             }
             else
             {
-                // Fall back to sample data if API is not available
+                // Fall back to sample data if no flows
                 FlowsList = GetSampleFlows();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to load flows from API: {ex.Message}");
+            Console.WriteLine($"Failed to load flows: {ex.Message}");
             // Fall back to sample data
             FlowsList = GetSampleFlows();
         }
@@ -1044,28 +1044,27 @@
         var newId = Guid.NewGuid();
         try
         {
-            // Create flow in backend
-            var response = await ApiService.CreateFlowAsync(new CreateFlowRequest(
+            // Create flow in database
+            var flow = await DataService.CreateFlowAsync(
                 "New Flow",
                 "New flow description",
                 "{}",
-                "continuous",
-                1000
-            ));
-            if (response != null)
+                Guid.Empty // Will use default owner
+            );
+            if (flow != null)
             {
-                newId = response.Id;
+                newId = flow.Id;
                 Navigation.NavigateTo($"/flows/{newId}");
             }
             else
             {
-                // API didn't return an ID, use local ID
+                // Fallback to local ID
                 Navigation.NavigateTo($"/flows/{newId}");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to create flow in API: {ex.Message}");
+            Console.WriteLine($"Failed to create flow: {ex.Message}");
             // Still navigate to allow local editing
             Navigation.NavigateTo($"/flows/{newId}");
         }
@@ -1080,8 +1079,8 @@
     {
         try
         {
-            // Try to delete from backend
-            var success = await ApiService.DeleteFlowAsync(id);
+            // Delete from database
+            var success = await DataService.DeleteFlowAsync(id);
             if (success)
             {
                 FlowsList.RemoveAll(f => f.Id == id);
@@ -1089,14 +1088,14 @@
             }
             else
             {
-                // API failed - still remove locally for demo purposes
+                // Fallback - still remove locally
                 FlowsList.RemoveAll(f => f.Id == id);
                 StateHasChanged();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to delete flow from API: {ex.Message}");
+            Console.WriteLine($"Failed to delete flow: {ex.Message}");
             // Still remove locally for demo purposes
             FlowsList.RemoveAll(f => f.Id == id);
             StateHasChanged();
@@ -1113,11 +1112,11 @@
         var newDeployState = !CurrentFlow.Deployed;
         try
         {
-            // Deploy/undeploy via API
-            var response = await ApiService.DeployFlowAsync(CurrentFlow.Id, newDeployState);
-            if (response != null && response.Ok)
+            // Deploy/undeploy via DataService
+            var success = await DataService.DeployFlowAsync(CurrentFlow.Id, newDeployState);
+            if (success)
             {
-                CurrentFlow.Deployed = response.Deployed;
+                CurrentFlow.Deployed = newDeployState;
                 _saveMessage = CurrentFlow.Deployed ? "Flow deployed successfully!" : "Flow stopped.";
                 _showSaveMessage = true;
                 StateHasChanged();
@@ -1139,7 +1138,7 @@
     
     private async Task SaveFlow()
     {
-        // Save flow to backend - serialize nodes and connectors
+        // Save flow to database - serialize nodes and connectors
         if (Diagram != null)
         {
             try
@@ -1147,16 +1146,17 @@
                 // Serialize the diagram state to JSON
                 var definition = SerializeFlowDefinition();
                 
-                // Update via API
-                var success = await ApiService.UpdateFlowAsync(CurrentFlow.Id, new UpdateFlowRequest(
+                // Update via DataService
+                var success = await DataService.UpdateFlowAsync(
+                    CurrentFlow.Id,
                     CurrentFlow.Name,
                     CurrentFlow.Description,
                     definition,
-                    "continuous",
-                    1000,
-                    null,
-                    null
-                ));
+                    null, // executionMode
+                    null, // scanRateMs
+                    null, // shared
+                    null  // testMode
+                );
                 
                 if (success)
                 {
@@ -1165,19 +1165,19 @@
                 }
                 else
                 {
-                    _saveMessage = "Flow saved locally (API unavailable)";
+                    _saveMessage = "Flow saved locally (save failed)";
                     CurrentFlow.UpdatedAt = DateTime.Now;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to save flow: {ex.Message}");
-                _saveMessage = "Flow saved locally (API error)";
+                _saveMessage = "Flow saved locally (error)";
                 CurrentFlow.UpdatedAt = DateTime.Now;
             }
             
             _showSaveMessage = true;
-            StateHasChanged();
+            StateHasChanged();;
             
             // Hide message after 3 seconds using timer
             _messageTimer?.Dispose();

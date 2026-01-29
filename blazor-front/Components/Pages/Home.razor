@@ -1,7 +1,7 @@
 ﻿@page "/"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
-@inject ApiService ApiService
+@inject DataService DataService
 @inject NavigationManager Navigation
 
 <PageTitle>Dashboard - DataForeman</PageTitle>
@@ -287,27 +287,27 @@
         
         try
         {
-            // Load real data from API
-            var connectionsTask = ApiService.GetConnectionsAsync();
-            var flowsTask = ApiService.GetFlowsAsync();
-            var tagsTask = ApiService.GetTagsAsync();
+            // Load real data from DataService
+            var connectionsTask = DataService.GetConnectionsAsync();
+            var flowsTask = DataService.GetFlowsAsync();
+            var tagsTask = DataService.GetTagsAsync();
             
             await Task.WhenAll(connectionsTask, flowsTask, tagsTask);
             
             var connections = await connectionsTask;
-            var flows = await flowsTask;
+            var (flows, _) = await flowsTask;
             var tags = await tagsTask;
             
-            ActiveConnections = connections?.Connections?.Count(c => c.Status == "Connected") ?? 0;
-            RunningFlows = flows?.Items?.Count(f => f.Deployed) ?? 0;
-            SubscribedTags = tags?.Tags?.Count ?? 0;
+            ActiveConnections = connections?.Count(c => c.Enabled) ?? 0;
+            RunningFlows = flows?.Count(f => f.Deployed) ?? 0;
+            SubscribedTags = tags?.Count ?? 0;
             
             // Build recent activity from actual data
             RecentActivities = new List<ActivityItem>();
             
-            if (flows?.Items != null)
+            if (flows != null)
             {
-                foreach (var flow in flows.Items.OrderByDescending(f => f.UpdatedAt).Take(2))
+                foreach (var flow in flows.OrderByDescending(f => f.UpdatedAt).Take(2))
                 {
                     RecentActivities.Add(new ActivityItem(
                         "e-play",
@@ -317,13 +317,13 @@
                 }
             }
             
-            if (connections?.Connections != null)
+            if (connections != null)
             {
-                foreach (var conn in connections.Connections.Take(2))
+                foreach (var conn in connections.Take(2))
                 {
                     RecentActivities.Add(new ActivityItem(
                         "e-link",
-                        $"Connection '{conn.Name}' {conn.Status.ToLower()}",
+                        $"Connection '{conn.Name}' {(conn.Enabled ? "active" : "disabled")}",
                         "Active"
                     ));
                 }
@@ -331,7 +331,7 @@
         }
         catch (Exception)
         {
-            // API not available - show empty state
+            // Data not available - show empty state
             RecentActivities = new List<ActivityItem>
             {
                 new ActivityItem("e-info", "No recent activity", "")
