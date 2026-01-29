@@ -148,10 +148,21 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     /// </summary>
     private string GenerateJwtToken(Guid userId, string email, string? displayName)
     {
-        var jwtKey = _configuration["Jwt:Key"] ?? "DataForemanSecretKey_ChangeInProduction!";
+        var jwtKey = _configuration["Jwt:Key"] ?? "DataForemanSecretKey_ChangeInProduction_MinLength32Chars!";
+        
+        // Ensure minimum key length for HMAC-SHA256 (32 bytes / 256 bits)
+        if (jwtKey.Length < 32)
+        {
+            throw new InvalidOperationException("JWT key must be at least 32 characters for secure HMAC-SHA256 signing.");
+        }
+        
         var jwtIssuer = _configuration["Jwt:Issuer"] ?? "DataForeman";
         var jwtAudience = _configuration["Jwt:Audience"] ?? "DataForeman";
-        var expirationHours = int.Parse(_configuration["Jwt:ExpirationHours"] ?? "24");
+        
+        if (!int.TryParse(_configuration["Jwt:ExpirationHours"], out var expirationHours))
+        {
+            expirationHours = 24;
+        }
         
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
@@ -162,7 +173,7 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
             new Claim(JwtRegisteredClaimNames.Email, email),
             new Claim(JwtRegisteredClaimNames.UniqueName, displayName ?? email),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim("role", "User")
+            new Claim("role", "User") // TODO: Retrieve role from database when RBAC is implemented
         };
         
         var token = new JwtSecurityToken(

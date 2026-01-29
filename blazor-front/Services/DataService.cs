@@ -36,9 +36,6 @@ public class DataService
             // Verify password using BCrypt
             if (BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             {
-                // Update timestamp
-                user.UpdatedAt = DateTime.UtcNow;
-                await _dbContext.SaveChangesAsync();
                 return user;
             }
 
@@ -90,6 +87,21 @@ public class DataService
     {
         try
         {
+            // Check if email already exists
+            var existingUser = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (existingUser != null)
+            {
+                _logger.LogWarning("Attempted to create user with existing email: {Email}", email);
+                return null;
+            }
+            
+            // Validate password strength (minimum 8 characters)
+            if (string.IsNullOrEmpty(password) || password.Length < 8)
+            {
+                _logger.LogWarning("Password does not meet minimum requirements");
+                return null;
+            }
+            
             var user = new User
             {
                 Id = Guid.NewGuid(),
@@ -174,11 +186,30 @@ public class DataService
             var user = await _dbContext.Users.FindAsync(id);
             if (user == null) return false;
 
+            // Check if new email already exists (if changing email)
+            if (email != null && email != user.Email)
+            {
+                var existingUser = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
+                if (existingUser != null)
+                {
+                    _logger.LogWarning("Cannot update user {UserId}: email {Email} already in use", id, email);
+                    return false;
+                }
+            }
+
             if (displayName != null) user.DisplayName = displayName;
             if (email != null) user.Email = email;
             if (isActive.HasValue) user.IsActive = isActive.Value;
             if (!string.IsNullOrEmpty(password))
+            {
+                // Validate password strength
+                if (password.Length < 8)
+                {
+                    _logger.LogWarning("Password does not meet minimum requirements");
+                    return false;
+                }
                 user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+            }
 
             user.UpdatedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync();
