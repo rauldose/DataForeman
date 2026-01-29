@@ -10,7 +10,7 @@
     <div class="page-header">
         <h2>Dashboard</h2>
         <div class="page-actions">
-            <button class="btn-classic" @onclick="CreateNewDashboard">New Dashboard</button>
+            <button class="btn-modern" @onclick="CreateNewDashboard">New Dashboard</button>
         </div>
     </div>
 
@@ -61,9 +61,9 @@
             <div class="dashboard-panel">
                 <div class="panel-title">Quick Actions</div>
                 <div class="panel-body action-panel">
-                    <button class="btn-classic" @onclick="@(() => NavigateTo("/flows/new"))">Create Flow</button>
-                    <button class="btn-classic" @onclick="@(() => NavigateTo("/connectivity/new"))">Add Connection</button>
-                    <button class="btn-classic" @onclick="@(() => NavigateTo("/charts"))">View Charts</button>
+                    <button class="btn-modern" @onclick="@(() => NavigateTo("/flows/new"))">Create Flow</button>
+                    <button class="btn-modern" @onclick="@(() => NavigateTo("/connectivity/new"))">Add Connection</button>
+                    <button class="btn-modern" @onclick="@(() => NavigateTo("/charts"))">View Charts</button>
                 </div>
             </div>
         </div>
@@ -101,34 +101,36 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
-        padding-bottom: 4px;
-        border-bottom: 1px solid #808080;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border-subtle);
     }
     
     .page-header h2 {
         margin: 0;
         font-size: 14px;
-        font-weight: bold;
+        font-weight: 600;
+        color: var(--text-primary);
     }
     
     .loading-indicator {
         text-align: center;
         padding: 20px;
-        color: #808080;
+        color: var(--text-muted);
     }
     
     .dashboard-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        margin-bottom: 8px;
+        gap: 10px;
+        margin-bottom: 10px;
     }
     
     .dashboard-panel {
-        background: #d4d0c8;
-        border: 2px solid;
-        border-color: #ffffff #808080 #808080 #ffffff;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        box-shadow: var(--shadow-sm);
     }
     
     .dashboard-panel.full-width {
@@ -136,15 +138,19 @@
     }
     
     .panel-title {
-        background: #000080;
-        color: #ffffff;
-        padding: 2px 6px;
-        font-weight: bold;
+        background: var(--bg-hover);
+        color: var(--text-primary);
+        padding: 6px 10px;
+        font-weight: 600;
         font-size: 11px;
+        border-bottom: 1px solid var(--border-subtle);
+        border-radius: 4px 4px 0 0;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
     }
     
     .panel-body {
-        padding: 8px;
+        padding: 10px;
     }
     
     .data-table {
@@ -154,18 +160,18 @@
     }
     
     .data-table td {
-        padding: 3px 4px;
-        border-bottom: 1px solid #c0c0c0;
+        padding: 6px 4px;
+        border-bottom: 1px solid var(--border-subtle);
     }
     
     .data-table .label {
-        color: #404040;
+        color: var(--text-secondary);
     }
     
     .data-table .value {
-        font-weight: bold;
+        font-weight: 600;
         text-align: right;
-        color: #008000;
+        color: var(--accent-primary);
     }
     
     .list-panel {
@@ -176,23 +182,24 @@
     .list-row {
         display: flex;
         align-items: center;
-        padding: 2px 0;
-        gap: 6px;
+        padding: 4px 0;
+        gap: 8px;
         font-size: 11px;
-        border-bottom: 1px solid #c0c0c0;
+        border-bottom: 1px solid var(--border-subtle);
     }
     
     .list-icon {
         font-size: 10px;
-        color: #000080;
+        color: var(--accent-secondary);
     }
     
     .list-text {
         flex: 1;
+        color: var(--text-primary);
     }
     
     .list-meta {
-        color: #808080;
+        color: var(--text-muted);
         font-size: 10px;
     }
     
@@ -208,9 +215,9 @@
     
     .chart-panel {
         min-height: 200px;
-        background: #ffffff;
-        border: 2px solid;
-        border-color: #808080 #ffffff #ffffff #808080;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-subtle);
+        border-radius: 3px;
     }
     
     .no-data {
@@ -219,29 +226,44 @@
         justify-content: center;
         height: 100%;
         min-height: 100px;
-        color: #808080;
+        color: var(--text-muted);
         font-style: italic;
         font-size: 11px;
     }
     
-    /* Classic button styles */
-    .btn-classic {
-        background: #d4d0c8;
-        border: 2px solid;
-        border-color: #ffffff #808080 #808080 #ffffff;
-        padding: 2px 12px;
+    /* Modern button styles */
+    .btn-modern {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-medium);
+        border-radius: 3px;
+        padding: 4px 12px;
         font-size: 11px;
-        min-height: 21px;
+        min-height: 24px;
         cursor: pointer;
         font-family: inherit;
+        color: var(--text-primary);
+        transition: all 0.15s ease;
     }
     
-    .btn-classic:hover {
-        background: #e0e0e0;
+    .btn-modern:hover {
+        background: var(--bg-hover);
+        border-color: var(--accent-primary);
     }
     
-    .btn-classic:active {
-        border-color: #808080 #ffffff #ffffff #808080;
+    .btn-modern:active {
+        background: var(--bg-dark);
+    }
+    
+    .btn-primary-modern {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: #000;
+        font-weight: 600;
+    }
+    
+    .btn-primary-modern:hover {
+        background: var(--accent-primary-hover);
+        border-color: var(--accent-primary-hover);
     }
 </style>
 

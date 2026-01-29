@@ -1,38 +1,53 @@
 /* ==============================================
-   DataForeman - Classic Office Application Style
-   Inspired by Windows 95/NT4 with modern touches
+   DataForeman - Modern Industrial Theme
+   Compact layout with dark steel colors
    ============================================== */
 
-/* CSS Variables for Classic Theme */
+/* CSS Variables for Modern Industrial Theme */
 :root {
-    /* Classic System Colors */
-    --win-bg: #c0c0c0;
-    --win-face: #d4d0c8;
-    --win-light: #ffffff;
-    --win-dark: #808080;
-    --win-darker: #404040;
-    --win-text: #000000;
-    --win-highlight: #000080;
-    --win-highlight-text: #ffffff;
-    --win-window: #ffffff;
-    --win-border: #808080;
+    /* Primary Colors - Dark Steel */
+    --bg-dark: #1a1d21;
+    --bg-panel: #23272e;
+    --bg-surface: #2d323b;
+    --bg-hover: #363c47;
+    --bg-input: #1e2228;
     
-    /* Accent Colors */
-    --accent-teal: #008080;
-    --accent-blue: #000080;
-    --status-ok: #008000;
-    --status-warn: #808000;
-    --status-error: #800000;
+    /* Text Colors */
+    --text-primary: #e4e6ea;
+    --text-secondary: #9ea3ad;
+    --text-muted: #6b7280;
+    
+    /* Border Colors */
+    --border-subtle: #3a4049;
+    --border-medium: #4a515c;
+    --border-strong: #5c636f;
+    
+    /* Accent Colors - Industrial Orange/Amber */
+    --accent-primary: #f59e0b;
+    --accent-primary-hover: #fbbf24;
+    --accent-secondary: #3b82f6;
+    --accent-secondary-hover: #60a5fa;
+    
+    /* Status Colors */
+    --status-ok: #22c55e;
+    --status-warn: #f59e0b;
+    --status-error: #ef4444;
+    --status-info: #3b82f6;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.5);
 }
 
-/* Global Font Settings - Classic Small Fonts (12px for accessibility) */
+/* Global Font Settings - Compact Modern */
 html, body {
-    font-family: 'Segoe UI', 'Tahoma', 'MS Sans Serif', Arial, sans-serif;
+    font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 12px;
     margin: 0;
     padding: 0;
-    background-color: var(--win-face);
-    color: var(--win-text);
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
     line-height: 1.4;
 }
 
@@ -40,27 +55,20 @@ html, body {
     box-sizing: border-box;
 }
 
-/* Classic 3D Border Mixins */
-.border-raised {
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+/* Modern Borders */
+.border-subtle {
+    border: 1px solid var(--border-subtle);
 }
 
-.border-sunken {
-    border: 2px solid;
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
-}
-
-.border-etched {
-    border: 1px solid var(--win-dark);
-    box-shadow: 1px 1px 0 var(--win-light);
+.border-medium {
+    border: 1px solid var(--border-medium);
 }
 
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
-    font-weight: bold;
+    font-weight: 600;
     margin: 0 0 6px 0;
-    color: var(--win-text);
+    color: var(--text-primary);
 }
 
 h1 { font-size: 16px; }
@@ -72,29 +80,35 @@ h1:focus {
     outline: none;
 }
 
-/* Classic Panel/Group Box */
+/* Modern Panel */
 .panel {
-    background: var(--win-face);
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
     padding: 8px;
     margin-bottom: 8px;
+    box-shadow: var(--shadow-sm);
 }
 
 .panel-title {
     font-size: 11px;
-    font-weight: bold;
+    font-weight: 600;
     margin-bottom: 6px;
     padding-bottom: 4px;
-    border-bottom: 1px solid var(--win-dark);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-/* Classic Group Box with etched border */
+/* Modern Group Box */
 .group-box {
-    border: 1px solid var(--win-dark);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
     padding: 10px 8px 8px 8px;
     margin: 8px 0;
     position: relative;
+    background: var(--bg-surface);
 }
 
 .group-box::before {
@@ -102,51 +116,61 @@ h1:focus {
     position: absolute;
     top: -8px;
     left: 8px;
-    background: var(--win-face);
+    background: var(--bg-surface);
     padding: 0 4px;
-    font-size: 11px;
-    font-weight: bold;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
 }
 
-/* Classic Buttons */
-.btn-classic {
-    background: var(--win-face);
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
-    padding: 2px 12px;
+/* Modern Buttons */
+.btn-modern {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-medium);
+    border-radius: 3px;
+    padding: 4px 12px;
     font-size: 11px;
-    min-height: 21px;
+    min-height: 24px;
     cursor: pointer;
     font-family: inherit;
+    color: var(--text-primary);
+    transition: all 0.15s ease;
 }
 
-.btn-classic:hover {
-    background: #e0e0e0;
+.btn-modern:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
 }
 
-.btn-classic:active {
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
-    padding: 3px 11px 1px 13px;
+.btn-modern:active {
+    background: var(--bg-dark);
 }
 
-.btn-classic:focus {
-    outline: 1px dotted var(--win-text);
-    outline-offset: -4px;
+.btn-modern:focus {
+    outline: 1px solid var(--accent-primary);
+    outline-offset: 1px;
 }
 
-.btn-classic:disabled {
-    color: var(--win-dark);
-    text-shadow: 1px 1px var(--win-light);
+.btn-modern:disabled {
+    color: var(--text-muted);
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .btn-primary {
-    background: var(--win-face);
-    border: 3px solid;
-    border-color: var(--win-darker) var(--win-darker) var(--win-darker) var(--win-darker);
-    box-shadow: inset 0 0 0 1px var(--win-light), inset -1px -1px 0 1px var(--win-dark);
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #000;
+    font-weight: 600;
 }
 
-/* Classic Input Fields */
+.btn-primary:hover {
+    background: var(--accent-primary-hover);
+    border-color: var(--accent-primary-hover);
+}
+
+/* Modern Input Fields */
 input[type="text"],
 input[type="password"],
 input[type="email"],
@@ -154,127 +178,139 @@ input[type="number"],
 input[type="date"],
 textarea,
 select {
-    background: var(--win-window);
-    border: 2px solid;
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
-    padding: 2px 4px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-medium);
+    border-radius: 3px;
+    padding: 4px 8px;
     font-size: 11px;
     font-family: inherit;
-    min-height: 21px;
+    min-height: 24px;
+    color: var(--text-primary);
+    transition: border-color 0.15s ease;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
     outline: none;
-    background: var(--win-window);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2);
 }
 
-/* Classic Toolbar */
+/* Modern Toolbar */
 .toolbar {
-    background: var(--win-face);
-    border-bottom: 1px solid var(--win-dark);
-    padding: 2px 4px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 3px 6px;
     display: flex;
     gap: 2px;
     align-items: center;
-    min-height: 26px;
+    min-height: 28px;
 }
 
 .toolbar-button {
-    background: var(--win-face);
+    background: transparent;
     border: 1px solid transparent;
-    padding: 2px 4px;
+    border-radius: 3px;
+    padding: 3px 6px;
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 4px;
     font-size: 11px;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
 }
 
 .toolbar-button:hover {
-    border: 1px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
 }
 
 .toolbar-button:active {
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
+    background: var(--bg-dark);
 }
 
 .toolbar-separator {
     width: 1px;
-    height: 20px;
-    background: var(--win-dark);
+    height: 18px;
+    background: var(--border-subtle);
     margin: 0 4px;
-    box-shadow: 1px 0 var(--win-light);
 }
 
-/* Classic Status Bar */
+/* Modern Status Bar */
 .status-bar {
-    background: var(--win-face);
-    border-top: 1px solid var(--win-light);
-    padding: 2px 4px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border-subtle);
+    padding: 2px 6px;
     display: flex;
     gap: 4px;
     font-size: 11px;
-    min-height: 20px;
+    min-height: 22px;
+    color: var(--text-secondary);
 }
 
 .status-pane {
-    border: 1px solid;
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
-    padding: 1px 6px;
-    background: var(--win-face);
+    padding: 1px 8px;
+    background: var(--bg-surface);
+    border-radius: 2px;
 }
 
 .status-pane.flex {
     flex: 1;
 }
 
-/* Classic List/Grid Container */
+/* Modern List/Grid Container */
 .list-container {
-    background: var(--win-window);
-    border: 2px solid;
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark);
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
     overflow: auto;
 }
 
-/* Classic Tab Control */
+/* Modern Tab Control */
 .tab-container {
-    background: var(--win-face);
+    background: var(--bg-panel);
 }
 
 .tab-header {
     display: flex;
-    border-bottom: 1px solid var(--win-face);
-    margin-bottom: -1px;
+    border-bottom: 1px solid var(--border-subtle);
     padding-left: 4px;
+    gap: 2px;
 }
 
 .tab-item {
-    background: var(--win-bg);
-    border: 1px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-face) var(--win-light);
-    padding: 3px 12px;
-    margin-right: 2px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    padding: 4px 12px;
     cursor: pointer;
     font-size: 11px;
-    position: relative;
-    top: 1px;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+}
+
+.tab-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .tab-item.active {
-    background: var(--win-face);
-    border-bottom-color: var(--win-face);
-    top: 0;
-    padding-bottom: 4px;
+    background: var(--bg-panel);
+    color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    border-bottom: 1px solid var(--bg-panel);
+    margin-bottom: -1px;
 }
 
 .tab-content {
-    border: 1px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+    border: 1px solid var(--border-subtle);
+    border-top: none;
     padding: 8px;
-    background: var(--win-face);
+    background: var(--bg-panel);
 }
 
 /* Form Validation */
@@ -284,7 +320,7 @@ select:focus {
 }
 
 .invalid {
-    border-color: var(--status-error);
+    border-color: var(--status-error) !important;
 }
 
 .validation-message {
@@ -294,9 +330,9 @@ select:focus {
 
 /* Error Boundary */
 .blazor-error-boundary {
-    background: #ffffe0;
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+    background: #422006;
+    border: 1px solid var(--status-error);
+    border-radius: 3px;
     padding: 8px;
     color: var(--status-error);
     font-size: 11px;
@@ -307,78 +343,110 @@ select:focus {
 }
 
 .darker-border-checkbox.form-check-input {
-    border-color: #929292;
+    border-color: var(--border-strong);
 }
 
-/* Syncfusion Overrides - Classic Theme */
+/* Syncfusion Overrides - Modern Industrial Theme */
 .e-grid {
     font-size: 11px !important;
-    border: 2px solid !important;
-    border-color: var(--win-dark) var(--win-light) var(--win-light) var(--win-dark) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 3px !important;
+    background: var(--bg-panel) !important;
 }
 
 .e-grid .e-gridheader {
-    background: var(--win-face) !important;
-    border-bottom: 1px solid var(--win-dark) !important;
+    background: var(--bg-surface) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 }
 
 .e-grid .e-headercell {
-    background: var(--win-face) !important;
-    border-right: 1px solid var(--win-dark) !important;
-    font-weight: bold !important;
+    background: var(--bg-surface) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+    font-weight: 600 !important;
     font-size: 11px !important;
-    padding: 4px 6px !important;
+    padding: 6px 8px !important;
+    color: var(--text-secondary) !important;
 }
 
 .e-grid .e-rowcell {
-    padding: 3px 6px !important;
+    padding: 4px 8px !important;
     font-size: 11px !important;
-    border-color: var(--win-bg) !important;
+    border-color: var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    background: var(--bg-panel) !important;
 }
 
 .e-grid .e-row:hover .e-rowcell {
-    background: var(--win-highlight) !important;
-    color: var(--win-highlight-text) !important;
+    background: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.e-grid .e-row.e-altrow .e-rowcell {
+    background: var(--bg-surface) !important;
 }
 
 .e-tab {
     font-size: 11px !important;
+    background: var(--bg-panel) !important;
 }
 
 .e-tab .e-tab-header .e-toolbar-item .e-tab-text {
     font-size: 11px !important;
+    color: var(--text-secondary) !important;
+}
+
+.e-tab .e-tab-header .e-toolbar-item.e-active .e-tab-text {
+    color: var(--accent-primary) !important;
 }
 
 .e-dialog {
-    border: 2px solid !important;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 4px !important;
+    background: var(--bg-panel) !important;
+    box-shadow: var(--shadow-lg) !important;
 }
 
 .e-dialog .e-dlg-header-content {
-    background: var(--accent-blue) !important;
-    color: var(--win-highlight-text) !important;
-    padding: 2px 4px !important;
-    font-size: 11px !important;
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 }
 
 .e-btn {
     font-size: 11px !important;
-    padding: 2px 12px !important;
-    min-height: 21px !important;
+    padding: 4px 12px !important;
+    min-height: 24px !important;
+    border-radius: 3px !important;
 }
 
 .e-btn.e-flat {
     background: transparent !important;
     border: 1px solid transparent !important;
+    color: var(--text-secondary) !important;
 }
 
 .e-btn.e-flat:hover {
-    background: var(--win-bg) !important;
-    border: 1px solid var(--win-dark) !important;
+    background: var(--bg-hover) !important;
+    border: 1px solid var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+}
+
+.e-btn.e-primary {
+    background: var(--accent-primary) !important;
+    border-color: var(--accent-primary) !important;
+    color: #000 !important;
+}
+
+.e-btn.e-primary:hover {
+    background: var(--accent-primary-hover) !important;
+    border-color: var(--accent-primary-hover) !important;
 }
 
 .e-chart {
     font-size: 12px !important;
+    background: transparent !important;
 }
 
 /* Ensure buttons have proper cursor */
@@ -386,63 +454,106 @@ button, .e-btn {
     cursor: pointer;
 }
 
-/* Scrollbar Classic Style (WebKit browsers only - graceful degradation for others) */
+/* Modern Scrollbar Style (WebKit browsers only - graceful degradation for others) */
 @supports selector(::-webkit-scrollbar) {
     ::-webkit-scrollbar {
-        width: 16px;
-        height: 16px;
+        width: 10px;
+        height: 10px;
     }
 
     ::-webkit-scrollbar-track {
-        background: var(--win-bg);
-        border: 1px solid var(--win-dark);
+        background: var(--bg-dark);
     }
 
     ::-webkit-scrollbar-thumb {
-        background: var(--win-face);
-        border: 2px solid;
-        border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+        background: var(--bg-hover);
+        border-radius: 4px;
+        border: 2px solid var(--bg-dark);
     }
 
-    ::-webkit-scrollbar-button {
-        background: var(--win-face);
-        border: 2px solid;
-        border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
-        width: 16px;
-        height: 16px;
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--border-strong);
     }
 }
 
-/* Card Components - Classic Style */
+/* Card Components - Modern Industrial Style */
 .card {
-    background: var(--win-face);
-    border: 2px solid;
-    border-color: var(--win-light) var(--win-dark) var(--win-dark) var(--win-light);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
     margin-bottom: 8px;
+    box-shadow: var(--shadow-sm);
 }
 
 .card-header {
-    background: var(--accent-blue);
-    color: var(--win-highlight-text);
-    padding: 2px 6px;
-    font-weight: bold;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    font-weight: 600;
     font-size: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    border-radius: 4px 4px 0 0;
 }
 
 .card-body {
-    padding: 8px;
+    padding: 10px;
 }
 
-/* Classic Link Style */
+/* Modern Link Style */
 a {
-    color: var(--accent-blue);
-    text-decoration: underline;
+    color: var(--accent-secondary);
+    text-decoration: none;
 }
 
 a:hover {
-    color: var(--accent-teal);
+    color: var(--accent-secondary-hover);
+    text-decoration: underline;
 }
 
 a:visited {
-    color: #800080;
+    color: var(--accent-secondary);
+}
+
+/* Industrial accent highlights */
+.highlight-primary {
+    color: var(--accent-primary);
+}
+
+.highlight-secondary {
+    color: var(--accent-secondary);
+}
+
+.bg-accent {
+    background: var(--accent-primary);
+    color: #000;
+}
+
+/* Status badges */
+.badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 2px;
+    text-transform: uppercase;
+}
+
+.badge-success {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--status-ok);
+}
+
+.badge-warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--status-warn);
+}
+
+.badge-error {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--status-error);
+}
+
+.badge-info {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--status-info);
 }
