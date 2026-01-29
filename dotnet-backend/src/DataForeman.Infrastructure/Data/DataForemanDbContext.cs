@@ -320,15 +320,17 @@ public class DataForemanDbContext : DbContext
 
     private static void SeedData(ModelBuilder modelBuilder)
     {
-        // Seed default user for anonymous access
-        var defaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        // Seed admin user with default credentials (admin@local / admin123)
+        var adminUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        // BCrypt hash of "admin123"
+        var adminPasswordHash = "$2a$11$wBN7FfKoDqY3lCIQVXoqve7Z20u8XDJrysq/69WOFDCfUYhW43Lku";
         modelBuilder.Entity<User>().HasData(
             new User 
             { 
-                Id = defaultUserId, 
-                Email = "default@local", 
-                DisplayName = "Default User",
-                PasswordHash = "", // No password for local user
+                Id = adminUserId, 
+                Email = "admin@local", 
+                DisplayName = "Administrator",
+                PasswordHash = adminPasswordHash, // Password: admin123
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -440,7 +442,7 @@ public class DataForemanDbContext : DbContext
                 Id = flow1Id, 
                 Name = "Temperature Monitor", 
                 Description = "Monitors tank temperatures and triggers alerts",
-                OwnerUserId = defaultUserId,
+                OwnerUserId = adminUserId,
                 Deployed = false,
                 Shared = false,
                 TestMode = false,
@@ -455,7 +457,7 @@ public class DataForemanDbContext : DbContext
                 Id = flow2Id, 
                 Name = "Data Logger", 
                 Description = "Logs production data to database",
-                OwnerUserId = defaultUserId,
+                OwnerUserId = adminUserId,
                 Deployed = false,
                 Shared = false,
                 TestMode = false,
@@ -476,7 +478,7 @@ public class DataForemanDbContext : DbContext
                 Id = chart1Id, 
                 Name = "Temperature Trends", 
                 ChartType = "line",
-                UserId = defaultUserId,
+                UserId = adminUserId,
                 TimeMode = "rolling",
                 Options = "{}",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -487,7 +489,7 @@ public class DataForemanDbContext : DbContext
                 Id = chart2Id, 
                 Name = "Pressure Overview", 
                 ChartType = "area",
-                UserId = defaultUserId,
+                UserId = adminUserId,
                 TimeMode = "rolling",
                 Options = "{}",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -503,7 +505,7 @@ public class DataForemanDbContext : DbContext
                 Id = dashboard1Id, 
                 Name = "Production Overview", 
                 Description = "Main production monitoring dashboard",
-                UserId = defaultUserId,
+                UserId = adminUserId,
                 Layout = "{}",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)

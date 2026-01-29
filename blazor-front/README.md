@@ -22,9 +22,11 @@ blazor-front/
 │   ├── App.razor                  # Root component
 │   └── Routes.razor               # Routing configuration
 ├── Services/
-│   ├── ApiService.cs              # HTTP client for backend API
+│   ├── DataService.cs             # Direct database access service
 │   ├── AuthStateProvider.cs       # JWT auth state management
-│   └── AppStateService.cs         # Global app state
+│   ├── AppStateService.cs         # Global app state
+│   ├── NodePluginModels.cs        # Node plugin definitions
+│   └── NodePluginRegistry.cs      # Node plugin registry
 ├── wwwroot/                       # Static files
 ├── Program.cs                     # App configuration
 ├── Dockerfile                     # Container image
@@ -61,23 +63,34 @@ dotnet run
 ```
 
 The app will be available at:
-- HTTP: http://localhost:5129
-- Default credentials: admin@dataforeman.local / admin123
+- HTTP: http://localhost:5050
+- **Default credentials**: `admin@local` / `admin123`
 
 ### Configuration
 
-Configure the backend API URL in `appsettings.json`:
+This is a modular monolith application - all backend services are included in the Blazor app. No separate API server is required.
+
+Configure optional settings in `appsettings.json`:
 
 ```json
 {
-  "ApiBaseUrl": "http://localhost:5100",
+  "ConnectionStrings": {
+    "DefaultConnection": "Data Source=dataforeman.db"
+  },
+  "Jwt": {
+    "SecretKey": "your-secret-key-min-32-chars-long!",
+    "Issuer": "DataForeman",
+    "Audience": "DataForeman.Clients",
+    "AccessTokenExpirationHours": 2,
+    "RefreshTokenExpirationDays": 7
+  },
   "SyncfusionLicenseKey": "your-license-key"
 }
 ```
 
 Environment variables can override settings:
 ```bash
-export ApiBaseUrl=http://api:8080
+export ConnectionStrings__DefaultConnection="Data Source=dataforeman.db"
 export SyncfusionLicenseKey=your-key
 ```
 
