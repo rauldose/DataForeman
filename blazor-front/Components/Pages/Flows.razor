@@ -77,21 +77,46 @@
             </div>
             
             <div class="editor-container">
-                @* Syncfusion Symbol Palette - on the left *@
-                <div class="symbol-palette-container">
-                    <SfSymbolPaletteComponent @ref="SymbolPalette"
-                                              Width="100%"
-                                              Height="100%"
-                                              Palettes="@Palettes"
-                                              SymbolHeight="50"
-                                              SymbolWidth="100"
-                                              SymbolMargin="@SymbolMargin"
-                                              GetSymbolInfo="@GetSymbolInfo">
-                    </SfSymbolPaletteComponent>
+                @* Custom HTML5 Palette - more reliable than Syncfusion SymbolPalette *@
+                <div class="custom-palette">
+                    <div class="palette-header">NODE PALETTE</div>
+                    @foreach (var category in NodePluginRegistry.Categories)
+                    {
+                        var plugins = NodeRegistry.GetByCategory(category);
+                        if (plugins.Count == 0) continue;
+                        
+                        <div class="palette-category">
+                            <div class="category-header" @onclick="() => ToggleCategory(category)">
+                                <span class="toggle-icon">@(ExpandedCategories.Contains(category) ? "▼" : "▶")</span>
+                                @category.ToUpperInvariant()
+                            </div>
+                            @if (ExpandedCategories.Contains(category))
+                            {
+                                <div class="category-nodes">
+                                    @foreach (var plugin in plugins)
+                                    {
+                                        <div class="palette-node" 
+                                             draggable="true"
+                                             style="border-left-color: @plugin.Color"
+                                             @ondragstart="() => OnPaletteDragStart(plugin)"
+                                             @onclick="() => AddNodeFromPalette(plugin)">
+                                            <span class="node-icon" style="color: @plugin.Color">@plugin.Icon</span>
+                                            <span class="node-label">@plugin.ShortLabel</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
                 
-                @* Syncfusion Diagram with HTML Node Templates *@
-                <div class="diagram-container" id="diagram-space">
+                @* Syncfusion Diagram *@
+                <div class="diagram-container" 
+                     id="diagram-space"
+                     @ondragover="OnDiagramDragOver"
+                     @ondragover:preventDefault="true"
+                     @ondrop="OnDiagramDrop"
+                     @ondrop:preventDefault="true">
                     <SfDiagramComponent @ref="Diagram" 
                                         ID="diagram"
                                         Width="100%" 
@@ -100,8 +125,7 @@
                                         Connectors="@Connectors"
                                         NodeCreating="@OnNodeCreating"
                                         ConnectorCreating="@OnConnectorCreating"
-                                        SelectionChanged="@OnSelectionChanged"
-                                        DragDrop="@OnDragDrop">
+                                        SelectionChanged="@OnSelectionChanged">
                         <SnapSettings>
                             <HorizontalGridLines LineColor="#3a4049" LineDashArray="2,4"></HorizontalGridLines>
                             <VerticalGridLines LineColor="#3a4049" LineDashArray="2,4"></VerticalGridLines>
@@ -286,15 +310,106 @@
         overflow: hidden;
     }
     
-    .symbol-palette-container {
+    /* Custom HTML5 Palette - reliable drag-drop */
+    .custom-palette {
         width: 180px;
         min-width: 180px;
         background: #1a1d21;
         border-right: 1px solid #3a4049;
         order: -1;
-        overflow: auto;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
     }
     
+    .palette-header {
+        padding: 10px 12px;
+        font-size: 10px;
+        font-weight: 700;
+        color: #9ea3ad;
+        letter-spacing: 1px;
+        background: #23272e;
+        border-bottom: 1px solid #3a4049;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .palette-category {
+        border-bottom: 1px solid #2d323b;
+    }
+    
+    .category-header {
+        padding: 8px 12px;
+        font-size: 10px;
+        font-weight: 600;
+        color: #9ea3ad;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: #1e2228;
+        user-select: none;
+    }
+    
+    .category-header:hover {
+        background: #23272e;
+        color: #f59e0b;
+    }
+    
+    .toggle-icon {
+        font-size: 8px;
+    }
+    
+    .category-nodes {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .palette-node {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        background: #23272e;
+        border: 1px solid #3a4049;
+        border-left: 3px solid #9ca3af;
+        border-radius: 4px;
+        cursor: grab;
+        transition: all 0.15s ease;
+    }
+    
+    .palette-node:hover {
+        background: #2d323b;
+        border-color: #4a5568;
+        transform: translateX(2px);
+    }
+    
+    .palette-node:active {
+        cursor: grabbing;
+        transform: scale(0.98);
+    }
+    
+    .palette-node .node-icon {
+        font-family: Consolas, monospace;
+        font-size: 9px;
+        font-weight: bold;
+        padding: 2px 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+    
+    .palette-node .node-label {
+        font-size: 11px;
+        color: #e4e6ea;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .diagram-container {
         flex: 1;
         background: #2d323b;
@@ -554,15 +669,15 @@
     [Inject] NavigationManager Navigation { get; set; } = default!;
     
     private SfDiagramComponent? Diagram;
-    private SfSymbolPaletteComponent? SymbolPalette;
     
     private DiagramObjectCollection<Node> Nodes = new();
     private DiagramObjectCollection<Connector> Connectors = new();
     private Node? SelectedNode;
     private string SelectedNodeLabel = "";
     
-    private DiagramObjectCollection<Palette> Palettes = new();
-    private SymbolMargin SymbolMargin = new() { Left = 4, Right = 4, Top = 4, Bottom = 4 };
+    // Custom palette state
+    private HashSet<string> ExpandedCategories = new() { "Triggers", "Tags" };
+    private NodePluginDefinition? _draggingPlugin;
     
     private FlowListItem CurrentFlow = new() { Name = "New Flow" };
     private bool IsLoading = true;
@@ -570,9 +685,65 @@
     // Flows list - loaded from API or sample data
     private List<FlowListItem> FlowsList = new();
     
+    // Toggle category expansion
+    private void ToggleCategory(string category)
+    {
+        if (ExpandedCategories.Contains(category))
+            ExpandedCategories.Remove(category);
+        else
+            ExpandedCategories.Add(category);
+    }
+    
+    // Custom drag-drop handlers
+    private void OnPaletteDragStart(NodePluginDefinition plugin)
+    {
+        _draggingPlugin = plugin;
+    }
+    
+    private void OnDiagramDragOver(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
+    {
+        // Allow drop
+        e.DataTransfer.DropEffect = "copy";
+    }
+    
+    private async Task OnDiagramDrop(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
+    {
+        if (_draggingPlugin == null || Diagram == null) return;
+        
+        try
+        {
+            // Add node at a default position (center of diagram)
+            await AddNodeFromPalette(_draggingPlugin);
+        }
+        finally
+        {
+            _draggingPlugin = null;
+        }
+    }
+    
+    // Add node from palette (called by both click and drop)
+    private async Task AddNodeFromPalette(NodePluginDefinition plugin)
+    {
+        if (Diagram == null) return;
+        
+        // Calculate position for new node (offset from last node or center)
+        double offsetX = 400 + (Nodes.Count % 4) * 220;
+        double offsetY = 150 + (Nodes.Count / 4) * 120;
+        
+        var node = CreateFlowNode(
+            $"{plugin.Id}-instance-{Guid.NewGuid():N}",
+            plugin.Name,
+            plugin.Color,
+            offsetX, offsetY,
+            plugin.InputCount, plugin.OutputCount
+        );
+        
+        Nodes.Add(node);
+        StateHasChanged();
+    }
+    
     protected override async Task OnInitializedAsync()
     {
-        InitializePalettes();
         await LoadFlows();
         
         // Load flow definition after flows are loaded
@@ -604,20 +775,9 @@
     private bool _firstRender = true;
     private bool _connectorsAdded = false;
     private DiagramObjectCollection<Connector> _pendingConnectors = new();
-    private bool _diagramTargetsSet = false;
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Set up diagram targets for symbol palette drag-drop
-        if (firstRender && Diagram != null && SymbolPalette != null && !_diagramTargetsSet)
-        {
-            _diagramTargetsSet = true;
-            // Set the Targets property on the SymbolPalette reference directly
-            // This enables drag-drop from palette to diagram
-            SymbolPalette.Targets = new DiagramObjectCollection<SfDiagramComponent?> { Diagram };
-            StateHasChanged();
-        }
-        
         // Add connectors after the diagram and nodes are fully rendered
         if (_firstRender && FlowId != Guid.Empty && Diagram != null && !_connectorsAdded)
         {
@@ -888,162 +1048,6 @@
         };
     }
     
-    private void InitializePalettes()
-    {
-        // Build palettes dynamically from the node registry
-        Palettes = new DiagramObjectCollection<Palette>();
-        
-        foreach (var category in NodePluginRegistry.Categories)
-        {
-            var plugins = NodeRegistry.GetByCategory(category);
-            if (plugins.Count == 0) continue;
-            
-            var nodes = new DiagramObjectCollection<NodeBase>();
-            foreach (var plugin in plugins)
-            {
-                nodes.Add(CreatePaletteNodeFromPlugin(plugin));
-            }
-            
-            // Format category title for display
-            var title = category.ToUpperInvariant();
-            if (category == "Tags") title = "TAG I/O";
-            
-            Palettes.Add(new Palette 
-            { 
-                Title = title, 
-                Symbols = nodes, 
-                IsExpanded = category == "Triggers" || category == "Tags"
-            });
-        }
-    }
-    
-    /// <summary>
-    /// Creates a palette node from plugin metadata
-    /// </summary>
-    private Node CreatePaletteNodeFromPlugin(NodePluginDefinition plugin)
-    {
-        var node = new Node
-        {
-            ID = plugin.Id,
-            Width = 100,
-            Height = 50,
-            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 4 },
-            Style = new ShapeStyle { Fill = "#1e2228", StrokeColor = plugin.Color, StrokeWidth = 2 },
-            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
-            Ports = new DiagramObjectCollection<PointPort>(),
-            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
-        };
-        
-        // Icon badge on left
-        node.Annotations.Add(new ShapeAnnotation
-        {
-            Content = plugin.Icon,
-            Style = new TextStyle 
-            { 
-                Color = plugin.Color, 
-                FontSize = 9, 
-                Bold = true,
-                FontFamily = "Consolas, monospace"
-            },
-            Offset = new DiagramPoint { X = 0.18, Y = 0.5 }
-        });
-        
-        // Label on right
-        node.Annotations.Add(new ShapeAnnotation
-        {
-            Content = plugin.ShortLabel,
-            Style = new TextStyle 
-            { 
-                Color = "#e4e6ea", 
-                FontSize = 10, 
-                Bold = false,
-                FontFamily = "Segoe UI, sans-serif"
-            },
-            Offset = new DiagramPoint { X = 0.62, Y = 0.5 }
-        });
-        
-        // Add input ports (left side) - small circles
-        for (int i = 0; i < plugin.InputCount; i++)
-        {
-            var yOffset = plugin.InputCount == 1 ? 0.5 : (i + 1.0) / (plugin.InputCount + 1);
-            node.Ports.Add(new PointPort
-            {
-                ID = $"input-{i}",
-                Offset = new DiagramPoint { X = 0, Y = yOffset },
-                Visibility = PortVisibility.Visible,
-                Shape = PortShapes.Circle,
-                Width = 8,
-                Height = 8,
-                Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#1e2228", StrokeWidth = 1 },
-                Constraints = PortConstraints.Default | PortConstraints.Draw
-            });
-        }
-        
-        // Add output ports (right side) - small circles
-        for (int i = 0; i < plugin.OutputCount; i++)
-        {
-            var yOffset = plugin.OutputCount == 1 ? 0.5 : (i + 1.0) / (plugin.OutputCount + 1);
-            node.Ports.Add(new PointPort
-            {
-                ID = $"output-{i}",
-                Offset = new DiagramPoint { X = 1, Y = yOffset },
-                Visibility = PortVisibility.Visible,
-                Shape = PortShapes.Circle,
-                Width = 8,
-                Height = 8,
-                Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#1e2228", StrokeWidth = 1 },
-                Constraints = PortConstraints.Default | PortConstraints.Draw
-            });
-        }
-        
-        return node;
-    }
-    
-    // Keep the old CreatePaletteNode for backward compatibility
-    private Node CreatePaletteNode(string id, string label, int inputCount, int outputCount)
-    {
-        var plugin = NodeRegistry.Get(id);
-        if (plugin != null)
-        {
-            return CreatePaletteNodeFromPlugin(plugin);
-        }
-        
-        // Fallback for unknown nodes
-        var node = new Node
-        {
-            ID = id,
-            Width = 100,
-            Height = 50,
-            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 4 },
-            Style = new ShapeStyle { Fill = "#1e2228", StrokeColor = "#9ca3af", StrokeWidth = 2 },
-            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
-            Ports = new DiagramObjectCollection<PointPort>(),
-            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
-        };
-        
-        node.Annotations.Add(new ShapeAnnotation
-        {
-            Content = label,
-            Style = new TextStyle { Color = "#e4e6ea", FontSize = 10 },
-            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
-        });
-        
-        return node;
-    }
-    
-    private SymbolInfo GetSymbolInfo(IDiagramObject symbol)
-    {
-        if (symbol is Node node)
-        {
-            return new SymbolInfo
-            {
-                Fit = true,
-                Description = new SymbolDescription { Text = node.ID ?? "" }
-            };
-        }
-        return new SymbolInfo { Fit = true };
-    }
-    
     private async Task CreateNewFlow()
     {
         var newId = Guid.NewGuid();
@@ -1312,39 +1316,6 @@
                 Height = 10,
                 Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } 
             };
-        }
-    }
-    
-    private void OnDragDrop(DropEventArgs args)
-    {
-        // Handle node drop from palette - this fires after NodeCreating
-        if (args.Element is Node node)
-        {
-            // Generate unique ID for the dropped node if not done already
-            var baseId = node.ID?.Split("-instance-").FirstOrDefault() ?? "node";
-            if (!node.ID!.Contains("-instance-"))
-            {
-                node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
-            }
-            
-            // Ensure proper size
-            node.Width = 180;
-            node.Height = 70;
-            
-            // Ensure node has full interactivity after drop
-            node.Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop;
-            
-            // Ensure ports are visible after drop with proper styling
-            if (node.Ports != null)
-            {
-                foreach (var port in node.Ports)
-                {
-                    port.Visibility = PortVisibility.Visible;
-                    port.Width = 14;
-                    port.Height = 14;
-                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
-                }
-            }
         }
     }
     

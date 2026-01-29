@@ -11,6 +11,11 @@ public class RedisConnectionOptions
     public const string SectionName = "Redis";
 
     /// <summary>
+    /// Whether Redis is enabled. If false, the application will work without Redis.
+    /// </summary>
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
     /// Redis connection string (e.g., "localhost:6379" or "redis:6379,password=secret").
     /// </summary>
     public string ConnectionString { get; set; } = "localhost:6379";

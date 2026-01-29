@@ -21,6 +21,12 @@ public class FlowEngineOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// Whether Redis is required for the flow engine.
+    /// If false, the flow engine will work without Redis (local execution only).
+    /// </summary>
+    public bool RequireRedis { get; set; } = false;
+
+    /// <summary>
     /// Consumer name for this instance.
     /// </summary>
     public string ConsumerName { get; set; } = $"flow-engine-{Environment.MachineName}";
@@ -52,23 +58,26 @@ public class FlowEngineOptions
 public class FlowEngineHostedService : BackgroundService
 {
     private readonly ILogger<FlowEngineHostedService> _logger;
-    private readonly IRedisStreamService _redisService;
+    private readonly IRedisStreamService? _redisService;
     private readonly IFlowExecutionEngine _executionEngine;
     private readonly FlowEngineOptions _options;
+    private readonly RedisConnectionOptions _redisOptions;
 
     /// <summary>
     /// Initializes a new instance of the flow engine hosted service.
     /// </summary>
     public FlowEngineHostedService(
         ILogger<FlowEngineHostedService> logger,
-        IRedisStreamService redisService,
+        IRedisStreamService? redisService,
         IFlowExecutionEngine executionEngine,
-        IOptions<FlowEngineOptions> options)
+        IOptions<FlowEngineOptions> options,
+        IOptions<RedisConnectionOptions> redisOptions)
     {
         _logger = logger;
         _redisService = redisService;
         _executionEngine = executionEngine;
         _options = options.Value;
+        _redisOptions = redisOptions.Value;
     }
 
     /// <inheritdoc />
@@ -80,7 +89,16 @@ public class FlowEngineHostedService : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Flow engine starting, consumer: {Consumer}", _options.ConsumerName);
+        // Check if Redis is enabled
+        if (!_redisOptions.Enabled || _redisService == null)
+        {
+            _logger.LogInformation("Flow engine running in local mode (Redis disabled). Flows will be executed on-demand without stream processing.");
+            // In local mode, we don't need to listen for Redis streams
+            // Flows can still be executed directly via the execution engine
+            return;
+        }
+
+        _logger.LogInformation("Flow engine starting with Redis, consumer: {Consumer}", _options.ConsumerName);
 
         // Wait for Redis to be ready
         var retries = 0;
@@ -96,7 +114,13 @@ public class FlowEngineHostedService : BackgroundService
 
         if (!_redisService.IsConnected)
         {
-            _logger.LogError("Failed to connect to Redis after {Retries} attempts", retries);
+            if (_options.RequireRedis)
+            {
+                _logger.LogError("Failed to connect to Redis after {Retries} attempts and Redis is required", retries);
+                return;
+            }
+            
+            _logger.LogWarning("Failed to connect to Redis after {Retries} attempts. Running in local mode.", retries);
             return;
         }
 
