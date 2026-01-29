@@ -24,6 +24,9 @@ builder.Services.AddScoped<ApiService>();
 // Add App State service
 builder.Services.AddScoped<AppStateService>();
 
+// Add Node Plugin Registry (singleton for shared node definitions)
+builder.Services.AddSingleton<NodePluginRegistry>();
+
 // Add Authentication services
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => 

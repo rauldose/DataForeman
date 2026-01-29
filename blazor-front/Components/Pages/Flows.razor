@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
 @inject ApiService ApiService
+@inject NodePluginRegistry NodeRegistry
 
 <PageTitle>Flow Studio - DataForeman</PageTitle>
 
@@ -82,8 +83,8 @@
                                               Width="100%"
                                               Height="100%"
                                               Palettes="@Palettes"
-                                              SymbolHeight="70"
-                                              SymbolWidth="120"
+                                              SymbolHeight="50"
+                                              SymbolWidth="100"
                                               SymbolMargin="@SymbolMargin"
                                               GetSymbolInfo="@GetSymbolInfo">
                     </SfSymbolPaletteComponent>
@@ -102,8 +103,8 @@
                                         SelectionChanged="@OnSelectionChanged"
                                         DragDrop="@OnDragDrop">
                         <SnapSettings>
-                            <HorizontalGridLines LineColor="#e0e0e0" LineDashArray="2,2"></HorizontalGridLines>
-                            <VerticalGridLines LineColor="#e0e0e0" LineDashArray="2,2"></VerticalGridLines>
+                            <HorizontalGridLines LineColor="#3a4049" LineDashArray="2,4"></HorizontalGridLines>
+                            <VerticalGridLines LineColor="#3a4049" LineDashArray="2,4"></VerticalGridLines>
                         </SnapSettings>
                         <ScrollSettings ScrollLimit="ScrollLimitMode.Diagram"></ScrollSettings>
                     </SfDiagramComponent>
@@ -113,199 +114,91 @@
                     <h3>Properties</h3>
                     @if (SelectedNode != null)
                     {
+                        var plugin = NodeRegistry.Get(GetNodeBaseType(SelectedNode));
                         <div class="property-header">
-                            <span class="node-type-badge">@GetNodeType(SelectedNode)</span>
+                            <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
+                                <span class="badge-icon">@(plugin?.Icon ?? "[?]")</span>
+                                @(plugin?.Name ?? GetNodeType(SelectedNode))
+                            </span>
                         </div>
+                        
+                        @if (plugin != null)
+                        {
+                            <p class="plugin-description">@plugin.Description</p>
+                        }
                         
                         <div class="property-group">
                             <label>Label</label>
                             <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged" Placeholder="Enter label"></SfTextBox>
                         </div>
                         
-                        @* TRIGGER NODES *@
-                        @if (GetNodeBaseType(SelectedNode) == "trigger-manual")
+                        @* Dynamic properties from plugin metadata *@
+                        @if (plugin != null)
                         {
-                            <div class="property-section">
-                                <h4>⚡ Manual Trigger</h4>
-                                <p class="property-hint">This trigger fires when manually activated or when the flow starts.</p>
-                                <div class="property-group">
-                                    <label>Run on Deploy</label>
-                                    <SfCheckBox TChecked="bool" @bind-Checked="@_triggerOnDeploy" Label="Fire when flow is deployed"></SfCheckBox>
+                            @foreach (var group in plugin.Properties.Where(p => !p.Advanced).GroupBy(p => p.Group).OrderBy(g => g.Key))
+                            {
+                                <div class="property-section">
+                                    <h4>@group.Key</h4>
+                                    @foreach (var prop in group.OrderBy(p => p.Order))
+                                    {
+                                        <div class="property-group">
+                                            <label>@prop.Label @(prop.Required ? "*" : "")</label>
+                                            @RenderPropertyInput(prop)
+                                            @if (!string.IsNullOrEmpty(prop.HelpText))
+                                            {
+                                                <span class="property-hint">@prop.HelpText</span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
-                            </div>
-                        }
-                        @if (GetNodeBaseType(SelectedNode) == "trigger-schedule")
-                        {
-                            <div class="property-section">
-                                <h4>⏰ Schedule Trigger</h4>
-                                <div class="property-group">
-                                    <label>Interval (seconds)</label>
-                                    <SfNumericTextBox TValue="int" Value="@GetIntervalValue()" ValueChanged="@OnIntervalChanged" Min="1" Max="86400"></SfNumericTextBox>
+                            }
+                            
+                            @* Advanced properties toggle *@
+                            @if (plugin.Properties.Any(p => p.Advanced))
+                            {
+                                <div class="advanced-toggle" @onclick="@(() => _showAdvanced = !_showAdvanced)">
+                                    <span class="toggle-icon">@(_showAdvanced ? "▼" : "▶")</span>
+                                    Advanced Options
                                 </div>
-                                <div class="property-group">
-                                    <label>Cron Expression (optional)</label>
-                                    <SfTextBox Value="@GetNodeProperty("cron")" ValueChanged="@((string val) => SetNodeProperty("cron", val))" Placeholder="e.g., 0 */5 * * * *"></SfTextBox>
-                                </div>
-                            </div>
-                        }
-                        @if (GetNodeBaseType(SelectedNode) == "trigger-tag")
-                        {
-                            <div class="property-section">
-                                <h4>🔔 Tag Change Trigger</h4>
-                                <div class="property-group">
-                                    <label>Tag Path</label>
-                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Trigger Mode</label>
-                                    <SfDropDownList TItem="string" TValue="string" DataSource="@TriggerModes" Value="@GetNodeProperty("triggerMode", "Any Change")" ValueChanged="@((string val) => SetNodeProperty("triggerMode", val))">
-                                    </SfDropDownList>
-                                </div>
-                                <div class="property-group">
-                                    <label>Deadband</label>
-                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("deadband", 0)" ValueChanged="@((double val) => SetNodeProperty("deadband", val.ToString()))" Min="0" Step="0.1"></SfNumericTextBox>
-                                </div>
-                            </div>
-                        }
-                        
-                        @* TAG OPERATION NODES *@
-                        @if (GetNodeBaseType(SelectedNode) == "tag-input")
-                        {
-                            <div class="property-section">
-                                <h4>📥 Tag Input</h4>
-                                <div class="property-group">
-                                    <label>Tag Path</label>
-                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Data Type</label>
-                                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" Value="@GetNodeProperty("dataType", "Float")" ValueChanged="@((string val) => SetNodeProperty("dataType", val))">
-                                    </SfDropDownList>
-                                </div>
-                                <div class="property-group">
-                                    <label>Default Value (on error)</label>
-                                    <SfTextBox Value="@GetNodeProperty("defaultValue", "0")" ValueChanged="@((string val) => SetNodeProperty("defaultValue", val))" Placeholder="0"></SfTextBox>
-                                </div>
-                            </div>
-                        }
-                        @if (GetNodeBaseType(SelectedNode) == "tag-output" || GetNodeBaseType(SelectedNode) == "tag-write")
-                        {
-                            <div class="property-section">
-                                <h4>📤 Tag Output</h4>
-                                <div class="property-group">
-                                    <label>Tag Path</label>
-                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.SetPoint"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Data Type</label>
-                                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" Value="@GetNodeProperty("dataType", "Float")" ValueChanged="@((string val) => SetNodeProperty("dataType", val))">
-                                    </SfDropDownList>
-                                </div>
-                            </div>
-                        }
-                        
-                        @* MATH NODES *@
-                        @if (GetNodeBaseType(SelectedNode).StartsWith("math-"))
-                        {
-                            <div class="property-section">
-                                <h4>🧮 Math Operation</h4>
-                                <div class="property-group">
-                                    <label>Operation</label>
-                                    <span class="property-value">@GetMathOperation(SelectedNode)</span>
-                                </div>
-                                <div class="property-group">
-                                    <label>Second Operand (if no input)</label>
-                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("operand", 0)" ValueChanged="@((double val) => SetNodeProperty("operand", val.ToString()))" Step="1"></SfNumericTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Result Precision</label>
-                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("precision", 2)" ValueChanged="@((int val) => SetNodeProperty("precision", val.ToString()))" Min="0" Max="10"></SfNumericTextBox>
-                                </div>
-                            </div>
-                        }
-                        
-                        @* LOGIC/COMPARISON NODES *@
-                        @if (GetNodeBaseType(SelectedNode).StartsWith("compare-") || GetNodeBaseType(SelectedNode).StartsWith("logic-"))
-                        {
-                            <div class="property-section">
-                                <h4>⚖️ Comparison</h4>
-                                <div class="property-group">
-                                    <label>Comparison Type</label>
-                                    <span class="property-value">@GetComparisonType(SelectedNode)</span>
-                                </div>
-                                <div class="property-group">
-                                    <label>Threshold Value</label>
-                                    <SfNumericTextBox TValue="double" Value="@GetThresholdValue()" ValueChanged="@OnThresholdChanged" Step="1"></SfNumericTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Hysteresis</label>
-                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("hysteresis", 0)" ValueChanged="@((double val) => SetNodeProperty("hysteresis", val.ToString()))" Min="0" Step="0.1"></SfNumericTextBox>
-                                </div>
-                            </div>
-                        }
-                        
-                        @* OUTPUT NODES *@
-                        @if (GetNodeBaseType(SelectedNode) == "notification")
-                        {
-                            <div class="property-section">
-                                <h4>🔔 Notification</h4>
-                                <div class="property-group">
-                                    <label>Message Template</label>
-                                    <SfTextBox Value="@GetNodeProperty("message")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Alert: {{value}} detected" Multiline="true"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Severity</label>
-                                    <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationSeverities" Value="@GetNodeProperty("severity", "Info")" ValueChanged="@((string val) => SetNodeProperty("severity", val))">
-                                    </SfDropDownList>
-                                </div>
-                                <div class="property-group">
-                                    <label>Notification Channel</label>
-                                    <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationChannels" Value="@GetNodeProperty("channel", "App")" ValueChanged="@((string val) => SetNodeProperty("channel", val))">
-                                    </SfDropDownList>
-                                </div>
-                                <div class="property-group">
-                                    <label>Rate Limit (min between alerts)</label>
-                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("rateLimit", 0)" ValueChanged="@((int val) => SetNodeProperty("rateLimit", val.ToString()))" Min="0" Max="1440"></SfNumericTextBox>
-                                </div>
-                            </div>
-                        }
-                        @if (GetNodeBaseType(SelectedNode) == "debug-log")
-                        {
-                            <div class="property-section">
-                                <h4>📋 Debug Log</h4>
-                                <div class="property-group">
-                                    <label>Log Message Template</label>
-                                    <SfTextBox Value="@GetNodeProperty("message", "Value: {{value}}")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Value: {{value}}" Multiline="true"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Log Level</label>
-                                    <SfDropDownList TItem="string" TValue="string" DataSource="@LogLevels" Value="@GetNodeProperty("logLevel", "Info")" ValueChanged="@((string val) => SetNodeProperty("logLevel", val))">
-                                    </SfDropDownList>
-                                </div>
-                            </div>
-                        }
-                        @if (GetNodeBaseType(SelectedNode) == "database-write")
-                        {
-                            <div class="property-section">
-                                <h4>💾 Database Write</h4>
-                                <div class="property-group">
-                                    <label>Table Name</label>
-                                    <SfTextBox Value="@GetNodeProperty("tableName", "flow_data")" ValueChanged="@((string val) => SetNodeProperty("tableName", val))" Placeholder="flow_data"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Column Mapping (JSON)</label>
-                                    <SfTextBox Value="@GetNodeProperty("columnMapping", "{\"value\": \"value\", \"timestamp\": \"created_at\"}")" ValueChanged="@((string val) => SetNodeProperty("columnMapping", val))" Placeholder="{\"value\": \"value\"}" Multiline="true"></SfTextBox>
-                                </div>
-                                <div class="property-group">
-                                    <label>Batch Size</label>
-                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("batchSize", 1)" ValueChanged="@((int val) => SetNodeProperty("batchSize", val.ToString()))" Min="1" Max="1000"></SfNumericTextBox>
-                                </div>
-                            </div>
+                                
+                                @if (_showAdvanced)
+                                {
+                                    @foreach (var group in plugin.Properties.Where(p => p.Advanced).GroupBy(p => p.Group).OrderBy(g => g.Key))
+                                    {
+                                        <div class="property-section advanced">
+                                            <h4>@group.Key</h4>
+                                            @foreach (var prop in group.OrderBy(p => p.Order))
+                                            {
+                                                <div class="property-group">
+                                                    <label>@prop.Label @(prop.Required ? "*" : "")</label>
+                                                    @RenderPropertyInput(prop)
+                                                    @if (!string.IsNullOrEmpty(prop.HelpText))
+                                                    {
+                                                        <span class="property-hint">@prop.HelpText</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            }
                         }
                         
                         <div class="property-actions">
                             <SfButton CssClass="e-danger e-small" IconCss="e-icons e-delete" Content="Delete Node" OnClick="@DeleteSelectedNode"></SfButton>
                         </div>
+                        
+                        @* Plugin info footer *@
+                        @if (plugin != null)
+                        {
+                            <div class="plugin-info">
+                                <span class="plugin-version">v@(plugin.Version)</span>
+                                @if (plugin.IsBuiltIn)
+                                {
+                                    <span class="plugin-builtin">Built-in</span>
+                                }
+                            </div>
+                        }
                     }
                     else
                     {
@@ -394,17 +287,17 @@
     }
     
     .symbol-palette-container {
-        width: 200px;
-        min-width: 200px;
-        background: #f5f5f5;
-        border-right: 1px solid #ddd;
+        width: 180px;
+        min-width: 180px;
+        background: #1a1d21;
+        border-right: 1px solid #3a4049;
         order: -1;
         overflow: auto;
     }
     
     .diagram-container {
         flex: 1;
-        background: #ffffff;
+        background: #2d323b;
         min-height: 500px;
     }
     
@@ -489,42 +382,158 @@
         padding-top: 16px;
         border-top: 1px solid #3c3c3c;
     }
+    
+    /* Plugin description */
+    .plugin-description {
+        font-size: 11px;
+        color: #9ea3ad;
+        margin: 0 0 16px 0;
+        line-height: 1.4;
+        padding: 8px;
+        background: #1e2228;
+        border-radius: 4px;
+        border-left: 3px solid #f59e0b;
+    }
+    
+    /* Advanced options toggle */
+    .advanced-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0;
+        margin-top: 16px;
+        cursor: pointer;
+        color: #9ea3ad;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-top: 1px solid #3c3c3c;
+    }
+    
+    .advanced-toggle:hover {
+        color: #f59e0b;
+    }
+    
+    .toggle-icon {
+        font-size: 10px;
+    }
+    
+    /* Advanced section styling */
+    .property-section.advanced {
+        background: #1e2228;
+        margin: 8px -12px 0;
+        padding: 12px;
+        border-top: none;
+    }
+    
+    .property-section.advanced h4 {
+        color: #9ea3ad;
+        font-size: 11px;
+    }
+    
+    /* Plugin info footer */
+    .plugin-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 20px;
+        padding-top: 12px;
+        border-top: 1px solid #3c3c3c;
+        font-size: 10px;
+        color: #6b7280;
+    }
+    
+    .plugin-version {
+        font-family: Consolas, monospace;
+    }
+    
+    .plugin-builtin {
+        background: #374151;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    
+    /* Enhanced node type badge for plugin */
+    .node-type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        background: #1e2228;
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #e4e6ea;
+    }
+    
+    .node-type-badge .badge-icon {
+        font-family: Consolas, monospace;
+        font-size: 10px;
+        padding: 2px 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+    
+    /* Hint styling below inputs */
+    .property-group .property-hint {
+        display: block;
+        margin-top: 4px;
+        font-size: 10px;
+        color: #6b7280;
+        font-style: normal;
+    }
 
-    /* Syncfusion Symbol Palette styling */
+    /* Syncfusion Symbol Palette styling - Industrial Dark Theme */
     .e-symbol-palette {
-        background: #f5f5f5 !important;
+        background: #1a1d21 !important;
         border: none !important;
+        border-right: 1px solid #3a4049 !important;
     }
     
     .e-symbol-palette .e-palette-header {
-        background: #e0e0e0 !important;
-        color: #333333 !important;
-        border-bottom: 1px solid #ccc !important;
-        font-weight: 600;
-        padding: 8px 12px;
+        background: #23272e !important;
+        color: #9ea3ad !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.5px !important;
+        border-bottom: 1px solid #3a4049 !important;
+        padding: 10px 12px !important;
+        text-transform: uppercase !important;
     }
     
     .e-symbol-palette .e-palette-content {
-        background: #f5f5f5 !important;
-        padding: 8px;
+        background: #1a1d21 !important;
+        padding: 8px 4px !important;
     }
     
     .e-symbol-palette .e-symbol-draggable {
-        background: #ffffff !important;
-        border: 1px solid #ddd !important;
-        border-radius: 4px !important;
-        margin: 4px;
-        cursor: grab;
+        background: transparent !important;
+        border: none !important;
+        margin: 2px !important;
+        padding: 2px !important;
+        cursor: grab !important;
+        transition: transform 0.15s ease !important;
     }
     
     .e-symbol-palette .e-symbol-draggable:hover {
-        background: #e8f5e9 !important;
-        border-color: #4caf50 !important;
+        background: rgba(245, 158, 11, 0.1) !important;
+        border-radius: 4px !important;
+        transform: scale(1.02) !important;
     }
     
-    /* Syncfusion Diagram styling */
+    .e-symbol-palette .e-symbol-draggable:active {
+        cursor: grabbing !important;
+    }
+    
+    /* Syncfusion Diagram styling - Dark Canvas */
     .e-diagram {
-        background: #fafafa !important;
+        background: #2d323b !important;
+    }
+    
+    .e-diagram-canvas {
+        background: #2d323b !important;
     }
     
     .save-message {
@@ -553,7 +562,7 @@
     private string SelectedNodeLabel = "";
     
     private DiagramObjectCollection<Palette> Palettes = new();
-    private SymbolMargin SymbolMargin = new() { Left = 5, Right = 5, Top = 5, Bottom = 5 };
+    private SymbolMargin SymbolMargin = new() { Left = 4, Right = 4, Top = 4, Bottom = 4 };
     
     private FlowListItem CurrentFlow = new() { Name = "New Flow" };
     private bool IsLoading = true;
@@ -730,38 +739,23 @@
     }
     
     /// <summary>
-    /// Node type metadata with icons and category info matching the original React app
-    /// </summary>
-    private static readonly Dictionary<string, NodeTypeInfo> NodeTypes = new()
-    {
-        ["trigger-manual"] = new("⚡", "Triggers", "Manual trigger node"),
-        ["trigger-schedule"] = new("⏰", "Triggers", "Schedule-based trigger"),
-        ["trigger-tag"] = new("🏷️", "Triggers", "Tag change trigger"),
-        ["tag-input"] = new("📥", "Tag Operations", "Read tag value"),
-        ["tag-output"] = new("📤", "Tag Operations", "Write tag value"),
-        ["tag-write"] = new("✏️", "Tag Operations", "Write to tag"),
-        ["math-add"] = new("➕", "Math", "Add two values"),
-        ["math-subtract"] = new("➖", "Math", "Subtract two values"),
-        ["math-multiply"] = new("✖️", "Math", "Multiply two values"),
-        ["math-divide"] = new("➗", "Math", "Divide two values"),
-        ["logic-if"] = new("🔀", "Logic", "Conditional branch"),
-        ["compare-equal"] = new("⚖️", "Logic", "Compare equal"),
-        ["compare-greater"] = new("📈", "Logic", "Compare greater than"),
-        ["compare-less"] = new("📉", "Logic", "Compare less than"),
-        ["debug-log"] = new("🐛", "Output", "Debug logging"),
-        ["notification"] = new("🔔", "Output", "Send notification"),
-        ["database-write"] = new("💾", "Output", "Write to database")
-    };
-    
-    private record NodeTypeInfo(string Icon, string Category, string Description);
-    
-    /// <summary>
-    /// Gets the icon for a node type
+    /// Gets the icon for a node type from the plugin registry
     /// </summary>
     private string GetNodeIcon(string nodeType)
     {
         var baseType = nodeType.Split("-instance-").FirstOrDefault() ?? nodeType;
-        return NodeTypes.TryGetValue(baseType, out var info) ? info.Icon : "📦";
+        var plugin = NodeRegistry.Get(baseType);
+        return plugin?.Icon ?? "[?]";
+    }
+    
+    /// <summary>
+    /// Gets color for a node type from the plugin registry
+    /// </summary>
+    private string GetNodeColor(string nodeType)
+    {
+        var baseType = nodeType.Split("-instance-").FirstOrDefault() ?? nodeType;
+        var plugin = NodeRegistry.Get(baseType);
+        return plugin?.Color ?? "#9ca3af";
     }
     
     /// <summary>
@@ -803,7 +797,8 @@
         });
         
         // Add category/type subtitle
-        var category = NodeTypes.TryGetValue(baseType, out var info) ? info.Category : "Node";
+        var pluginInfo = NodeRegistry.Get(baseType);
+        var category = pluginInfo?.Category ?? "Node";
         node.Annotations.Add(new ShapeAnnotation
         {
             Content = category,
@@ -890,122 +885,143 @@
     
     private void InitializePalettes()
     {
-        // Triggers palette - output only nodes
-        var triggerNodes = new DiagramObjectCollection<NodeBase>
-        {
-            CreatePaletteNode("trigger-manual", "Manual Trigger", "#4caf50", 0, 1),
-            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50", 0, 1),
-            CreatePaletteNode("trigger-tag", "Tag Change", "#4caf50", 0, 1)
-        };
+        // Build palettes dynamically from the node registry
+        Palettes = new DiagramObjectCollection<Palette>();
         
-        // Tag Operations palette - input and output
-        var tagNodes = new DiagramObjectCollection<NodeBase>
+        foreach (var category in NodeRegistry.Categories)
         {
-            CreatePaletteNode("tag-input", "Tag Input", "#2196f3", 1, 1),
-            CreatePaletteNode("tag-output", "Tag Output", "#ff9800", 1, 0),
-            CreatePaletteNode("tag-write", "Tag Write", "#ff5722", 1, 0)
-        };
-        
-        // Math palette - multiple inputs, single output
-        var mathNodes = new DiagramObjectCollection<NodeBase>
-        {
-            CreatePaletteNode("math-add", "Add (+)", "#9c27b0", 2, 1),
-            CreatePaletteNode("math-subtract", "Subtract (-)", "#9c27b0", 2, 1),
-            CreatePaletteNode("math-multiply", "Multiply (×)", "#9c27b0", 2, 1),
-            CreatePaletteNode("math-divide", "Divide (÷)", "#9c27b0", 2, 1)
-        };
-        
-        // Logic palette - comparison and conditionals
-        var logicNodes = new DiagramObjectCollection<NodeBase>
-        {
-            CreatePaletteNode("logic-if", "If/Else", "#795548", 1, 2),
-            CreatePaletteNode("compare-equal", "Equal (==)", "#607d8b", 2, 1),
-            CreatePaletteNode("compare-greater", "Greater (>)", "#607d8b", 2, 1),
-            CreatePaletteNode("compare-less", "Less (<)", "#607d8b", 2, 1)
-        };
-        
-        // Output palette - input only nodes
-        var outputNodes = new DiagramObjectCollection<NodeBase>
-        {
-            CreatePaletteNode("debug-log", "Debug Log", "#f44336", 1, 0),
-            CreatePaletteNode("notification", "Notification", "#e91e63", 1, 0),
-            CreatePaletteNode("database-write", "DB Write", "#3f51b5", 1, 0)
-        };
-        
-        Palettes = new DiagramObjectCollection<Palette>
-        {
-            new Palette { Title = "Triggers", Symbols = triggerNodes, IsExpanded = true },
-            new Palette { Title = "Tag Operations", Symbols = tagNodes, IsExpanded = true },
-            new Palette { Title = "Math", Symbols = mathNodes, IsExpanded = false },
-            new Palette { Title = "Logic", Symbols = logicNodes, IsExpanded = false },
-            new Palette { Title = "Output", Symbols = outputNodes, IsExpanded = false }
-        };
+            var plugins = NodeRegistry.GetByCategory(category);
+            if (plugins.Count == 0) continue;
+            
+            var nodes = new DiagramObjectCollection<NodeBase>();
+            foreach (var plugin in plugins)
+            {
+                nodes.Add(CreatePaletteNodeFromPlugin(plugin));
+            }
+            
+            // Format category title for display
+            var title = category.ToUpperInvariant();
+            if (category == "Tags") title = "TAG I/O";
+            
+            Palettes.Add(new Palette 
+            { 
+                Title = title, 
+                Symbols = nodes, 
+                IsExpanded = category == "Triggers" || category == "Tags"
+            });
+        }
     }
     
-    private Node CreatePaletteNode(string id, string label, string color, int inputCount, int outputCount)
+    /// <summary>
+    /// Creates a palette node from plugin metadata
+    /// </summary>
+    private Node CreatePaletteNodeFromPlugin(NodePluginDefinition plugin)
     {
-        var icon = GetNodeIcon(id);
-        
         var node = new Node
         {
-            ID = id,
-            Width = 110,
-            Height = 60,
-            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 6 },
-            Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
+            ID = plugin.Id,
+            Width = 100,
+            Height = 50,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 4 },
+            Style = new ShapeStyle { Fill = "#1e2228", StrokeColor = plugin.Color, StrokeWidth = 2 },
             Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
             Ports = new DiagramObjectCollection<PointPort>(),
-            // Enable all node interactions for palette nodes
             Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
         };
         
-        // Icon and label in single annotation
+        // Icon badge on left
         node.Annotations.Add(new ShapeAnnotation
         {
-            Content = $"{icon}  {label}",
+            Content = plugin.Icon,
             Style = new TextStyle 
             { 
-                Color = "#ffffff", 
-                FontSize = 10, 
+                Color = plugin.Color, 
+                FontSize = 9, 
                 Bold = true,
-                FontFamily = "Segoe UI, sans-serif"
+                FontFamily = "Consolas, monospace"
             },
-            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
+            Offset = new DiagramPoint { X = 0.18, Y = 0.5 }
         });
         
-        // Add input ports (left side) - visible circles
-        for (int i = 0; i < inputCount; i++)
+        // Label on right
+        node.Annotations.Add(new ShapeAnnotation
         {
-            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            Content = plugin.ShortLabel,
+            Style = new TextStyle 
+            { 
+                Color = "#e4e6ea", 
+                FontSize = 10, 
+                Bold = false,
+                FontFamily = "Segoe UI, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.62, Y = 0.5 }
+        });
+        
+        // Add input ports (left side) - small circles
+        for (int i = 0; i < plugin.InputCount; i++)
+        {
+            var yOffset = plugin.InputCount == 1 ? 0.5 : (i + 1.0) / (plugin.InputCount + 1);
             node.Ports.Add(new PointPort
             {
                 ID = $"input-{i}",
                 Offset = new DiagramPoint { X = 0, Y = yOffset },
                 Visibility = PortVisibility.Visible,
                 Shape = PortShapes.Circle,
-                Width = 10,
-                Height = 10,
-                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Width = 8,
+                Height = 8,
+                Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#1e2228", StrokeWidth = 1 },
                 Constraints = PortConstraints.Default | PortConstraints.Draw
             });
         }
         
-        // Add output ports (right side) - visible circles
-        for (int i = 0; i < outputCount; i++)
+        // Add output ports (right side) - small circles
+        for (int i = 0; i < plugin.OutputCount; i++)
         {
-            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            var yOffset = plugin.OutputCount == 1 ? 0.5 : (i + 1.0) / (plugin.OutputCount + 1);
             node.Ports.Add(new PointPort
             {
                 ID = $"output-{i}",
                 Offset = new DiagramPoint { X = 1, Y = yOffset },
                 Visibility = PortVisibility.Visible,
                 Shape = PortShapes.Circle,
-                Width = 10,
-                Height = 10,
-                Style = new ShapeStyle { Fill = "#ff9800", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Width = 8,
+                Height = 8,
+                Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#1e2228", StrokeWidth = 1 },
                 Constraints = PortConstraints.Default | PortConstraints.Draw
             });
         }
+        
+        return node;
+    }
+    
+    // Keep the old CreatePaletteNode for backward compatibility
+    private Node CreatePaletteNode(string id, string label, int inputCount, int outputCount)
+    {
+        var plugin = NodeRegistry.Get(id);
+        if (plugin != null)
+        {
+            return CreatePaletteNodeFromPlugin(plugin);
+        }
+        
+        // Fallback for unknown nodes
+        var node = new Node
+        {
+            ID = id,
+            Width = 100,
+            Height = 50,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 4 },
+            Style = new ShapeStyle { Fill = "#1e2228", StrokeColor = "#9ca3af", StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
+            Ports = new DiagramObjectCollection<PointPort>(),
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = label,
+            Style = new TextStyle { Color = "#e4e6ea", FontSize = 10 },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
+        });
         
         return node;
     }
@@ -1222,8 +1238,9 @@
                 var baseId = node.ID;
                 node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
                 
-                // Get category for subtitle
-                var category = NodeTypes.TryGetValue(baseId, out var info) ? info.Category : "Node";
+                // Get category for subtitle from plugin registry
+                var pluginDef = NodeRegistry.Get(baseId);
+                var category = pluginDef?.Category ?? "Node";
                 var icon = GetNodeIcon(baseId);
                 var label = node.Annotations?.FirstOrDefault()?.Content?.ToString()?.Replace($"{icon}  ", "") ?? baseId;
                 
@@ -1386,13 +1403,96 @@
     // Node property storage for node-specific settings
     private Dictionary<string, Dictionary<string, string>> _nodeProperties = new();
     private bool _triggerOnDeploy = true;
+    private bool _showAdvanced = false;
     
-    // Dropdown options for node properties
+    // Dropdown options for node properties (kept for backward compatibility)
     private List<string> NotificationSeverities = new() { "Info", "Warning", "Error", "Critical" };
     private List<string> NotificationChannels = new() { "App", "Email", "SMS", "Webhook" };
     private List<string> LogLevels = new() { "Debug", "Info", "Warning", "Error" };
     private List<string> DataTypes = new() { "Float", "Integer", "Boolean", "String" };
     private List<string> TriggerModes = new() { "Any Change", "Rising Edge", "Falling Edge", "Value Match" };
+    
+    /// <summary>
+    /// Renders the appropriate input control based on property type from plugin metadata
+    /// </summary>
+    private RenderFragment RenderPropertyInput(NodePropertyDefinition prop) => builder =>
+    {
+        var value = GetNodeProperty(prop.Key, prop.DefaultValue);
+        
+        switch (prop.Type)
+        {
+            case PropertyType.Text:
+            case PropertyType.TagPath:
+            case PropertyType.Cron:
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", value);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.TextArea:
+            case PropertyType.Json:
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", value);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.AddAttribute(4, "Multiline", true);
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Integer:
+                builder.OpenComponent<SfNumericTextBox<int>>(0);
+                builder.AddAttribute(1, "Value", int.TryParse(value, out var intVal) ? intVal : 0);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<int>(this, v => SetNodeProperty(prop.Key, v.ToString())));
+                if (prop.Min.HasValue) builder.AddAttribute(3, "Min", (int)prop.Min.Value);
+                if (prop.Max.HasValue) builder.AddAttribute(4, "Max", (int)prop.Max.Value);
+                if (prop.Step.HasValue) builder.AddAttribute(5, "Step", (int)prop.Step.Value);
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Decimal:
+                builder.OpenComponent<SfNumericTextBox<double>>(0);
+                builder.AddAttribute(1, "Value", double.TryParse(value, out var dblVal) ? dblVal : 0);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double>(this, v => SetNodeProperty(prop.Key, v.ToString())));
+                if (prop.Min.HasValue) builder.AddAttribute(3, "Min", prop.Min.Value);
+                if (prop.Max.HasValue) builder.AddAttribute(4, "Max", prop.Max.Value);
+                if (prop.Step.HasValue) builder.AddAttribute(5, "Step", prop.Step.Value);
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Boolean:
+                builder.OpenComponent<SfCheckBox<bool>>(0);
+                builder.AddAttribute(1, "Checked", value.Equals("true", StringComparison.OrdinalIgnoreCase));
+                builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, v => SetNodeProperty(prop.Key, v.ToString().ToLower())));
+                builder.AddAttribute(3, "Label", prop.HelpText ?? prop.Label);
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Select:
+                var options = prop.Options.Select(o => o.Value).ToList();
+                builder.OpenComponent<SfDropDownList<string, string>>(0);
+                builder.AddAttribute(1, "DataSource", options);
+                builder.AddAttribute(2, "Value", string.IsNullOrEmpty(value) ? prop.DefaultValue : value);
+                builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.ReadOnly:
+                builder.OpenElement(0, "span");
+                builder.AddAttribute(1, "class", "property-value");
+                builder.AddContent(2, value);
+                builder.CloseElement();
+                break;
+                
+            default:
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", value);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.CloseComponent();
+                break;
+        }
+    };
     
     // Property change handlers
     private async Task OnLabelChanged(string newLabel)
