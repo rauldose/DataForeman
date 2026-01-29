@@ -104,6 +104,7 @@ public class FlowExecutionEngine : IFlowExecutionEngine
         RegisterExecutor(new CompareLessExecutor());
         RegisterExecutor(new LogicIfExecutor());
         RegisterExecutor(new DebugLogExecutor());
+        RegisterExecutor(new CSharpScriptExecutor());
     }
 
     /// <summary>

@@ -1,3 +1,10 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using DataForeman.RedisStreams;
+using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+
 namespace DataForeman.FlowEngine;
 
 /// <summary>
@@ -291,4 +298,121 @@ public class DebugLogExecutor : NodeExecutorBase
         
         return Task.FromResult(NodeExecutionResult.Ok(new { logged = true, label, value, timestamp = DateTime.UtcNow }));
     }
+}
+
+/// <summary>
+/// C# Script executor using Roslyn.
+/// </summary>
+public class CSharpScriptExecutor : NodeExecutorBase
+{
+    private static readonly ScriptOptions DefaultScriptOptions = ScriptOptions.Default
+        .WithReferences(
+            typeof(object).Assembly,
+            typeof(System.Linq.Enumerable).Assembly,
+            typeof(System.Collections.Generic.List<>).Assembly,
+            typeof(System.Math).Assembly,
+            typeof(System.DateTime).Assembly
+        )
+        .WithImports(
+            "System",
+            "System.Linq",
+            "System.Collections.Generic",
+            "System.Math"
+        );
+
+    /// <inheritdoc />
+    public override string NodeType => "csharp";
+
+    /// <inheritdoc />
+    public override async Task<NodeExecutionResult> ExecuteAsync(FlowNode node, FlowExecutionContext context)
+    {
+        var code = GetConfig<string>(node, "code");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return NodeExecutionResult.Fail("No C# code provided");
+        }
+
+        try
+        {
+            // Create globals object with access to input, tags, and flow context
+            var globals = new ScriptGlobals
+            {
+                input = CreateInputObject(node, context),
+                tags = context.Parameters ?? new Dictionary<string, object?>(),
+                flow = new
+                {
+                    id = context.FlowId,
+                    executionId = context.ExecutionId,
+                    parameters = context.Parameters
+                }
+            };
+
+            // Create and run the script with a timeout
+            var script = CSharpScript.Create<object>(code, DefaultScriptOptions, typeof(ScriptGlobals));
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var result = await script.RunAsync(globals, cts.Token);
+            
+            return NodeExecutionResult.Ok(result.ReturnValue);
+        }
+        catch (CompilationErrorException ex)
+        {
+            var errors = string.Join("; ", ex.Diagnostics.Select(d => d.GetMessage()));
+            return NodeExecutionResult.Fail($"C# compilation error: {errors}");
+        }
+        catch (OperationCanceledException)
+        {
+            return NodeExecutionResult.Fail("C# script execution timed out (5 seconds)");
+        }
+        catch (Exception ex)
+        {
+            return NodeExecutionResult.Fail($"C# script execution error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Create a dynamic input object from connected nodes.
+    /// </summary>
+    private dynamic CreateInputObject(FlowNode node, FlowExecutionContext context)
+    {
+        var inputDict = new Dictionary<string, object?>();
+        
+        // Collect all inputs from connected nodes
+        if (node.Config != null)
+        {
+            foreach (var kvp in node.Config)
+            {
+                if (kvp.Key.StartsWith("input_"))
+                {
+                    var inputName = kvp.Key.Substring(6); // Remove "input_" prefix
+                    var value = GetInput(node, context, inputName);
+                    inputDict[inputName] = value;
+                }
+            }
+        }
+        
+        // Convert to expandoobject for dynamic access
+        return new System.Dynamic.ExpandoObject();
+    }
+}
+
+/// <summary>
+/// Global variables available in C# scripts.
+/// </summary>
+public class ScriptGlobals
+{
+    /// <summary>
+    /// Input values from connected nodes.
+    /// </summary>
+    public dynamic input { get; set; } = new System.Dynamic.ExpandoObject();
+
+    /// <summary>
+    /// Access to tag values and parameters.
+    /// </summary>
+    public Dictionary<string, object?> tags { get; set; } = new();
+
+    /// <summary>
+    /// Flow execution context information.
+    /// </summary>
+    public dynamic flow { get; set; } = new { };
 }
