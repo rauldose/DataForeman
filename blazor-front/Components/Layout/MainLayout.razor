@@ -1,0 +1,90 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page-wrapper">
+    <nav class="sidebar @(SidebarToggle ? "expanded" : "collapsed")">
+        <div class="sidebar-header">
+            <span class="sidebar-logo">⚙️</span>
+            @if (SidebarToggle)
+            {
+                <span class="sidebar-title">DataForeman</span>
+            }
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item @(IsActive("/") ? "active" : "")">
+                <a href="/">
+                    <span class="menu-icon">📊</span>
+                    @if (SidebarToggle) { <span class="menu-text">Dashboard</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/flows") ? "active" : "")">
+                <a href="/flows">
+                    <span class="menu-icon">🔀</span>
+                    @if (SidebarToggle) { <span class="menu-text">Flow Studio</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/charts") ? "active" : "")">
+                <a href="/charts">
+                    <span class="menu-icon">📈</span>
+                    @if (SidebarToggle) { <span class="menu-text">Chart Composer</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/connectivity") ? "active" : "")">
+                <a href="/connectivity">
+                    <span class="menu-icon">🔗</span>
+                    @if (SidebarToggle) { <span class="menu-text">Connectivity</span> }
+                </a>
+            </li>
+            <li class="menu-item @(IsActive("/diagnostics") ? "active" : "")">
+                <a href="/diagnostics">
+                    <span class="menu-icon">🔧</span>
+                    @if (SidebarToggle) { <span class="menu-text">Diagnostics</span> }
+                </a>
+            </li>
+        </ul>
+    </nav>
+    
+    <div class="main-content">
+        <header class="top-bar">
+            <button class="sidebar-toggle-btn" @onclick="ToggleSidebar">
+                <span>☰</span>
+            </button>
+            <div class="top-bar-title">DataForeman</div>
+            <div class="top-bar-actions">
+                <SfButton CssClass="e-flat" IconCss="e-icons e-user" Content="@UserName"></SfButton>
+            </div>
+        </header>
+        
+        <main class="page-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+    
+    private bool SidebarToggle = true;
+    private string UserName = "User";
+    
+    private void ToggleSidebar()
+    {
+        SidebarToggle = !SidebarToggle;
+    }
+    
+    private bool IsActive(string path)
+    {
+        var currentPath = Navigation.ToBaseRelativePath(Navigation.Uri);
+        if (path == "/")
+        {
+            return string.IsNullOrEmpty(currentPath);
+        }
+        var fullPath = string.IsNullOrEmpty(currentPath) ? "/" : "/" + currentPath;
+        return fullPath.StartsWith(path);
+    }
+}

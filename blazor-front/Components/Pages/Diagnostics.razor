@@ -1,0 +1,556 @@
+@page "/diagnostics"
+@rendermode InteractiveServer
+
+<PageTitle>Diagnostics - DataForeman</PageTitle>
+
+<div class="diagnostics-page">
+    <div class="page-header">
+        <h1>Diagnostics</h1>
+        <div class="page-actions">
+            <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh" OnClick="@RefreshData"></SfButton>
+        </div>
+    </div>
+    
+    <SfTab>
+        <TabItems>
+            <TabItem>
+                <HeaderTemplate>
+                    <span>System</span>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    <div class="tab-content">
+                        <div class="metrics-grid">
+                            <div class="metric-card">
+                                <div class="metric-icon cpu">💻</div>
+                                <div class="metric-info">
+                                    <span class="metric-label">CPU Usage</span>
+                                    <span class="metric-value">@CpuUsage%</span>
+                                </div>
+                                <SfCircularGauge Width="80px" Height="80px">
+                                    <CircularGaugeAxes>
+                                        <CircularGaugeAxis StartAngle="270" EndAngle="90" Minimum="0" Maximum="100" Background="#2d2d2d">
+                                            <CircularGaugeAxisLineStyle Width="0"></CircularGaugeAxisLineStyle>
+                                            <CircularGaugeAxisLabelStyle>
+                                                <CircularGaugeAxisLabelFont Size="0"></CircularGaugeAxisLabelFont>
+                                            </CircularGaugeAxisLabelStyle>
+                                            <CircularGaugeRanges>
+                                                <CircularGaugeRange Start="0" End="@CpuUsage" Color="@GetUsageColor(CpuUsage)" StartWidth="8" EndWidth="8"></CircularGaugeRange>
+                                            </CircularGaugeRanges>
+                                        </CircularGaugeAxis>
+                                    </CircularGaugeAxes>
+                                </SfCircularGauge>
+                            </div>
+                            
+                            <div class="metric-card">
+                                <div class="metric-icon memory">🧠</div>
+                                <div class="metric-info">
+                                    <span class="metric-label">Memory Usage</span>
+                                    <span class="metric-value">@MemoryUsage%</span>
+                                </div>
+                                <SfCircularGauge Width="80px" Height="80px">
+                                    <CircularGaugeAxes>
+                                        <CircularGaugeAxis StartAngle="270" EndAngle="90" Minimum="0" Maximum="100" Background="#2d2d2d">
+                                            <CircularGaugeAxisLineStyle Width="0"></CircularGaugeAxisLineStyle>
+                                            <CircularGaugeAxisLabelStyle>
+                                                <CircularGaugeAxisLabelFont Size="0"></CircularGaugeAxisLabelFont>
+                                            </CircularGaugeAxisLabelStyle>
+                                            <CircularGaugeRanges>
+                                                <CircularGaugeRange Start="0" End="@MemoryUsage" Color="@GetUsageColor(MemoryUsage)" StartWidth="8" EndWidth="8"></CircularGaugeRange>
+                                            </CircularGaugeRanges>
+                                        </CircularGaugeAxis>
+                                    </CircularGaugeAxes>
+                                </SfCircularGauge>
+                            </div>
+                            
+                            <div class="metric-card">
+                                <div class="metric-icon disk">💾</div>
+                                <div class="metric-info">
+                                    <span class="metric-label">Disk Usage</span>
+                                    <span class="metric-value">@DiskUsage%</span>
+                                </div>
+                                <SfCircularGauge Width="80px" Height="80px">
+                                    <CircularGaugeAxes>
+                                        <CircularGaugeAxis StartAngle="270" EndAngle="90" Minimum="0" Maximum="100" Background="#2d2d2d">
+                                            <CircularGaugeAxisLineStyle Width="0"></CircularGaugeAxisLineStyle>
+                                            <CircularGaugeAxisLabelStyle>
+                                                <CircularGaugeAxisLabelFont Size="0"></CircularGaugeAxisLabelFont>
+                                            </CircularGaugeAxisLabelStyle>
+                                            <CircularGaugeRanges>
+                                                <CircularGaugeRange Start="0" End="@DiskUsage" Color="@GetUsageColor(DiskUsage)" StartWidth="8" EndWidth="8"></CircularGaugeRange>
+                                            </CircularGaugeRanges>
+                                        </CircularGaugeAxis>
+                                    </CircularGaugeAxes>
+                                </SfCircularGauge>
+                            </div>
+                            
+                            <div class="metric-card">
+                                <div class="metric-icon uptime">⏱️</div>
+                                <div class="metric-info">
+                                    <span class="metric-label">Uptime</span>
+                                    <span class="metric-value">@Uptime</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="system-info">
+                            <h3>System Information</h3>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <span class="info-label">Application Version</span>
+                                    <span class="info-value">1.0.0</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Database</span>
+                                    <span class="info-value">SQLite 3.x</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">MQTT Broker</span>
+                                    <span class="info-value">@(MqttConnected ? "Connected" : "Disconnected")</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Active Connections</span>
+                                    <span class="info-value">@ActiveConnections</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Running Flows</span>
+                                    <span class="info-value">@RunningFlows</span>
+                                </div>
+                                <div class="info-item">
+                                    <span class="info-label">Tags Subscribed</span>
+                                    <span class="info-value">@SubscribedTags</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+            
+            <TabItem>
+                <HeaderTemplate>
+                    <span>Logs</span>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    <div class="tab-content">
+                        <div class="logs-toolbar">
+                            <SfDropDownList TItem="string" TValue="string" DataSource="@LogLevels" @bind-Value="SelectedLogLevel" Placeholder="Log Level" Width="150px"></SfDropDownList>
+                            <SfTextBox Placeholder="Search logs..." @bind-Value="LogSearchQuery" Width="300px"></SfTextBox>
+                            <div class="toolbar-spacer"></div>
+                            <SfButton CssClass="e-outline" IconCss="e-icons e-download" Content="Export"></SfButton>
+                            <SfButton CssClass="e-outline" IconCss="e-icons e-delete" Content="Clear"></SfButton>
+                        </div>
+                        
+                        <div class="logs-container">
+                            @foreach (var log in FilteredLogs)
+                            {
+                                <div class="log-entry @log.Level.ToLower()">
+                                    <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
+                                    <span class="log-level">@log.Level</span>
+                                    <span class="log-source">@log.Source</span>
+                                    <span class="log-message">@log.Message</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+            
+            <TabItem>
+                <HeaderTemplate>
+                    <span>Network</span>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    <div class="tab-content">
+                        <h3>Connection Status</h3>
+                        <SfGrid DataSource="@NetworkConnections" AllowSorting="true">
+                            <GridColumns>
+                                <GridColumn Field="@nameof(NetworkConnection.Name)" HeaderText="Connection" Width="200"></GridColumn>
+                                <GridColumn Field="@nameof(NetworkConnection.Host)" HeaderText="Host" Width="180"></GridColumn>
+                                <GridColumn Field="@nameof(NetworkConnection.Port)" HeaderText="Port" Width="80"></GridColumn>
+                                <GridColumn HeaderText="Status" Width="120">
+                                    <Template>
+                                        @{
+                                            var conn = context as NetworkConnection;
+                                            if (conn != null)
+                                            {
+                                                <span class="status-indicator @(conn.Connected ? "connected" : "disconnected")">
+                                                    @(conn.Connected ? "Connected" : "Disconnected")
+                                                </span>
+                                            }
+                                        }
+                                    </Template>
+                                </GridColumn>
+                                <GridColumn Field="@nameof(NetworkConnection.Latency)" HeaderText="Latency (ms)" Width="120"></GridColumn>
+                                <GridColumn Field="@nameof(NetworkConnection.LastActivity)" HeaderText="Last Activity" Width="150" Format="g"></GridColumn>
+                            </GridColumns>
+                        </SfGrid>
+                        
+                        <h3 style="margin-top: 24px;">MQTT Topics</h3>
+                        <SfGrid DataSource="@MqttTopics" AllowSorting="true">
+                            <GridColumns>
+                                <GridColumn Field="@nameof(MqttTopic.Topic)" HeaderText="Topic" Width="300"></GridColumn>
+                                <GridColumn Field="@nameof(MqttTopic.MessageCount)" HeaderText="Messages" Width="120"></GridColumn>
+                                <GridColumn Field="@nameof(MqttTopic.LastMessage)" HeaderText="Last Message" Width="200"></GridColumn>
+                            </GridColumns>
+                        </SfGrid>
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+            
+            <TabItem>
+                <HeaderTemplate>
+                    <span>Jobs</span>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    <div class="tab-content">
+                        <SfGrid DataSource="@Jobs" AllowPaging="true" AllowSorting="true">
+                            <GridColumns>
+                                <GridColumn Field="@nameof(JobItem.Type)" HeaderText="Type" Width="150"></GridColumn>
+                                <GridColumn HeaderText="Status" Width="120">
+                                    <Template>
+                                        @{
+                                            var job = context as JobItem;
+                                            if (job != null)
+                                            {
+                                                <span class="job-status @job.Status.ToLower()">@job.Status</span>
+                                            }
+                                        }
+                                    </Template>
+                                </GridColumn>
+                                <GridColumn Field="@nameof(JobItem.Progress)" HeaderText="Progress" Width="150">
+                                    <Template>
+                                        @{
+                                            var job = context as JobItem;
+                                            if (job != null && job.Status == "Running")
+                                            {
+                                                <SfProgressBar Value="@job.Progress" Type="ProgressType.Linear" Height="20"></SfProgressBar>
+                                            }
+                                        }
+                                    </Template>
+                                </GridColumn>
+                                <GridColumn Field="@nameof(JobItem.StartedAt)" HeaderText="Started" Width="150" Format="g"></GridColumn>
+                                <GridColumn Field="@nameof(JobItem.CompletedAt)" HeaderText="Completed" Width="150" Format="g"></GridColumn>
+                                <GridColumn HeaderText="Actions" Width="100">
+                                    <Template>
+                                        @{
+                                            var job = context as JobItem;
+                                            if (job != null && job.Status == "Running")
+                                            {
+                                                <SfButton CssClass="e-flat e-small e-danger" Content="Cancel"></SfButton>
+                                            }
+                                        }
+                                    </Template>
+                                </GridColumn>
+                            </GridColumns>
+                        </SfGrid>
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+        </TabItems>
+    </SfTab>
+</div>
+
+<style>
+    .diagnostics-page {
+        height: 100%;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+    }
+    
+    .tab-content {
+        padding: 16px 0;
+    }
+    
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    
+    .metric-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        background: #252526;
+        border-radius: 8px;
+        border: 1px solid #3c3c3c;
+    }
+    
+    .metric-icon {
+        font-size: 32px;
+    }
+    
+    .metric-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .metric-label {
+        font-size: 13px;
+        color: #9d9d9d;
+    }
+    
+    .metric-value {
+        font-size: 24px;
+        font-weight: 600;
+    }
+    
+    .system-info {
+        background: #252526;
+        border-radius: 8px;
+        padding: 20px;
+        border: 1px solid #3c3c3c;
+    }
+    
+    .system-info h3 {
+        margin: 0 0 16px 0;
+        font-size: 16px;
+    }
+    
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+    }
+    
+    .info-item {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .info-label {
+        font-size: 12px;
+        color: #9d9d9d;
+    }
+    
+    .info-value {
+        font-size: 14px;
+        font-weight: 500;
+    }
+    
+    .logs-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    
+    .toolbar-spacer {
+        flex: 1;
+    }
+    
+    .logs-container {
+        background: #1e1e1e;
+        border-radius: 4px;
+        padding: 12px;
+        max-height: 500px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+    }
+    
+    .log-entry {
+        display: flex;
+        gap: 12px;
+        padding: 4px 0;
+        border-bottom: 1px solid #2d2d2d;
+    }
+    
+    .log-timestamp {
+        color: #6a9955;
+        min-width: 100px;
+    }
+    
+    .log-level {
+        min-width: 50px;
+        font-weight: 600;
+    }
+    
+    .log-entry.info .log-level { color: #3794ff; }
+    .log-entry.warn .log-level { color: #cca700; }
+    .log-entry.error .log-level { color: #f14c4c; }
+    .log-entry.debug .log-level { color: #9d9d9d; }
+    
+    .log-source {
+        color: #ce9178;
+        min-width: 120px;
+    }
+    
+    .log-message {
+        flex: 1;
+        color: #cccccc;
+    }
+    
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+    
+    .status-indicator::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+    
+    .status-indicator.connected {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+    
+    .status-indicator.connected::before {
+        background: #4caf50;
+    }
+    
+    .status-indicator.disconnected {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+    
+    .status-indicator.disconnected::before {
+        background: #f44336;
+    }
+    
+    .job-status {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .job-status.running {
+        background: rgba(33, 150, 243, 0.2);
+        color: #2196f3;
+    }
+    
+    .job-status.completed {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+    
+    .job-status.failed {
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+    }
+    
+    .job-status.queued {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
+    }
+</style>
+
+@code {
+    private double CpuUsage = 23;
+    private double MemoryUsage = 67;
+    private double DiskUsage = 45;
+    private string Uptime = "5d 12h 34m";
+    private bool MqttConnected = true;
+    private int ActiveConnections = 3;
+    private int RunningFlows = 5;
+    private int SubscribedTags = 127;
+    
+    private string SelectedLogLevel = "All";
+    private string LogSearchQuery = "";
+    private List<string> LogLevels = new() { "All", "Debug", "Info", "Warn", "Error" };
+    
+    private List<LogEntry> Logs = new()
+    {
+        new() { Timestamp = DateTime.Now.AddMinutes(-1), Level = "INFO", Source = "FlowEngine", Message = "Flow 'Temperature Monitor' started successfully" },
+        new() { Timestamp = DateTime.Now.AddMinutes(-2), Level = "DEBUG", Source = "Connectivity", Message = "Tag value updated: Tank1.Temperature = 72.5°C" },
+        new() { Timestamp = DateTime.Now.AddMinutes(-3), Level = "WARN", Source = "MQTT", Message = "Connection retry attempt 2/5" },
+        new() { Timestamp = DateTime.Now.AddMinutes(-5), Level = "ERROR", Source = "Connectivity", Message = "Failed to connect to PLC-02: Connection timeout" },
+        new() { Timestamp = DateTime.Now.AddMinutes(-8), Level = "INFO", Source = "System", Message = "Database backup completed" },
+        new() { Timestamp = DateTime.Now.AddMinutes(-10), Level = "INFO", Source = "Auth", Message = "User 'admin' logged in" },
+        new() { Timestamp = DateTime.Now.AddMinutes(-15), Level = "DEBUG", Source = "FlowEngine", Message = "Executing node 'math-add-1'" }
+    };
+    
+    private List<LogEntry> FilteredLogs => Logs
+        .Where(l => SelectedLogLevel == "All" || l.Level.Equals(SelectedLogLevel, StringComparison.OrdinalIgnoreCase))
+        .Where(l => string.IsNullOrEmpty(LogSearchQuery) || l.Message.Contains(LogSearchQuery, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+    
+    private List<NetworkConnection> NetworkConnections = new()
+    {
+        new() { Name = "PLC-Production-01", Host = "192.168.1.100", Port = 44818, Connected = true, Latency = 12, LastActivity = DateTime.Now.AddSeconds(-5) },
+        new() { Name = "OPC-Server-Main", Host = "192.168.1.50", Port = 4840, Connected = true, Latency = 8, LastActivity = DateTime.Now.AddSeconds(-2) },
+        new() { Name = "MQTT Broker", Host = "localhost", Port = 1883, Connected = true, Latency = 1, LastActivity = DateTime.Now.AddSeconds(-1) }
+    };
+    
+    private List<MqttTopic> MqttTopics = new()
+    {
+        new() { Topic = "dataforeman/telemetry/+", MessageCount = 1523, LastMessage = DateTime.Now.AddSeconds(-2) },
+        new() { Topic = "dataforeman/events/+", MessageCount = 45, LastMessage = DateTime.Now.AddMinutes(-5) },
+        new() { Topic = "dataforeman/commands/#", MessageCount = 12, LastMessage = DateTime.Now.AddMinutes(-15) }
+    };
+    
+    private List<JobItem> Jobs = new()
+    {
+        new() { Type = "Data Export", Status = "Running", Progress = 65, StartedAt = DateTime.Now.AddMinutes(-10) },
+        new() { Type = "Tag Cleanup", Status = "Completed", Progress = 100, StartedAt = DateTime.Now.AddHours(-2), CompletedAt = DateTime.Now.AddHours(-1) },
+        new() { Type = "Database Backup", Status = "Queued", Progress = 0, StartedAt = null }
+    };
+    
+    private void RefreshData()
+    {
+        // Refresh system data
+        var random = new Random();
+        CpuUsage = random.Next(15, 45);
+        MemoryUsage = random.Next(50, 80);
+    }
+    
+    private string GetUsageColor(double usage)
+    {
+        if (usage < 50) return "#4caf50";
+        if (usage < 75) return "#ff9800";
+        return "#f44336";
+    }
+    
+    class LogEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public string Level { get; set; } = "";
+        public string Source { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
+    
+    class NetworkConnection
+    {
+        public string Name { get; set; } = "";
+        public string Host { get; set; } = "";
+        public int Port { get; set; }
+        public bool Connected { get; set; }
+        public int Latency { get; set; }
+        public DateTime LastActivity { get; set; }
+    }
+    
+    class MqttTopic
+    {
+        public string Topic { get; set; } = "";
+        public int MessageCount { get; set; }
+        public DateTime LastMessage { get; set; }
+    }
+    
+    class JobItem
+    {
+        public string Type { get; set; } = "";
+        public string Status { get; set; } = "";
+        public int Progress { get; set; }
+        public DateTime? StartedAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+    }
+}

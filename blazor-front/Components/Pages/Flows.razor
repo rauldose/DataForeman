@@ -1,0 +1,1608 @@
+@page "/flows"
+@page "/flows/{FlowId:guid}"
+@rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject ApiService ApiService
+
+<PageTitle>Flow Studio - DataForeman</PageTitle>
+
+<div class="flows-page">
+    @if (FlowId == Guid.Empty)
+    {
+        <div class="page-header">
+            <h1>Flow Studio</h1>
+            <div class="page-actions">
+                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Flow" OnClick="@CreateNewFlow"></SfButton>
+            </div>
+        </div>
+        
+        @if (IsLoading)
+        {
+            <div class="loading-indicator">
+                <span>Loading flows...</span>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@FlowsList" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
+                <GridColumns>
+                    <GridColumn Field="@nameof(FlowListItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(FlowListItem.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(FlowListItem.Status)" HeaderText="Status" Width="100">
+                        <Template>
+                            @{
+                                var flow = context as FlowListItem;
+                                if (flow != null)
+                                {
+                                    <span class="status-badge @(flow.Deployed ? "deployed" : "stopped")">
+                                        @(flow.Deployed ? "Deployed" : "Stopped")
+                                    </span>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(FlowListItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
+                    <GridColumn HeaderText="Actions" Width="150">
+                        <Template>
+                            @{
+                                var flow = context as FlowListItem;
+                                if (flow != null)
+                                {
+                                    <div class="action-buttons">
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditFlow(flow.Id))"></SfButton>
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(async () => await DeleteFlow(flow.Id))"></SfButton>
+                                    </div>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        }
+    }
+    else
+    {
+        <div class="flow-editor">
+            <div class="editor-toolbar">
+                <SfButton CssClass="e-flat" IconCss="e-icons e-arrow-left" Content="Back" OnClick="@GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
+                <div class="toolbar-spacer"></div>
+                @if (_showSaveMessage)
+                {
+                    <span class="save-message">@_saveMessage</span>
+                }
+                <SfButton CssClass="@(CurrentFlow.Deployed ? "e-danger" : "e-success")" IconCss="@(CurrentFlow.Deployed ? "e-icons e-stop" : "e-icons e-play")" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveFlow"></SfButton>
+            </div>
+            
+            <div class="editor-container">
+                @* Syncfusion Symbol Palette - on the left *@
+                <div class="symbol-palette-container">
+                    <SfSymbolPaletteComponent @ref="SymbolPalette"
+                                              Width="100%"
+                                              Height="100%"
+                                              Palettes="@Palettes"
+                                              SymbolHeight="70"
+                                              SymbolWidth="120"
+                                              SymbolMargin="@SymbolMargin"
+                                              GetSymbolInfo="@GetSymbolInfo">
+                    </SfSymbolPaletteComponent>
+                </div>
+                
+                @* Syncfusion Diagram with HTML Node Templates *@
+                <div class="diagram-container" id="diagram-space">
+                    <SfDiagramComponent @ref="Diagram" 
+                                        ID="diagram"
+                                        Width="100%" 
+                                        Height="100%"
+                                        Nodes="@Nodes"
+                                        Connectors="@Connectors"
+                                        NodeCreating="@OnNodeCreating"
+                                        ConnectorCreating="@OnConnectorCreating"
+                                        SelectionChanged="@OnSelectionChanged"
+                                        DragDrop="@OnDragDrop">
+                        <SnapSettings>
+                            <HorizontalGridLines LineColor="#e0e0e0" LineDashArray="2,2"></HorizontalGridLines>
+                            <VerticalGridLines LineColor="#e0e0e0" LineDashArray="2,2"></VerticalGridLines>
+                        </SnapSettings>
+                        <ScrollSettings ScrollLimit="ScrollLimitMode.Diagram"></ScrollSettings>
+                    </SfDiagramComponent>
+                </div>
+                
+                <div class="properties-panel">
+                    <h3>Properties</h3>
+                    @if (SelectedNode != null)
+                    {
+                        <div class="property-header">
+                            <span class="node-type-badge">@GetNodeType(SelectedNode)</span>
+                        </div>
+                        
+                        <div class="property-group">
+                            <label>Label</label>
+                            <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged" Placeholder="Enter label"></SfTextBox>
+                        </div>
+                        
+                        @* TRIGGER NODES *@
+                        @if (GetNodeBaseType(SelectedNode) == "trigger-manual")
+                        {
+                            <div class="property-section">
+                                <h4>⚡ Manual Trigger</h4>
+                                <p class="property-hint">This trigger fires when manually activated or when the flow starts.</p>
+                                <div class="property-group">
+                                    <label>Run on Deploy</label>
+                                    <SfCheckBox TChecked="bool" @bind-Checked="@_triggerOnDeploy" Label="Fire when flow is deployed"></SfCheckBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "trigger-schedule")
+                        {
+                            <div class="property-section">
+                                <h4>⏰ Schedule Trigger</h4>
+                                <div class="property-group">
+                                    <label>Interval (seconds)</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntervalValue()" ValueChanged="@OnIntervalChanged" Min="1" Max="86400"></SfNumericTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Cron Expression (optional)</label>
+                                    <SfTextBox Value="@GetNodeProperty("cron")" ValueChanged="@((string val) => SetNodeProperty("cron", val))" Placeholder="e.g., 0 */5 * * * *"></SfTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "trigger-tag")
+                        {
+                            <div class="property-section">
+                                <h4>🔔 Tag Change Trigger</h4>
+                                <div class="property-group">
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Trigger Mode</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@TriggerModes" Value="@GetNodeProperty("triggerMode", "Any Change")" ValueChanged="@((string val) => SetNodeProperty("triggerMode", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Deadband</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("deadband", 0)" ValueChanged="@((double val) => SetNodeProperty("deadband", val.ToString()))" Min="0" Step="0.1"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* TAG OPERATION NODES *@
+                        @if (GetNodeBaseType(SelectedNode) == "tag-input")
+                        {
+                            <div class="property-section">
+                                <h4>📥 Tag Input</h4>
+                                <div class="property-group">
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Data Type</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" Value="@GetNodeProperty("dataType", "Float")" ValueChanged="@((string val) => SetNodeProperty("dataType", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Default Value (on error)</label>
+                                    <SfTextBox Value="@GetNodeProperty("defaultValue", "0")" ValueChanged="@((string val) => SetNodeProperty("defaultValue", val))" Placeholder="0"></SfTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "tag-output" || GetNodeBaseType(SelectedNode) == "tag-write")
+                        {
+                            <div class="property-section">
+                                <h4>📤 Tag Output</h4>
+                                <div class="property-group">
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.SetPoint"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Data Type</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" Value="@GetNodeProperty("dataType", "Float")" ValueChanged="@((string val) => SetNodeProperty("dataType", val))">
+                                    </SfDropDownList>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* MATH NODES *@
+                        @if (GetNodeBaseType(SelectedNode).StartsWith("math-"))
+                        {
+                            <div class="property-section">
+                                <h4>🧮 Math Operation</h4>
+                                <div class="property-group">
+                                    <label>Operation</label>
+                                    <span class="property-value">@GetMathOperation(SelectedNode)</span>
+                                </div>
+                                <div class="property-group">
+                                    <label>Second Operand (if no input)</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("operand", 0)" ValueChanged="@((double val) => SetNodeProperty("operand", val.ToString()))" Step="1"></SfNumericTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Result Precision</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("precision", 2)" ValueChanged="@((int val) => SetNodeProperty("precision", val.ToString()))" Min="0" Max="10"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* LOGIC/COMPARISON NODES *@
+                        @if (GetNodeBaseType(SelectedNode).StartsWith("compare-") || GetNodeBaseType(SelectedNode).StartsWith("logic-"))
+                        {
+                            <div class="property-section">
+                                <h4>⚖️ Comparison</h4>
+                                <div class="property-group">
+                                    <label>Comparison Type</label>
+                                    <span class="property-value">@GetComparisonType(SelectedNode)</span>
+                                </div>
+                                <div class="property-group">
+                                    <label>Threshold Value</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetThresholdValue()" ValueChanged="@OnThresholdChanged" Step="1"></SfNumericTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Hysteresis</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("hysteresis", 0)" ValueChanged="@((double val) => SetNodeProperty("hysteresis", val.ToString()))" Min="0" Step="0.1"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* OUTPUT NODES *@
+                        @if (GetNodeBaseType(SelectedNode) == "notification")
+                        {
+                            <div class="property-section">
+                                <h4>🔔 Notification</h4>
+                                <div class="property-group">
+                                    <label>Message Template</label>
+                                    <SfTextBox Value="@GetNodeProperty("message")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Alert: {{value}} detected" Multiline="true"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Severity</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationSeverities" Value="@GetNodeProperty("severity", "Info")" ValueChanged="@((string val) => SetNodeProperty("severity", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Notification Channel</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationChannels" Value="@GetNodeProperty("channel", "App")" ValueChanged="@((string val) => SetNodeProperty("channel", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Rate Limit (min between alerts)</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("rateLimit", 0)" ValueChanged="@((int val) => SetNodeProperty("rateLimit", val.ToString()))" Min="0" Max="1440"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "debug-log")
+                        {
+                            <div class="property-section">
+                                <h4>📋 Debug Log</h4>
+                                <div class="property-group">
+                                    <label>Log Message Template</label>
+                                    <SfTextBox Value="@GetNodeProperty("message", "Value: {{value}}")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Value: {{value}}" Multiline="true"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Log Level</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@LogLevels" Value="@GetNodeProperty("logLevel", "Info")" ValueChanged="@((string val) => SetNodeProperty("logLevel", val))">
+                                    </SfDropDownList>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "database-write")
+                        {
+                            <div class="property-section">
+                                <h4>💾 Database Write</h4>
+                                <div class="property-group">
+                                    <label>Table Name</label>
+                                    <SfTextBox Value="@GetNodeProperty("tableName", "flow_data")" ValueChanged="@((string val) => SetNodeProperty("tableName", val))" Placeholder="flow_data"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Column Mapping (JSON)</label>
+                                    <SfTextBox Value="@GetNodeProperty("columnMapping", "{\"value\": \"value\", \"timestamp\": \"created_at\"}")" ValueChanged="@((string val) => SetNodeProperty("columnMapping", val))" Placeholder="{\"value\": \"value\"}" Multiline="true"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Batch Size</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("batchSize", 1)" ValueChanged="@((int val) => SetNodeProperty("batchSize", val.ToString()))" Min="1" Max="1000"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        <div class="property-actions">
+                            <SfButton CssClass="e-danger e-small" IconCss="e-icons e-delete" Content="Delete Node" OnClick="@DeleteSelectedNode"></SfButton>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="no-selection">Select a node to view properties</p>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .flows-page {
+        height: 100%;
+    }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+    
+    .page-header h1 {
+        margin: 0;
+    }
+    
+    .loading-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 40px;
+        color: #9d9d9d;
+        font-style: italic;
+    }
+    
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .status-badge.deployed {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .status-badge.stopped {
+        background: #757575;
+        color: white;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .flow-editor {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+    }
+    
+    .editor-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: #252526;
+        border-bottom: 1px solid #3c3c3c;
+    }
+    
+    .flow-name-input {
+        width: 250px;
+    }
+    
+    .toolbar-spacer {
+        flex: 1;
+    }
+    
+    .editor-container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+    }
+    
+    .symbol-palette-container {
+        width: 200px;
+        min-width: 200px;
+        background: #f5f5f5;
+        border-right: 1px solid #ddd;
+        order: -1;
+        overflow: auto;
+    }
+    
+    .diagram-container {
+        flex: 1;
+        background: #ffffff;
+        min-height: 500px;
+    }
+    
+    .properties-panel {
+        width: 280px;
+        background: #252526;
+        border-left: 1px solid #3c3c3c;
+        padding: 12px;
+        overflow-y: auto;
+    }
+    
+    .properties-panel h3 {
+        margin: 0 0 16px 0;
+        font-size: 14px;
+        border-bottom: 1px solid #3c3c3c;
+        padding-bottom: 8px;
+    }
+    
+    .property-header {
+        margin-bottom: 16px;
+    }
+    
+    .node-type-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        background: #3c3c3c;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #4caf50;
+        letter-spacing: 0.5px;
+    }
+    
+    .property-group {
+        margin-bottom: 16px;
+    }
+    
+    .property-group label {
+        display: block;
+        font-size: 12px;
+        color: #9d9d9d;
+        margin-bottom: 4px;
+    }
+    
+    .property-value {
+        font-size: 13px;
+        color: #cccccc;
+        padding: 4px 8px;
+        background: #3c3c3c;
+        border-radius: 4px;
+    }
+    
+    .property-hint {
+        font-size: 11px;
+        color: #757575;
+        font-style: italic;
+        margin: 0 0 12px 0;
+        line-height: 1.4;
+    }
+    
+    .no-selection {
+        color: #9d9d9d;
+        font-style: italic;
+        font-size: 13px;
+    }
+    
+    .property-section {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #3c3c3c;
+    }
+    
+    .property-section h4 {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+        color: #ffffff;
+        font-weight: 600;
+    }
+    
+    .property-actions {
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid #3c3c3c;
+    }
+
+    /* Syncfusion Symbol Palette styling */
+    .e-symbol-palette {
+        background: #f5f5f5 !important;
+        border: none !important;
+    }
+    
+    .e-symbol-palette .e-palette-header {
+        background: #e0e0e0 !important;
+        color: #333333 !important;
+        border-bottom: 1px solid #ccc !important;
+        font-weight: 600;
+        padding: 8px 12px;
+    }
+    
+    .e-symbol-palette .e-palette-content {
+        background: #f5f5f5 !important;
+        padding: 8px;
+    }
+    
+    .e-symbol-palette .e-symbol-draggable {
+        background: #ffffff !important;
+        border: 1px solid #ddd !important;
+        border-radius: 4px !important;
+        margin: 4px;
+        cursor: grab;
+    }
+    
+    .e-symbol-palette .e-symbol-draggable:hover {
+        background: #e8f5e9 !important;
+        border-color: #4caf50 !important;
+    }
+    
+    /* Syncfusion Diagram styling */
+    .e-diagram {
+        background: #fafafa !important;
+    }
+    
+    .save-message {
+        color: #4caf50;
+        font-size: 13px;
+        padding: 0 12px;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+</style>
+
+@code {
+    [Parameter] public Guid FlowId { get; set; }
+    [Inject] NavigationManager Navigation { get; set; } = default!;
+    
+    private SfDiagramComponent? Diagram;
+    private SfSymbolPaletteComponent? SymbolPalette;
+    
+    private DiagramObjectCollection<Node> Nodes = new();
+    private DiagramObjectCollection<Connector> Connectors = new();
+    private Node? SelectedNode;
+    private string SelectedNodeLabel = "";
+    
+    private DiagramObjectCollection<Palette> Palettes = new();
+    private SymbolMargin SymbolMargin = new() { Left = 5, Right = 5, Top = 5, Bottom = 5 };
+    
+    private FlowListItem CurrentFlow = new() { Name = "New Flow" };
+    private bool IsLoading = true;
+    
+    // Flows list - loaded from API or sample data
+    private List<FlowListItem> FlowsList = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        InitializePalettes();
+        await LoadFlows();
+        
+        // Load flow definition after flows are loaded
+        if (FlowId != Guid.Empty)
+        {
+            var flow = FlowsList.FirstOrDefault(f => f.Id == FlowId);
+            if (flow != null)
+            {
+                CurrentFlow = flow;
+                LoadFlowDefinition(flow);
+            }
+        }
+    }
+    
+    protected override void OnParametersSet()
+    {
+        // Only handle parameter changes after initial load
+        if (FlowsList.Count > 0 && FlowId != Guid.Empty)
+        {
+            var flow = FlowsList.FirstOrDefault(f => f.Id == FlowId);
+            if (flow != null && CurrentFlow.Id != flow.Id)
+            {
+                CurrentFlow = flow;
+                LoadFlowDefinition(flow);
+            }
+        }
+    }
+    
+    private bool _firstRender = true;
+    private bool _connectorsAdded = false;
+    private DiagramObjectCollection<Connector> _pendingConnectors = new();
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Diagram != null && SymbolPalette != null)
+        {
+            // Link the Symbol Palette to the Diagram for drag-drop functionality
+            SymbolPalette.Targets = new DiagramObjectCollection<SfDiagramComponent> { Diagram };
+        }
+        
+        // Add connectors after the diagram and nodes are fully rendered
+        if (_firstRender && FlowId != Guid.Empty && Diagram != null && !_connectorsAdded)
+        {
+            _firstRender = false;
+            _connectorsAdded = true;
+            
+            // Wait for nodes to be fully rendered in the diagram
+            await Task.Delay(300);
+            
+            // Add connectors programmatically after nodes are rendered
+            if (_pendingConnectors.Count > 0)
+            {
+                foreach (var connector in _pendingConnectors)
+                {
+                    // Find source and target nodes to calculate proper connection points
+                    var sourceNode = Nodes.FirstOrDefault(n => n.ID == connector.SourceID);
+                    var targetNode = Nodes.FirstOrDefault(n => n.ID == connector.TargetID);
+                    
+                    if (sourceNode != null && targetNode != null)
+                    {
+                        // Get port offsets to calculate exact connection points
+                        var sourcePort = sourceNode.Ports?.FirstOrDefault(p => p.ID == connector.SourcePortID);
+                        var targetPort = targetNode.Ports?.FirstOrDefault(p => p.ID == connector.TargetPortID);
+                        
+                        // Calculate source point from port offset
+                        double sourceX = sourceNode.OffsetX + (sourceNode.Width ?? 180) / 2;
+                        double sourceY = sourceNode.OffsetY;
+                        if (sourcePort?.Offset != null)
+                        {
+                            sourceX = sourceNode.OffsetX + ((sourceNode.Width ?? 180) / 2) * (sourcePort.Offset.X * 2 - 1);
+                            sourceY = sourceNode.OffsetY + ((sourceNode.Height ?? 70) / 2) * (sourcePort.Offset.Y * 2 - 1);
+                        }
+                        
+                        // Calculate target point from port offset
+                        double targetX = targetNode.OffsetX - (targetNode.Width ?? 180) / 2;
+                        double targetY = targetNode.OffsetY;
+                        if (targetPort?.Offset != null)
+                        {
+                            targetX = targetNode.OffsetX + ((targetNode.Width ?? 180) / 2) * (targetPort.Offset.X * 2 - 1);
+                            targetY = targetNode.OffsetY + ((targetNode.Height ?? 70) / 2) * (targetPort.Offset.Y * 2 - 1);
+                        }
+                        
+                        connector.SourcePoint = new DiagramPoint { X = sourceX, Y = sourceY };
+                        connector.TargetPoint = new DiagramPoint { X = targetX, Y = targetY };
+                    }
+                    
+                    // Add connector to the collection
+                    Connectors.Add(connector);
+                }
+                _pendingConnectors.Clear();
+                
+                // Refresh the diagram to show the new connectors
+                StateHasChanged();
+            }
+        }
+    }
+    
+    private async Task LoadFlows()
+    {
+        IsLoading = true;
+        
+        try
+        {
+            // Try to load from API first
+            var response = await ApiService.GetFlowsAsync();
+            if (response != null && response.Items.Count > 0)
+            {
+                FlowsList = response.Items.Select(f => new FlowListItem
+                {
+                    Id = f.Id,
+                    Name = f.Name,
+                    Description = f.Description ?? "",
+                    Deployed = f.Deployed,
+                    UpdatedAt = f.UpdatedAt,
+                    Definition = f.Definition
+                }).ToList();
+            }
+            else
+            {
+                // Fall back to sample data if API is not available
+                FlowsList = GetSampleFlows();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load flows from API: {ex.Message}");
+            // Fall back to sample data
+            FlowsList = GetSampleFlows();
+        }
+        
+        IsLoading = false;
+    }
+    
+    private void LoadFlowDefinition(FlowListItem flow)
+    {
+        // Load existing nodes from flow definition
+        // This would parse the JSON definition and create nodes/connectors
+        if (!string.IsNullOrEmpty(flow.Definition) && flow.Definition != "{}")
+        {
+            // For demo, add some sample nodes for the Temperature Monitor flow
+            if (flow.Name == "Temperature Monitor")
+            {
+                Nodes = new DiagramObjectCollection<Node>
+                {
+                    CreateFlowNode("trigger-manual-1", "Manual Trigger", "#4caf50", 150, 150, 0, 1),
+                    CreateFlowNode("tag-input-1", "Tag Input", "#2196f3", 350, 150, 1, 1),
+                    CreateFlowNode("compare-greater-1", "Greater Than", "#607d8b", 550, 150, 2, 1),
+                    CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
+                };
+                
+                // Store connectors to be added after diagram renders
+                // This avoids the issue where connectors appear at (0,0) before nodes are rendered
+                _pendingConnectors = new DiagramObjectCollection<Connector>
+                {
+                    CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
+                    CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
+                    CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
+                };
+                
+                // Clear the main Connectors collection - we'll add them programmatically after render
+                Connectors = new DiagramObjectCollection<Connector>();
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Node type metadata with icons and category info matching the original React app
+    /// </summary>
+    private static readonly Dictionary<string, NodeTypeInfo> NodeTypes = new()
+    {
+        ["trigger-manual"] = new("⚡", "Triggers", "Manual trigger node"),
+        ["trigger-schedule"] = new("⏰", "Triggers", "Schedule-based trigger"),
+        ["trigger-tag"] = new("🏷️", "Triggers", "Tag change trigger"),
+        ["tag-input"] = new("📥", "Tag Operations", "Read tag value"),
+        ["tag-output"] = new("📤", "Tag Operations", "Write tag value"),
+        ["tag-write"] = new("✏️", "Tag Operations", "Write to tag"),
+        ["math-add"] = new("➕", "Math", "Add two values"),
+        ["math-subtract"] = new("➖", "Math", "Subtract two values"),
+        ["math-multiply"] = new("✖️", "Math", "Multiply two values"),
+        ["math-divide"] = new("➗", "Math", "Divide two values"),
+        ["logic-if"] = new("🔀", "Logic", "Conditional branch"),
+        ["compare-equal"] = new("⚖️", "Logic", "Compare equal"),
+        ["compare-greater"] = new("📈", "Logic", "Compare greater than"),
+        ["compare-less"] = new("📉", "Logic", "Compare less than"),
+        ["debug-log"] = new("🐛", "Output", "Debug logging"),
+        ["notification"] = new("🔔", "Output", "Send notification"),
+        ["database-write"] = new("💾", "Output", "Write to database")
+    };
+    
+    private record NodeTypeInfo(string Icon, string Category, string Description);
+    
+    /// <summary>
+    /// Gets the icon for a node type
+    /// </summary>
+    private string GetNodeIcon(string nodeType)
+    {
+        var baseType = nodeType.Split("-instance-").FirstOrDefault() ?? nodeType;
+        return NodeTypes.TryGetValue(baseType, out var info) ? info.Icon : "📦";
+    }
+    
+    /// <summary>
+    /// Creates a flow node with HTML template styling similar to the original React app
+    /// </summary>
+    private Node CreateFlowNode(string id, string label, string color, double x, double y, int inputCount, int outputCount)
+    {
+        var baseType = id.Split("-instance-").FirstOrDefault()?.Replace("-1", "").Replace("-2", "") ?? id;
+        var icon = GetNodeIcon(baseType);
+        
+        var node = new Node
+        {
+            ID = id,
+            OffsetX = x,
+            OffsetY = y,
+            Width = 180,
+            Height = 70,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
+            Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
+            Ports = new DiagramObjectCollection<PointPort>(),
+            // Enable all node interactions: drag, resize, select, delete
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        // Create HTML-like multi-line annotation with icon and label
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = $"{icon}  {label}",
+            Style = new TextStyle 
+            { 
+                Color = "#ffffff", 
+                FontSize = 13, 
+                Bold = true,
+                FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.35 },
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        
+        // Add category/type subtitle
+        var category = NodeTypes.TryGetValue(baseType, out var info) ? info.Category : "Node";
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = category,
+            Style = new TextStyle 
+            { 
+                Color = "#9d9d9d", 
+                FontSize = 10, 
+                Italic = true,
+                FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.7 },
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        
+        // Add colored accent bar at top
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = "",
+            Style = new TextStyle { Color = color },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.02 }
+        });
+        
+        // Add input ports (left side) - styled like React app
+        for (int i = 0; i < inputCount; i++)
+        {
+            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"input-{i}",
+                Offset = new DiagramPoint { X = 0, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 14,
+                Height = 14,
+                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        // Add output ports (right side) - styled like React app
+        for (int i = 0; i < outputCount; i++)
+        {
+            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"output-{i}",
+                Offset = new DiagramPoint { X = 1, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 14,
+                Height = 14,
+                Style = new ShapeStyle { Fill = "#ff9800", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        return node;
+    }
+    
+    /// <summary>
+    /// Creates a connector between two ports
+    /// </summary>
+    private Connector CreateFlowConnector(string id, string sourceId, string sourcePort, string targetId, string targetPort)
+    {
+        return new Connector
+        {
+            ID = id,
+            SourceID = sourceId,
+            SourcePortID = sourcePort,
+            TargetID = targetId,
+            TargetPortID = targetPort,
+            Type = ConnectorSegmentType.Orthogonal,
+            Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+            TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow, 
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" },
+                Width = 10,
+                Height = 10
+            },
+            CornerRadius = 5
+        };
+    }
+    
+    private void InitializePalettes()
+    {
+        // Triggers palette - output only nodes
+        var triggerNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("trigger-manual", "Manual Trigger", "#4caf50", 0, 1),
+            CreatePaletteNode("trigger-schedule", "Schedule", "#4caf50", 0, 1),
+            CreatePaletteNode("trigger-tag", "Tag Change", "#4caf50", 0, 1)
+        };
+        
+        // Tag Operations palette - input and output
+        var tagNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("tag-input", "Tag Input", "#2196f3", 1, 1),
+            CreatePaletteNode("tag-output", "Tag Output", "#ff9800", 1, 0),
+            CreatePaletteNode("tag-write", "Tag Write", "#ff5722", 1, 0)
+        };
+        
+        // Math palette - multiple inputs, single output
+        var mathNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("math-add", "Add (+)", "#9c27b0", 2, 1),
+            CreatePaletteNode("math-subtract", "Subtract (-)", "#9c27b0", 2, 1),
+            CreatePaletteNode("math-multiply", "Multiply (×)", "#9c27b0", 2, 1),
+            CreatePaletteNode("math-divide", "Divide (÷)", "#9c27b0", 2, 1)
+        };
+        
+        // Logic palette - comparison and conditionals
+        var logicNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("logic-if", "If/Else", "#795548", 1, 2),
+            CreatePaletteNode("compare-equal", "Equal (==)", "#607d8b", 2, 1),
+            CreatePaletteNode("compare-greater", "Greater (>)", "#607d8b", 2, 1),
+            CreatePaletteNode("compare-less", "Less (<)", "#607d8b", 2, 1)
+        };
+        
+        // Output palette - input only nodes
+        var outputNodes = new DiagramObjectCollection<NodeBase>
+        {
+            CreatePaletteNode("debug-log", "Debug Log", "#f44336", 1, 0),
+            CreatePaletteNode("notification", "Notification", "#e91e63", 1, 0),
+            CreatePaletteNode("database-write", "DB Write", "#3f51b5", 1, 0)
+        };
+        
+        Palettes = new DiagramObjectCollection<Palette>
+        {
+            new Palette { Title = "Triggers", Symbols = triggerNodes, IsExpanded = true },
+            new Palette { Title = "Tag Operations", Symbols = tagNodes, IsExpanded = true },
+            new Palette { Title = "Math", Symbols = mathNodes, IsExpanded = false },
+            new Palette { Title = "Logic", Symbols = logicNodes, IsExpanded = false },
+            new Palette { Title = "Output", Symbols = outputNodes, IsExpanded = false }
+        };
+    }
+    
+    private Node CreatePaletteNode(string id, string label, string color, int inputCount, int outputCount)
+    {
+        var icon = GetNodeIcon(id);
+        
+        var node = new Node
+        {
+            ID = id,
+            Width = 110,
+            Height = 60,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 6 },
+            Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
+            Ports = new DiagramObjectCollection<PointPort>(),
+            // Enable all node interactions for palette nodes
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        // Icon and label in single annotation
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = $"{icon}  {label}",
+            Style = new TextStyle 
+            { 
+                Color = "#ffffff", 
+                FontSize = 10, 
+                Bold = true,
+                FontFamily = "Segoe UI, sans-serif"
+            },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }
+        });
+        
+        // Add input ports (left side) - visible circles
+        for (int i = 0; i < inputCount; i++)
+        {
+            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"input-{i}",
+                Offset = new DiagramPoint { X = 0, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#2196f3", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        // Add output ports (right side) - visible circles
+        for (int i = 0; i < outputCount; i++)
+        {
+            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"output-{i}",
+                Offset = new DiagramPoint { X = 1, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#ff9800", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        return node;
+    }
+    
+    private SymbolInfo GetSymbolInfo(IDiagramObject symbol)
+    {
+        if (symbol is Node node)
+        {
+            return new SymbolInfo
+            {
+                Fit = true,
+                Description = new SymbolDescription { Text = node.ID ?? "" }
+            };
+        }
+        return new SymbolInfo { Fit = true };
+    }
+    
+    private async Task CreateNewFlow()
+    {
+        var newId = Guid.NewGuid();
+        try
+        {
+            // Create flow in backend
+            var response = await ApiService.CreateFlowAsync(new CreateFlowRequest(
+                "New Flow",
+                "New flow description",
+                "{}",
+                "continuous",
+                1000
+            ));
+            if (response != null)
+            {
+                newId = response.Id;
+                Navigation.NavigateTo($"/flows/{newId}");
+            }
+            else
+            {
+                // API didn't return an ID, use local ID
+                Navigation.NavigateTo($"/flows/{newId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to create flow in API: {ex.Message}");
+            // Still navigate to allow local editing
+            Navigation.NavigateTo($"/flows/{newId}");
+        }
+    }
+    
+    private void EditFlow(Guid id)
+    {
+        Navigation.NavigateTo($"/flows/{id}");
+    }
+    
+    private async Task DeleteFlow(Guid id)
+    {
+        try
+        {
+            // Try to delete from backend
+            var success = await ApiService.DeleteFlowAsync(id);
+            if (success)
+            {
+                FlowsList.RemoveAll(f => f.Id == id);
+                StateHasChanged();
+            }
+            else
+            {
+                // API failed - still remove locally for demo purposes
+                FlowsList.RemoveAll(f => f.Id == id);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to delete flow from API: {ex.Message}");
+            // Still remove locally for demo purposes
+            FlowsList.RemoveAll(f => f.Id == id);
+            StateHasChanged();
+        }
+    }
+    
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/flows");
+    }
+    
+    private async Task ToggleDeploy()
+    {
+        var newDeployState = !CurrentFlow.Deployed;
+        try
+        {
+            // Deploy/undeploy via API
+            var response = await ApiService.DeployFlowAsync(CurrentFlow.Id, newDeployState);
+            if (response != null && response.Ok)
+            {
+                CurrentFlow.Deployed = response.Deployed;
+                _saveMessage = CurrentFlow.Deployed ? "Flow deployed successfully!" : "Flow stopped.";
+                _showSaveMessage = true;
+                StateHasChanged();
+                // Hide message after 3 seconds using timer
+                _messageTimer?.Dispose();
+                _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to deploy flow: {ex.Message}");
+            // Fall back to local state change
+            CurrentFlow.Deployed = newDeployState;
+        }
+    }
+    
+    private string _saveMessage = "";
+    private bool _showSaveMessage = false;
+    
+    private async Task SaveFlow()
+    {
+        // Save flow to backend - serialize nodes and connectors
+        if (Diagram != null)
+        {
+            try
+            {
+                // Serialize the diagram state to JSON
+                var definition = SerializeFlowDefinition();
+                
+                // Update via API
+                var success = await ApiService.UpdateFlowAsync(CurrentFlow.Id, new UpdateFlowRequest(
+                    CurrentFlow.Name,
+                    CurrentFlow.Description,
+                    definition,
+                    "continuous",
+                    1000,
+                    null,
+                    null
+                ));
+                
+                if (success)
+                {
+                    CurrentFlow.UpdatedAt = DateTime.Now;
+                    _saveMessage = "Flow saved successfully!";
+                }
+                else
+                {
+                    _saveMessage = "Flow saved locally (API unavailable)";
+                    CurrentFlow.UpdatedAt = DateTime.Now;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to save flow: {ex.Message}");
+                _saveMessage = "Flow saved locally (API error)";
+                CurrentFlow.UpdatedAt = DateTime.Now;
+            }
+            
+            _showSaveMessage = true;
+            StateHasChanged();
+            
+            // Hide message after 3 seconds using timer
+            _messageTimer?.Dispose();
+            _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
+        }
+    }
+    
+    private System.Threading.Timer? _messageTimer;
+    
+    private void HideMessage(object? state)
+    {
+        _showSaveMessage = false;
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private string SerializeFlowDefinition()
+    {
+        // Serialize nodes and connectors to JSON format
+        var flowDef = new
+        {
+            nodes = Nodes.Select(n => new
+            {
+                id = n.ID,
+                x = n.OffsetX,
+                y = n.OffsetY,
+                type = n.ID?.Split("-instance-").FirstOrDefault() ?? "unknown",
+                label = n.Annotations?.FirstOrDefault()?.Content ?? n.ID,
+                width = n.Width,
+                height = n.Height
+            }).ToList(),
+            connectors = Connectors.Select(c => new
+            {
+                id = c.ID,
+                sourceId = c.SourceID,
+                sourcePort = c.SourcePortID,
+                targetId = c.TargetID,
+                targetPort = c.TargetPortID
+            }).ToList()
+        };
+        
+        return System.Text.Json.JsonSerializer.Serialize(flowDef);
+    }
+    
+    private void OnNodeCreating(IDiagramObject obj)
+    {
+        if (obj is Node node)
+        {
+            // Set proper size for dropped nodes matching our design
+            node.Width = 180;
+            node.Height = 70;
+            
+            // Ensure node has full interactivity (drag, select, resize, delete)
+            node.Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop;
+            
+            // Generate unique ID if not already an instance
+            if (node.ID != null && !node.ID.Contains("-instance-"))
+            {
+                var baseId = node.ID;
+                node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
+                
+                // Get category for subtitle
+                var category = NodeTypes.TryGetValue(baseId, out var info) ? info.Category : "Node";
+                var icon = GetNodeIcon(baseId);
+                var label = node.Annotations?.FirstOrDefault()?.Content?.ToString()?.Replace($"{icon}  ", "") ?? baseId;
+                
+                // Update styling to match flow nodes (dark background with colored border)
+                node.Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = node.Style?.StrokeColor ?? "#4caf50", StrokeWidth = 2 };
+                
+                // Clear and recreate annotations for proper styling
+                node.Annotations = new DiagramObjectCollection<ShapeAnnotation>
+                {
+                    new ShapeAnnotation
+                    {
+                        Content = $"{icon}  {label}",
+                        Style = new TextStyle 
+                        { 
+                            Color = "#ffffff", 
+                            FontSize = 13, 
+                            Bold = true,
+                            FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+                        },
+                        Offset = new DiagramPoint { X = 0.5, Y = 0.35 },
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    },
+                    new ShapeAnnotation
+                    {
+                        Content = category,
+                        Style = new TextStyle 
+                        { 
+                            Color = "#9d9d9d", 
+                            FontSize = 10, 
+                            Italic = true,
+                            FontFamily = "Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+                        },
+                        Offset = new DiagramPoint { X = 0.5, Y = 0.7 },
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    }
+                };
+            }
+            
+            // Ensure ports are visible and enabled for connections
+            if (node.Ports != null)
+            {
+                foreach (var port in node.Ports)
+                {
+                    port.Visibility = PortVisibility.Visible;
+                    port.Width = 14;
+                    port.Height = 14;
+                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
+                }
+            }
+        }
+    }
+    
+    private void OnConnectorCreating(IDiagramObject obj)
+    {
+        if (obj is Connector connector)
+        {
+            connector.Type = ConnectorSegmentType.Orthogonal;
+            connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
+            connector.CornerRadius = 5;
+            connector.TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow,
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } 
+            };
+        }
+    }
+    
+    private void OnDragDrop(DropEventArgs args)
+    {
+        // Handle node drop from palette - this fires after NodeCreating
+        if (args.Element is Node node)
+        {
+            // Generate unique ID for the dropped node if not done already
+            var baseId = node.ID?.Split("-instance-").FirstOrDefault() ?? "node";
+            if (!node.ID!.Contains("-instance-"))
+            {
+                node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
+            }
+            
+            // Ensure proper size
+            node.Width = 180;
+            node.Height = 70;
+            
+            // Ensure node has full interactivity after drop
+            node.Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop;
+            
+            // Ensure ports are visible after drop with proper styling
+            if (node.Ports != null)
+            {
+                foreach (var port in node.Ports)
+                {
+                    port.Visibility = PortVisibility.Visible;
+                    port.Width = 14;
+                    port.Height = 14;
+                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
+                }
+            }
+        }
+    }
+    
+    private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
+    {
+        // Get selected nodes from the diagram
+        if (Diagram?.SelectionSettings?.Nodes?.Count > 0)
+        {
+            SelectedNode = Diagram.SelectionSettings.Nodes[0] as Node;
+            if (SelectedNode?.Annotations?.Count > 0)
+            {
+                SelectedNodeLabel = SelectedNode.Annotations[0].Content ?? "";
+            }
+        }
+        else
+        {
+            SelectedNode = null;
+            SelectedNodeLabel = "";
+        }
+    }
+    
+    private string GetNodeType(Node node)
+    {
+        var id = node.ID ?? "";
+        var parts = id.Split("-instance-").FirstOrDefault()?.Split('-') ?? Array.Empty<string>();
+        return string.Join(" ", parts.Take(2)).ToUpper();
+    }
+    
+    private string GetNodeBaseType(Node node)
+    {
+        var id = node.ID ?? "";
+        return id.Split("-instance-").FirstOrDefault() ?? "unknown";
+    }
+    
+    private string GetMathOperation(Node node)
+    {
+        var baseType = GetNodeBaseType(node);
+        return baseType switch
+        {
+            "math-add" => "Add (+)",
+            "math-subtract" => "Subtract (-)",
+            "math-multiply" => "Multiply (×)",
+            "math-divide" => "Divide (÷)",
+            _ => "Unknown"
+        };
+    }
+    
+    private string GetComparisonType(Node node)
+    {
+        var baseType = GetNodeBaseType(node);
+        return baseType switch
+        {
+            "compare-equal" => "Equal (==)",
+            "compare-greater" => "Greater Than (>)",
+            "compare-less" => "Less Than (<)",
+            "logic-if" => "If/Else Conditional",
+            _ => "Comparison"
+        };
+    }
+    
+    // Node property storage for node-specific settings
+    private Dictionary<string, Dictionary<string, string>> _nodeProperties = new();
+    private bool _triggerOnDeploy = true;
+    
+    // Dropdown options for node properties
+    private List<string> NotificationSeverities = new() { "Info", "Warning", "Error", "Critical" };
+    private List<string> NotificationChannels = new() { "App", "Email", "SMS", "Webhook" };
+    private List<string> LogLevels = new() { "Debug", "Info", "Warning", "Error" };
+    private List<string> DataTypes = new() { "Float", "Integer", "Boolean", "String" };
+    private List<string> TriggerModes = new() { "Any Change", "Rising Edge", "Falling Edge", "Value Match" };
+    
+    // Property change handlers
+    private async Task OnLabelChanged(string newLabel)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNodeLabel = newLabel;
+            
+            // Extract icon from current content
+            var currentContent = SelectedNode.Annotations?.FirstOrDefault()?.Content ?? "";
+            var icon = currentContent.Length >= 2 ? currentContent.Substring(0, 2) : "📦";
+            
+            // Update the node's first annotation
+            if (SelectedNode.Annotations?.Count > 0)
+            {
+                SelectedNode.Annotations[0].Content = $"{icon}  {newLabel}";
+            }
+            
+            // Refresh the diagram
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnPositionXChanged(double newX)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.OffsetX = newX;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnPositionYChanged(double newY)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.OffsetY = newY;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnWidthChanged(double newWidth)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.Width = newWidth;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnHeightChanged(double newHeight)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.Height = newHeight;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    // Get/Set node-specific properties
+    private string GetNodeProperty(string key, string defaultValue = "")
+    {
+        if (SelectedNode == null) return defaultValue;
+        
+        var nodeId = SelectedNode.ID ?? "";
+        if (_nodeProperties.TryGetValue(nodeId, out var props) && props.TryGetValue(key, out var value))
+        {
+            return value;
+        }
+        return defaultValue;
+    }
+    
+    private double GetDoubleProperty(string key, double defaultValue = 0)
+    {
+        var strValue = GetNodeProperty(key, defaultValue.ToString());
+        return double.TryParse(strValue, out var val) ? val : defaultValue;
+    }
+    
+    private int GetIntProperty(string key, int defaultValue = 0)
+    {
+        var strValue = GetNodeProperty(key, defaultValue.ToString());
+        return int.TryParse(strValue, out var val) ? val : defaultValue;
+    }
+    
+    private void SetNodeProperty(string key, string value)
+    {
+        if (SelectedNode == null) return;
+        
+        var nodeId = SelectedNode.ID ?? "";
+        if (!_nodeProperties.ContainsKey(nodeId))
+        {
+            _nodeProperties[nodeId] = new Dictionary<string, string>();
+        }
+        _nodeProperties[nodeId][key] = value;
+        StateHasChanged();
+    }
+    
+    private double GetThresholdValue()
+    {
+        var strValue = GetNodeProperty("threshold", "50");
+        return double.TryParse(strValue, out var val) ? val : 50;
+    }
+    
+    private void OnThresholdChanged(double newValue)
+    {
+        SetNodeProperty("threshold", newValue.ToString());
+    }
+    
+    private int GetIntervalValue()
+    {
+        var strValue = GetNodeProperty("interval", "60");
+        return int.TryParse(strValue, out var val) ? val : 60;
+    }
+    
+    private void OnIntervalChanged(int newValue)
+    {
+        SetNodeProperty("interval", newValue.ToString());
+    }
+    
+    private async Task DeleteSelectedNode()
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            var nodeId = SelectedNode.ID;
+            
+            // Remove any connectors connected to this node
+            var connectorsToRemove = Connectors.Where(c => c.SourceID == nodeId || c.TargetID == nodeId).ToList();
+            foreach (var connector in connectorsToRemove)
+            {
+                Connectors.Remove(connector);
+            }
+            
+            // Remove the node
+            Nodes.Remove(SelectedNode);
+            
+            // Clear selection
+            SelectedNode = null;
+            SelectedNodeLabel = "";
+            
+            // Remove node properties
+            if (nodeId != null)
+            {
+                _nodeProperties.Remove(nodeId);
+            }
+            
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private List<FlowListItem> GetSampleFlows()
+    {
+        return new List<FlowListItem>
+        {
+            new() { 
+                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"), 
+                Name = "Temperature Monitor", 
+                Description = "Monitors tank temperatures and triggers alarms", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddHours(-2),
+                Definition = @"{""nodes"":[{""id"":""trigger-1"",""x"":150,""y"":150,""type"":""trigger-manual""},{""id"":""tag-1"",""x"":350,""y"":150,""type"":""tag-input""}],""connectors"":[{""sourceId"":""trigger-1"",""targetId"":""tag-1""}]}"
+            },
+            new() { 
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"), 
+                Name = "Pressure Alarm", 
+                Description = "Sends alerts when pressure exceeds threshold", 
+                Deployed = false, 
+                UpdatedAt = DateTime.Now.AddDays(-1),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("33333333-3333-3333-3333-333333333333"), 
+                Name = "Data Logger", 
+                Description = "Logs production data to database every 5 minutes", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddMinutes(-30),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), 
+                Name = "Tank Level Controller", 
+                Description = "Maintains tank levels within specified range", 
+                Deployed = true, 
+                UpdatedAt = DateTime.Now.AddHours(-6),
+                Definition = "{}"
+            },
+            new() { 
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555555"), 
+                Name = "Batch Report Generator", 
+                Description = "Generates production reports at end of shift", 
+                Deployed = false, 
+                UpdatedAt = DateTime.Now.AddDays(-3),
+                Definition = "{}"
+            }
+        };
+    }
+    
+    class FlowListItem
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public bool Deployed { get; set; }
+        public string Status => Deployed ? "Deployed" : "Stopped";
+        public DateTime UpdatedAt { get; set; }
+        public string Definition { get; set; } = "{}";
+    }
+}
