@@ -8,9 +8,9 @@
 
 <div class="dashboard-page">
     <div class="page-header">
-        <h1>Dashboard</h1>
+        <h2>Dashboard</h2>
         <div class="page-actions">
-            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Dashboard" OnClick="@CreateNewDashboard"></SfButton>
+            <button class="btn-classic" @onclick="CreateNewDashboard">New Dashboard</button>
         </div>
     </div>
 
@@ -20,91 +20,75 @@
     }
     else
     {
-        <SfDashboardLayout CellSpacing="@(new double[] {10, 10})" 
-                           Columns="12" 
-                           AllowDragging="true" 
-                           AllowResizing="true"
-                           CellAspectRatio="1">
-            <DashboardLayoutPanels>
-                <DashboardLayoutPanel Id="panel1" SizeX="4" SizeY="3" Row="0" Column="0">
-                    <HeaderTemplate>
-                        <div class="panel-header">System Overview</div>
-                    </HeaderTemplate>
-                    <ContentTemplate>
-                        <div class="panel-content">
-                            <div class="stat-item">
-                                <span class="stat-label">Active Connections</span>
-                                <span class="stat-value">@ActiveConnections</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Running Flows</span>
-                                <span class="stat-value">@RunningFlows</span>
-                            </div>
-                            <div class="stat-item">
-                                <span class="stat-label">Subscribed Tags</span>
-                                <span class="stat-value">@SubscribedTags</span>
-                            </div>
+        <div class="dashboard-grid">
+            <!-- System Overview Panel -->
+            <div class="dashboard-panel">
+                <div class="panel-title">System Overview</div>
+                <div class="panel-body">
+                    <table class="data-table">
+                        <tr>
+                            <td class="label">Active Connections:</td>
+                            <td class="value">@ActiveConnections</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Running Flows:</td>
+                            <td class="value">@RunningFlows</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Subscribed Tags:</td>
+                            <td class="value">@SubscribedTags</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Recent Activity Panel -->
+            <div class="dashboard-panel">
+                <div class="panel-title">Recent Activity</div>
+                <div class="panel-body list-panel">
+                    @foreach (var activity in RecentActivities)
+                    {
+                        <div class="list-row">
+                            <span class="list-icon e-icons @activity.IconClass"></span>
+                            <span class="list-text">@activity.Text</span>
+                            <span class="list-meta">@activity.Time</span>
                         </div>
-                    </ContentTemplate>
-                </DashboardLayoutPanel>
-                
-                <DashboardLayoutPanel Id="panel2" SizeX="4" SizeY="3" Row="0" Column="4">
-                    <HeaderTemplate>
-                        <div class="panel-header">Recent Activity</div>
-                    </HeaderTemplate>
-                    <ContentTemplate>
-                        <div class="panel-content">
-                            <ul class="activity-list">
-                                @foreach (var activity in RecentActivities)
-                                {
-                                    <li class="activity-item">
-                                        <span class="activity-icon e-icons @activity.IconClass"></span>
-                                        <span class="activity-text">@activity.Text</span>
-                                        <span class="activity-time">@activity.Time</span>
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                    </ContentTemplate>
-                </DashboardLayoutPanel>
-                
-                <DashboardLayoutPanel Id="panel3" SizeX="4" SizeY="3" Row="0" Column="8">
-                    <HeaderTemplate>
-                        <div class="panel-header">Quick Actions</div>
-                    </HeaderTemplate>
-                    <ContentTemplate>
-                        <div class="panel-content quick-actions">
-                            <SfButton CssClass="e-outline" Content="Create Flow" OnClick="@(() => NavigateTo("/flows/new"))"></SfButton>
-                            <SfButton CssClass="e-outline" Content="Add Connection" OnClick="@(() => NavigateTo("/connectivity/new"))"></SfButton>
-                            <SfButton CssClass="e-outline" Content="View Charts" OnClick="@(() => NavigateTo("/charts"))"></SfButton>
-                        </div>
-                    </ContentTemplate>
-                </DashboardLayoutPanel>
-                
-                <DashboardLayoutPanel Id="panel4" SizeX="12" SizeY="4" Row="3" Column="0">
-                    <HeaderTemplate>
-                        <div class="panel-header">Tag Values (Live)</div>
-                    </HeaderTemplate>
-                    <ContentTemplate>
-                        @if (ChartData.Count > 0)
-                        {
-                            <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
-                                <ChartSeriesCollection>
-                                    <ChartSeries DataSource="@ChartData" XName="X" YName="Y" Type="ChartSeriesType.Line">
-                                        <ChartMarker Visible="true" Height="10" Width="10"></ChartMarker>
-                                    </ChartSeries>
-                                </ChartSeriesCollection>
-                            </SfChart>
-                        }
-                        else
-                        {
-                            <div class="no-data">No tag data available. Configure connections to view live data.</div>
-                        }
-                    </ContentTemplate>
-                </DashboardLayoutPanel>
-            </DashboardLayoutPanels>
-        </SfDashboardLayout>
+                    }
+                </div>
+            </div>
+            
+            <!-- Quick Actions Panel -->
+            <div class="dashboard-panel">
+                <div class="panel-title">Quick Actions</div>
+                <div class="panel-body action-panel">
+                    <button class="btn-classic" @onclick="@(() => NavigateTo("/flows/new"))">Create Flow</button>
+                    <button class="btn-classic" @onclick="@(() => NavigateTo("/connectivity/new"))">Add Connection</button>
+                    <button class="btn-classic" @onclick="@(() => NavigateTo("/charts"))">View Charts</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Live Chart Panel -->
+        <div class="dashboard-panel full-width">
+            <div class="panel-title">Tag Values (Live)</div>
+            <div class="panel-body chart-panel">
+                @if (ChartData.Count > 0)
+                {
+                    <SfChart Theme="Syncfusion.Blazor.Theme.Tailwind" Width="100%" Height="200px">
+                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
+                        <ChartSeriesCollection>
+                            <ChartSeries DataSource="@ChartData" XName="X" YName="Y" Type="ChartSeriesType.Line">
+                                <ChartMarker Visible="true" Height="6" Width="6"></ChartMarker>
+                            </ChartSeries>
+                        </ChartSeriesCollection>
+                    </SfChart>
+                }
+                else
+                {
+                    <div class="no-data">No tag data available. Configure connections to view live data.</div>
+                }
+            </div>
+        </div>
     }
 </div>
 
@@ -117,89 +101,116 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 24px;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid #808080;
     }
     
-    .page-header h1 {
+    .page-header h2 {
         margin: 0;
-        font-size: 24px;
-        font-weight: 500;
+        font-size: 14px;
+        font-weight: bold;
     }
     
     .loading-indicator {
         text-align: center;
-        padding: 40px;
-        color: #9d9d9d;
+        padding: 20px;
+        color: #808080;
     }
     
-    .panel-header {
-        font-size: 14px;
-        font-weight: 600;
-        padding: 8px 12px;
-        background: #2d2d2d;
-        border-bottom: 1px solid #3c3c3c;
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 8px;
     }
     
-    .panel-content {
-        padding: 16px;
-        height: calc(100% - 40px);
-        overflow: auto;
+    .dashboard-panel {
+        background: #d4d0c8;
+        border: 2px solid;
+        border-color: #ffffff #808080 #808080 #ffffff;
     }
     
-    .stat-item {
-        display: flex;
-        justify-content: space-between;
-        padding: 12px 0;
-        border-bottom: 1px solid #3c3c3c;
+    .dashboard-panel.full-width {
+        grid-column: 1 / -1;
     }
     
-    .stat-label {
-        color: #9d9d9d;
+    .panel-title {
+        background: #000080;
+        color: #ffffff;
+        padding: 2px 6px;
+        font-weight: bold;
+        font-size: 11px;
     }
     
-    .stat-value {
-        font-weight: 600;
-        font-size: 18px;
-        color: #4caf50;
+    .panel-body {
+        padding: 8px;
     }
     
-    .activity-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
+    .data-table {
+        width: 100%;
+        font-size: 11px;
+        border-collapse: collapse;
     }
     
-    .activity-item {
+    .data-table td {
+        padding: 3px 4px;
+        border-bottom: 1px solid #c0c0c0;
+    }
+    
+    .data-table .label {
+        color: #404040;
+    }
+    
+    .data-table .value {
+        font-weight: bold;
+        text-align: right;
+        color: #008000;
+    }
+    
+    .list-panel {
+        max-height: 120px;
+        overflow-y: auto;
+    }
+    
+    .list-row {
         display: flex;
         align-items: center;
-        padding: 8px 0;
-        gap: 8px;
-        border-bottom: 1px solid #3c3c3c;
-    }
-    
-    .activity-icon {
-        font-size: 14px;
-        color: #4caf50;
-    }
-    
-    .activity-text {
-        flex: 1;
-        font-size: 13px;
-    }
-    
-    .activity-time {
+        padding: 2px 0;
+        gap: 6px;
         font-size: 11px;
-        color: #9d9d9d;
+        border-bottom: 1px solid #c0c0c0;
     }
     
-    .quick-actions {
+    .list-icon {
+        font-size: 10px;
+        color: #000080;
+    }
+    
+    .list-text {
+        flex: 1;
+    }
+    
+    .list-meta {
+        color: #808080;
+        font-size: 10px;
+    }
+    
+    .action-panel {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 6px;
     }
     
-    .quick-actions button {
+    .action-panel button {
         width: 100%;
+    }
+    
+    .chart-panel {
+        min-height: 200px;
+        background: #ffffff;
+        border: 2px solid;
+        border-color: #808080 #ffffff #ffffff #808080;
     }
     
     .no-data {
@@ -207,8 +218,30 @@
         align-items: center;
         justify-content: center;
         height: 100%;
-        color: #9d9d9d;
+        min-height: 100px;
+        color: #808080;
         font-style: italic;
+        font-size: 11px;
+    }
+    
+    /* Classic button styles */
+    .btn-classic {
+        background: #d4d0c8;
+        border: 2px solid;
+        border-color: #ffffff #808080 #808080 #ffffff;
+        padding: 2px 12px;
+        font-size: 11px;
+        min-height: 21px;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    
+    .btn-classic:hover {
+        background: #e0e0e0;
+    }
+    
+    .btn-classic:active {
+        border-color: #808080 #ffffff #ffffff #808080;
     }
 </style>
 
