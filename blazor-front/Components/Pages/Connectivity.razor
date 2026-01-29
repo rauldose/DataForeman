@@ -1,7 +1,10 @@
 @page "/connectivity"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
+@using System.Text.Json
 @inject DataService DataService
+@inject SimulatorService SimulatorService
+@implements IDisposable
 
 <PageTitle>Connectivity - DataForeman</PageTitle>
 
@@ -23,7 +26,7 @@
             <TabItems>
                 <TabItem>
                     <HeaderTemplate>
-                        <span>Connections</span>
+                        <span>Connections (@Connections.Count)</span>
                     </HeaderTemplate>
                     <ContentTemplate>
                         <div class="tab-content">
@@ -51,16 +54,24 @@
                                             </Template>
                                         </GridColumn>
                                         <GridColumn Field="@nameof(ConnectionDisplayItem.TagCount)" HeaderText="Tags" Width="80"></GridColumn>
-                                        <GridColumn HeaderText="Actions" Width="150">
+                                        <GridColumn HeaderText="Actions" Width="200">
                                             <Template>
                                                 @{
                                                     var conn = context as ConnectionDisplayItem;
                                                     if (conn != null)
                                                     {
                                                         <div class="action-buttons">
-                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditConnection(conn))"></SfButton>
-                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-refresh" OnClick="@(() => TestConnection(conn))"></SfButton>
-                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteConnection(conn))"></SfButton>
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" Title="Edit" OnClick="@(() => EditConnection(conn))"></SfButton>
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-eye" Title="View Tags" OnClick="@(() => ViewConnectionTags(conn))"></SfButton>
+                                                            @if (conn.Type == "Simulator")
+                                                            {
+                                                                <SfButton CssClass="e-flat e-small e-success" IconCss="e-icons e-play" Title="Start Simulator" OnClick="@(() => StartSimulator(conn))"></SfButton>
+                                                            }
+                                                            else
+                                                            {
+                                                                <SfButton CssClass="e-flat e-small" IconCss="e-icons e-refresh" Title="Test Connection" OnClick="@(() => TestConnection(conn))"></SfButton>
+                                                            }
+                                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" Title="Delete" OnClick="@(() => ConfirmDeleteConnection(conn))"></SfButton>
                                                         </div>
                                                     }
                                                 }
@@ -75,23 +86,31 @@
                 
                 <TabItem>
                     <HeaderTemplate>
-                        <span>Tags</span>
+                        <span>Tags (@Tags.Count)</span>
                     </HeaderTemplate>
                     <ContentTemplate>
                         <div class="tab-content">
                             <div class="tags-toolbar">
-                                <SfDropDownList TItem="ConnectionDisplayItem" TValue="Guid?" DataSource="@Connections" @bind-Value="SelectedConnectionId" Placeholder="Select Connection" Width="250px">
+                                <SfDropDownList TItem="ConnectionDisplayItem" TValue="Guid?" DataSource="@Connections" @bind-Value="SelectedConnectionId" Placeholder="All Connections" Width="250px" AllowFiltering="true">
                                     <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                    <DropDownListEvents TItem="ConnectionDisplayItem" TValue="Guid?" ValueChange="@OnConnectionFilterChanged"></DropDownListEvents>
                                 </SfDropDownList>
                                 <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearch" Width="300px"></SfTextBox>
                                 <div class="toolbar-spacer"></div>
-                                <SfButton CssClass="e-outline" IconCss="e-icons e-browse" Content="Browse Tags" OnClick="@BrowseTags"></SfButton>
-                                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag"></SfButton>
+                                @if (SelectedConnectionId.HasValue)
+                                {
+                                    var selectedConn = Connections.FirstOrDefault(c => c.Id == SelectedConnectionId.Value);
+                                    @if (selectedConn?.Type == "Simulator")
+                                    {
+                                        <SfButton CssClass="e-outline" IconCss="e-icons e-repeat" Content="Generate Tags" OnClick="@GenerateSimulatedTags"></SfButton>
+                                    }
+                                }
+                                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag" OnClick="@OpenAddTagDialog"></SfButton>
                             </div>
                             
                             @if (FilteredTags.Count == 0)
                             {
-                                <div class="no-data">No tags found. Add a connection and browse tags to get started.</div>
+                                <div class="no-data">No tags found. Select a connection and add tags to get started.</div>
                             }
                             else
                             {
@@ -101,7 +120,19 @@
                                         <GridColumn Type="ColumnType.CheckBox" Width="50"></GridColumn>
                                         <GridColumn Field="@nameof(TagDisplayItem.TagPath)" HeaderText="Tag Path" Width="300"></GridColumn>
                                         <GridColumn Field="@nameof(TagDisplayItem.DataType)" HeaderText="Data Type" Width="100"></GridColumn>
-                                        <GridColumn Field="@nameof(TagDisplayItem.CurrentValue)" HeaderText="Current Value" Width="120"></GridColumn>
+                                        <GridColumn Field="@nameof(TagDisplayItem.CurrentValue)" HeaderText="Current Value" Width="120">
+                                            <Template>
+                                                @{
+                                                    var tag = context as TagDisplayItem;
+                                                    if (tag != null)
+                                                    {
+                                                        <span class="tag-value @(tag.Quality == 0 ? "good" : "bad")">
+                                                            @tag.CurrentValue
+                                                        </span>
+                                                    }
+                                                }
+                                            </Template>
+                                        </GridColumn>
                                         <GridColumn Field="@nameof(TagDisplayItem.PollGroupName)" HeaderText="Poll Group" Width="120"></GridColumn>
                                         <GridColumn HeaderText="Subscribed" Width="100">
                                             <Template>
@@ -109,7 +140,21 @@
                                                     var tag = context as TagDisplayItem;
                                                     if (tag != null)
                                                     {
-                                                        <SfSwitch @bind-Checked="tag.IsSubscribed" TChecked="bool"></SfSwitch>
+                                                        <SfSwitch @bind-Checked="tag.IsSubscribed" TChecked="bool" ValueChange="@((args) => OnTagSubscriptionChanged(tag, args.Checked))"></SfSwitch>
+                                                    }
+                                                }
+                                            </Template>
+                                        </GridColumn>
+                                        <GridColumn HeaderText="Actions" Width="100">
+                                            <Template>
+                                                @{
+                                                    var tag = context as TagDisplayItem;
+                                                    if (tag != null)
+                                                    {
+                                                        <div class="action-buttons">
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" Title="Edit" OnClick="@(() => EditTag(tag))"></SfButton>
+                                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" Title="Delete" OnClick="@(() => ConfirmDeleteTag(tag))"></SfButton>
+                                                        </div>
                                                     }
                                                 }
                                             </Template>
@@ -123,7 +168,7 @@
                 
                 <TabItem>
                     <HeaderTemplate>
-                        <span>Poll Groups</span>
+                        <span>Poll Groups (@PollGroups.Count)</span>
                     </HeaderTemplate>
                     <ContentTemplate>
                         <div class="tab-content">
@@ -159,7 +204,7 @@
                 
                 <TabItem>
                     <HeaderTemplate>
-                        <span>Units</span>
+                        <span>Units (@Units.Count)</span>
                     </HeaderTemplate>
                     <ContentTemplate>
                         <div class="tab-content">
@@ -186,34 +231,116 @@
     }
 </div>
 
-<SfDialog @bind-Visible="ShowAddConnectionDialog" Header="Add Connection" Width="500px" IsModal="true">
+@* Add Connection Dialog *@
+<SfDialog @bind-Visible="ShowAddConnectionDialog" Header="@(EditingConnection != null ? "Edit Connection" : "Add Connection")" Width="500px" IsModal="true">
     <DialogTemplates>
         <Content>
             <div class="dialog-form">
                 <div class="form-group">
-                    <label>Connection Name</label>
+                    <label>Connection Name *</label>
                     <SfTextBox @bind-Value="NewConnection.Name" Placeholder="Enter connection name"></SfTextBox>
                 </div>
                 <div class="form-group">
-                    <label>Type</label>
-                    <SfDropDownList TItem="string" TValue="string" DataSource="@ConnectionTypes" @bind-Value="NewConnection.Type" Placeholder="Select type"></SfDropDownList>
+                    <label>Type *</label>
+                    <SfDropDownList TItem="string" TValue="string" DataSource="@ConnectionTypes" @bind-Value="NewConnection.Type" Placeholder="Select type">
+                        <DropDownListEvents TItem="string" TValue="string" ValueChange="@OnConnectionTypeChanged"></DropDownListEvents>
+                    </SfDropDownList>
                 </div>
+                @if (NewConnection.Type != "Simulator")
+                {
+                    <div class="form-group">
+                        <label>Host/Address</label>
+                        <SfTextBox @bind-Value="NewConnection.Host" Placeholder="e.g., 192.168.1.100"></SfTextBox>
+                    </div>
+                    <div class="form-group">
+                        <label>Port</label>
+                        <SfNumericTextBox TValue="int" @bind-Value="NewConnection.Port" Min="1" Max="65535"></SfNumericTextBox>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>Description</label>
+                        <SfTextBox @bind-Value="NewConnection.Description" Placeholder="Simulated connection for testing"></SfTextBox>
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Tags Count</label>
+                        <SfNumericTextBox TValue="int" @bind-Value="NewConnection.InitialTagCount" Min="0" Max="100" Placeholder="Number of tags to generate"></SfNumericTextBox>
+                    </div>
+                }
                 <div class="form-group">
-                    <label>Host/Address</label>
-                    <SfTextBox @bind-Value="NewConnection.Host" Placeholder="e.g., 192.168.1.100"></SfTextBox>
-                </div>
-                <div class="form-group">
-                    <label>Port</label>
-                    <SfNumericTextBox TValue="int" @bind-Value="NewConnection.Port" Min="1" Max="65535"></SfNumericTextBox>
+                    <SfCheckBox @bind-Checked="NewConnection.Enabled" Label="Enabled"></SfCheckBox>
                 </div>
             </div>
         </Content>
     </DialogTemplates>
     <DialogButtons>
         <DialogButton Content="Cancel" OnClick="@CloseAddConnectionDialog"></DialogButton>
-        <DialogButton Content="Add" IsPrimary="true" OnClick="@AddConnection"></DialogButton>
+        <DialogButton Content="@(EditingConnection != null ? "Update" : "Add")" IsPrimary="true" OnClick="@SaveConnection"></DialogButton>
     </DialogButtons>
 </SfDialog>
+
+@* Add Tag Dialog *@
+<SfDialog @bind-Visible="ShowAddTagDialog" Header="@(EditingTag != null ? "Edit Tag" : "Add Tag")" Width="500px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <div class="dialog-form">
+                <div class="form-group">
+                    <label>Connection *</label>
+                    <SfDropDownList TItem="ConnectionDisplayItem" TValue="Guid" DataSource="@Connections" @bind-Value="NewTag.ConnectionId" Placeholder="Select connection">
+                        <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                </div>
+                <div class="form-group">
+                    <label>Tag Path *</label>
+                    <SfTextBox @bind-Value="NewTag.TagPath" Placeholder="e.g., PLC1/Temperature_01"></SfTextBox>
+                </div>
+                <div class="form-group">
+                    <label>Data Type</label>
+                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" @bind-Value="NewTag.DataType" Placeholder="Select data type"></SfDropDownList>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <SfTextBox @bind-Value="NewTag.Description" Placeholder="Tag description"></SfTextBox>
+                </div>
+                <div class="form-group">
+                    <label>Poll Group</label>
+                    <SfDropDownList TItem="PollGroupDisplayItem" TValue="int" DataSource="@PollGroups" @bind-Value="NewTag.PollGroupId" Placeholder="Select poll group">
+                        <DropDownListFieldSettings Text="Name" Value="GroupId"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                </div>
+                <div class="form-group">
+                    <SfCheckBox @bind-Checked="NewTag.IsSubscribed" Label="Subscribe to updates"></SfCheckBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@CloseAddTagDialog"></DialogButton>
+        <DialogButton Content="@(EditingTag != null ? "Update" : "Add")" IsPrimary="true" OnClick="@SaveTag"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+@* Confirm Delete Dialog *@
+<SfDialog @bind-Visible="ShowDeleteConfirmDialog" Header="Confirm Delete" Width="400px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <p>@DeleteConfirmMessage</p>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@(() => ShowDeleteConfirmDialog = false)"></DialogButton>
+        <DialogButton Content="Delete" IsPrimary="true" CssClass="e-danger" OnClick="@ConfirmDelete"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+@* Status Message *@
+@if (!string.IsNullOrEmpty(StatusMessage))
+{
+    <div class="status-toast @StatusMessageType">
+        @StatusMessage
+    </div>
+}
 
 <style>
     .connectivity-page {
@@ -250,9 +377,12 @@
     
     .tags-toolbar {
         display: flex;
-        align-items: center;
         gap: 12px;
+        align-items: center;
         margin-bottom: 16px;
+        padding: 12px;
+        background: var(--df-surface, #2d323b);
+        border-radius: 4px;
     }
     
     .toolbar-spacer {
@@ -263,15 +393,16 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 4px 8px;
-        border-radius: 4px;
+        padding: 4px 10px;
+        border-radius: 12px;
         font-size: 12px;
+        font-weight: 500;
     }
     
     .status-indicator::before {
         content: '';
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
     }
     
@@ -314,30 +445,96 @@
         font-size: 13px;
         color: #9d9d9d;
     }
+    
+    .tag-value {
+        font-family: monospace;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+    
+    .tag-value.good {
+        background: rgba(76, 175, 80, 0.1);
+        color: #81c784;
+    }
+    
+    .tag-value.bad {
+        background: rgba(244, 67, 54, 0.1);
+        color: #e57373;
+    }
+    
+    .status-toast {
+        position: fixed;
+        bottom: 80px;
+        right: 24px;
+        padding: 12px 24px;
+        border-radius: 4px;
+        font-size: 14px;
+        z-index: 1000;
+        animation: fadeInOut 3s ease-in-out;
+    }
+    
+    .status-toast.success {
+        background: #4caf50;
+        color: white;
+    }
+    
+    .status-toast.error {
+        background: #f44336;
+        color: white;
+    }
+    
+    .status-toast.info {
+        background: #2196f3;
+        color: white;
+    }
+    
+    @@keyframes fadeInOut {
+        0% { opacity: 0; transform: translateY(20px); }
+        10% { opacity: 1; transform: translateY(0); }
+        90% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-20px); }
+    }
 </style>
 
 @code {
     private bool IsLoading = true;
     private bool ShowAddConnectionDialog = false;
+    private bool ShowAddTagDialog = false;
+    private bool ShowDeleteConfirmDialog = false;
     private Guid? SelectedConnectionId;
     private string TagSearch = "";
+    private string StatusMessage = "";
+    private string StatusMessageType = "info";
+    private string DeleteConfirmMessage = "";
+    private System.Action? DeleteConfirmAction;
+    
+    private ConnectionDisplayItem? EditingConnection;
+    private TagDisplayItem? EditingTag;
     
     private NewConnectionModel NewConnection = new();
+    private NewTagModel NewTag = new();
     
-    private List<string> ConnectionTypes = new() { "OPC UA", "EtherNet/IP", "Siemens S7", "MQTT", "Modbus TCP" };
+    private List<string> ConnectionTypes = new() { "Simulator", "OPC UA", "EtherNet/IP", "Siemens S7", "MQTT", "Modbus TCP" };
+    private List<string> DataTypes = new() { "Float", "Double", "Int16", "Int32", "Int64", "Boolean", "String", "DateTime" };
     
     private List<ConnectionDisplayItem> Connections = new();
     private List<TagDisplayItem> Tags = new();
     private List<PollGroupDisplayItem> PollGroups = new();
     private List<UnitDisplayItem> Units = new();
     
-    private List<TagDisplayItem> FilteredTags => string.IsNullOrEmpty(TagSearch)
-        ? Tags
-        : Tags.Where(t => t.TagPath.Contains(TagSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+    private Timer? _valueUpdateTimer;
+    
+    private List<TagDisplayItem> FilteredTags => Tags
+        .Where(t => !SelectedConnectionId.HasValue || t.ConnectionId == SelectedConnectionId.Value)
+        .Where(t => string.IsNullOrEmpty(TagSearch) || t.TagPath.Contains(TagSearch, StringComparison.OrdinalIgnoreCase))
+        .ToList();
     
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
+        
+        // Start value update timer
+        _valueUpdateTimer = new Timer(UpdateTagValues, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
     
     private async Task LoadData()
@@ -346,7 +543,7 @@
         
         try
         {
-            // Load connections from DataService
+            // Load all data in parallel
             var connectionsTask = DataService.GetConnectionsAsync();
             var tagsTask = DataService.GetTagsAsync();
             var pollGroupsTask = DataService.GetPollGroupsAsync();
@@ -363,7 +560,7 @@
                     Name = c.Name,
                     Type = c.Type,
                     Enabled = c.Enabled,
-                    TagCount = 0 // Would need to count tags
+                    TagCount = c.Tags?.Count ?? 0
                 }).ToList();
             }
             
@@ -373,11 +570,14 @@
                 Tags = tags.Select(t => new TagDisplayItem
                 {
                     TagId = t.TagId,
+                    ConnectionId = t.ConnectionId,
                     TagPath = t.TagPath,
                     DataType = t.DataType ?? "Unknown",
                     CurrentValue = "-",
                     PollGroupName = "Standard",
-                    IsSubscribed = false
+                    PollGroupId = t.PollGroupId,
+                    IsSubscribed = t.IsSubscribed,
+                    Quality = 0
                 }).ToList();
             }
             
@@ -389,9 +589,9 @@
                     GroupId = pg.GroupId,
                     Name = pg.Name,
                     PollRateMs = pg.PollRateMs,
-                    Description = "",
+                    Description = pg.Description ?? "",
                     TagCount = 0,
-                    IsActive = true
+                    IsActive = pg.IsActive
                 }).ToList();
             }
             
@@ -403,60 +603,494 @@
                     Id = u.Id,
                     Name = u.Name,
                     Symbol = u.Symbol ?? "",
-                    Category = "General"
+                    Category = u.Category ?? "General"
                 }).ToList();
             }
+            
+            // Start simulator for all simulator connections
+            foreach (var conn in Connections.Where(c => c.Type == "Simulator" && c.Enabled))
+            {
+                await SimulatorService.LoadConnectionTagsAsync(conn.Id);
+            }
+            SimulatorService.Start();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Data not available
+            ShowStatus($"Error loading data: {ex.Message}", "error");
         }
         
         IsLoading = false;
     }
     
+    private void UpdateTagValues(object? state)
+    {
+        // Get simulated values and update tags
+        var values = SimulatorService.GetAllTagValues();
+        
+        foreach (var tag in Tags)
+        {
+            if (values.TryGetValue(tag.TagId, out var valueInfo))
+            {
+                tag.CurrentValue = valueInfo.Value?.ToString() ?? "-";
+                tag.Quality = valueInfo.Quality;
+            }
+        }
+        
+        InvokeAsync(StateHasChanged);
+    }
+    
+    #region Connection CRUD
+    
     private void OpenAddConnectionDialog()
     {
-        NewConnection = new NewConnectionModel { Port = 44818 };
+        EditingConnection = null;
+        NewConnection = new NewConnectionModel 
+        { 
+            Port = 44818, 
+            Enabled = true,
+            InitialTagCount = 10
+        };
         ShowAddConnectionDialog = true;
     }
     
     private void CloseAddConnectionDialog()
     {
         ShowAddConnectionDialog = false;
-    }
-    
-    private void AddConnection()
-    {
-        Connections.Add(new ConnectionDisplayItem
-        {
-            Id = Guid.NewGuid(),
-            Name = NewConnection.Name,
-            Type = NewConnection.Type,
-            Enabled = false,
-            TagCount = 0
-        });
-        ShowAddConnectionDialog = false;
+        EditingConnection = null;
     }
     
     private void EditConnection(ConnectionDisplayItem conn)
     {
-        // Open edit dialog
+        EditingConnection = conn;
+        NewConnection = new NewConnectionModel
+        {
+            Name = conn.Name,
+            Type = conn.Type,
+            Enabled = conn.Enabled
+        };
+        ShowAddConnectionDialog = true;
+    }
+    
+    private async Task SaveConnection()
+    {
+        if (string.IsNullOrWhiteSpace(NewConnection.Name))
+        {
+            ShowStatus("Connection name is required", "error");
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(NewConnection.Type))
+        {
+            ShowStatus("Connection type is required", "error");
+            return;
+        }
+        
+        try
+        {
+            if (EditingConnection != null)
+            {
+                // Update existing
+                var config = NewConnection.Type != "Simulator" 
+                    ? JsonSerializer.Serialize(new { host = NewConnection.Host, port = NewConnection.Port })
+                    : JsonSerializer.Serialize(new { description = NewConnection.Description });
+                    
+                var success = await DataService.UpdateConnectionAsync(
+                    EditingConnection.Id,
+                    NewConnection.Name,
+                    NewConnection.Type,
+                    config,
+                    NewConnection.Enabled
+                );
+                
+                if (success)
+                {
+                    EditingConnection.Name = NewConnection.Name;
+                    EditingConnection.Type = NewConnection.Type;
+                    EditingConnection.Enabled = NewConnection.Enabled;
+                    ShowStatus("Connection updated successfully", "success");
+                }
+                else
+                {
+                    ShowStatus("Failed to update connection", "error");
+                }
+            }
+            else
+            {
+                // Create new
+                var config = NewConnection.Type != "Simulator" 
+                    ? JsonSerializer.Serialize(new { host = NewConnection.Host, port = NewConnection.Port })
+                    : JsonSerializer.Serialize(new { description = NewConnection.Description });
+                    
+                var connection = await DataService.CreateConnectionAsync(NewConnection.Name, NewConnection.Type, config);
+                
+                if (connection != null)
+                {
+                    var displayItem = new ConnectionDisplayItem
+                    {
+                        Id = connection.Id,
+                        Name = connection.Name,
+                        Type = connection.Type,
+                        Enabled = connection.Enabled,
+                        TagCount = 0
+                    };
+                    Connections.Add(displayItem);
+                    
+                    // Generate initial tags for simulator
+                    if (NewConnection.Type == "Simulator" && NewConnection.InitialTagCount > 0)
+                    {
+                        var generatedTags = await DataService.GenerateSimulatedTagsAsync(connection.Id, NewConnection.InitialTagCount);
+                        foreach (var tag in generatedTags)
+                        {
+                            Tags.Add(new TagDisplayItem
+                            {
+                                TagId = tag.TagId,
+                                ConnectionId = tag.ConnectionId,
+                                TagPath = tag.TagPath,
+                                DataType = tag.DataType ?? "Float",
+                                CurrentValue = "-",
+                                PollGroupName = "Standard",
+                                PollGroupId = tag.PollGroupId,
+                                IsSubscribed = tag.IsSubscribed,
+                                Quality = 0
+                            });
+                        }
+                        displayItem.TagCount = generatedTags.Count;
+                        
+                        // Load into simulator
+                        await SimulatorService.LoadConnectionTagsAsync(connection.Id);
+                    }
+                    
+                    ShowStatus($"Connection '{connection.Name}' created successfully", "success");
+                }
+                else
+                {
+                    ShowStatus("Failed to create connection", "error");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error saving connection: {ex.Message}", "error");
+        }
+        
+        ShowAddConnectionDialog = false;
+        EditingConnection = null;
+    }
+    
+    private void ConfirmDeleteConnection(ConnectionDisplayItem conn)
+    {
+        DeleteConfirmMessage = $"Are you sure you want to delete connection '{conn.Name}'? This will also delete all associated tags.";
+        DeleteConfirmAction = async () => await DeleteConnection(conn);
+        ShowDeleteConfirmDialog = true;
+    }
+    
+    private async Task DeleteConnection(ConnectionDisplayItem conn)
+    {
+        try
+        {
+            var success = await DataService.DeleteConnectionAsync(conn.Id);
+            if (success)
+            {
+                Connections.Remove(conn);
+                Tags.RemoveAll(t => t.ConnectionId == conn.Id);
+                SimulatorService.UnloadConnection(conn.Id);
+                ShowStatus($"Connection '{conn.Name}' deleted", "success");
+            }
+            else
+            {
+                ShowStatus("Failed to delete connection", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error deleting connection: {ex.Message}", "error");
+        }
+        
+        ShowDeleteConfirmDialog = false;
+    }
+    
+    private void ViewConnectionTags(ConnectionDisplayItem conn)
+    {
+        SelectedConnectionId = conn.Id;
     }
     
     private void TestConnection(ConnectionDisplayItem conn)
     {
-        // Test connection
+        ShowStatus($"Testing connection '{conn.Name}'...", "info");
+        // Simulate test
+        Task.Delay(1000).ContinueWith(_ => 
+        {
+            InvokeAsync(() => 
+            {
+                ShowStatus($"Connection '{conn.Name}' test successful", "success");
+                StateHasChanged();
+            });
+        });
     }
     
-    private void DeleteConnection(ConnectionDisplayItem conn)
+    private async Task StartSimulator(ConnectionDisplayItem conn)
     {
-        Connections.Remove(conn);
+        await SimulatorService.LoadConnectionTagsAsync(conn.Id);
+        SimulatorService.Start();
+        conn.Enabled = true;
+        await DataService.UpdateConnectionAsync(conn.Id, enabled: true);
+        ShowStatus($"Simulator '{conn.Name}' started", "success");
     }
     
-    private void BrowseTags()
+    private void OnConnectionTypeChanged(Syncfusion.Blazor.DropDowns.ChangeEventArgs<string, string> args)
     {
-        // Open tag browser dialog
+        // Set default port based on type
+        NewConnection.Port = args.Value switch
+        {
+            "OPC UA" => 4840,
+            "EtherNet/IP" => 44818,
+            "Siemens S7" => 102,
+            "MQTT" => 1883,
+            "Modbus TCP" => 502,
+            _ => 0
+        };
+    }
+    
+    #endregion
+    
+    #region Tag CRUD
+    
+    private void OpenAddTagDialog()
+    {
+        EditingTag = null;
+        NewTag = new NewTagModel
+        {
+            ConnectionId = SelectedConnectionId ?? (Connections.FirstOrDefault()?.Id ?? Guid.Empty),
+            DataType = "Float",
+            PollGroupId = PollGroups.FirstOrDefault()?.GroupId ?? 5,
+            IsSubscribed = true
+        };
+        ShowAddTagDialog = true;
+    }
+    
+    private void CloseAddTagDialog()
+    {
+        ShowAddTagDialog = false;
+        EditingTag = null;
+    }
+    
+    private void EditTag(TagDisplayItem tag)
+    {
+        EditingTag = tag;
+        NewTag = new NewTagModel
+        {
+            ConnectionId = tag.ConnectionId,
+            TagPath = tag.TagPath,
+            DataType = tag.DataType,
+            PollGroupId = tag.PollGroupId,
+            IsSubscribed = tag.IsSubscribed
+        };
+        ShowAddTagDialog = true;
+    }
+    
+    private async Task SaveTag()
+    {
+        if (string.IsNullOrWhiteSpace(NewTag.TagPath))
+        {
+            ShowStatus("Tag path is required", "error");
+            return;
+        }
+        
+        try
+        {
+            if (EditingTag != null)
+            {
+                // Update existing
+                var success = await DataService.UpdateTagAsync(
+                    EditingTag.TagId,
+                    NewTag.TagPath,
+                    NewTag.DataType,
+                    NewTag.Description,
+                    NewTag.IsSubscribed,
+                    NewTag.PollGroupId
+                );
+                
+                if (success)
+                {
+                    EditingTag.TagPath = NewTag.TagPath;
+                    EditingTag.DataType = NewTag.DataType;
+                    EditingTag.IsSubscribed = NewTag.IsSubscribed;
+                    EditingTag.PollGroupId = NewTag.PollGroupId;
+                    ShowStatus("Tag updated successfully", "success");
+                }
+                else
+                {
+                    ShowStatus("Failed to update tag", "error");
+                }
+            }
+            else
+            {
+                // Create new
+                var tag = await DataService.CreateTagAsync(
+                    NewTag.ConnectionId,
+                    NewTag.TagPath,
+                    NewTag.DataType,
+                    NewTag.Description,
+                    NewTag.PollGroupId
+                );
+                
+                if (tag != null)
+                {
+                    Tags.Add(new TagDisplayItem
+                    {
+                        TagId = tag.TagId,
+                        ConnectionId = tag.ConnectionId,
+                        TagPath = tag.TagPath,
+                        DataType = tag.DataType ?? "Float",
+                        CurrentValue = "-",
+                        PollGroupName = PollGroups.FirstOrDefault(p => p.GroupId == tag.PollGroupId)?.Name ?? "Standard",
+                        PollGroupId = tag.PollGroupId,
+                        IsSubscribed = tag.IsSubscribed,
+                        Quality = 0
+                    });
+                    
+                    // Update connection tag count
+                    var conn = Connections.FirstOrDefault(c => c.Id == tag.ConnectionId);
+                    if (conn != null) conn.TagCount++;
+                    
+                    // Reload simulator if needed
+                    if (conn?.Type == "Simulator")
+                    {
+                        await SimulatorService.LoadConnectionTagsAsync(tag.ConnectionId);
+                    }
+                    
+                    ShowStatus($"Tag '{tag.TagPath}' created successfully", "success");
+                }
+                else
+                {
+                    ShowStatus("Failed to create tag", "error");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error saving tag: {ex.Message}", "error");
+        }
+        
+        ShowAddTagDialog = false;
+        EditingTag = null;
+    }
+    
+    private void ConfirmDeleteTag(TagDisplayItem tag)
+    {
+        DeleteConfirmMessage = $"Are you sure you want to delete tag '{tag.TagPath}'?";
+        DeleteConfirmAction = async () => await DeleteTag(tag);
+        ShowDeleteConfirmDialog = true;
+    }
+    
+    private async Task DeleteTag(TagDisplayItem tag)
+    {
+        try
+        {
+            var success = await DataService.DeleteTagAsync(tag.TagId);
+            if (success)
+            {
+                Tags.Remove(tag);
+                
+                // Update connection tag count
+                var conn = Connections.FirstOrDefault(c => c.Id == tag.ConnectionId);
+                if (conn != null) conn.TagCount--;
+                
+                ShowStatus($"Tag '{tag.TagPath}' deleted", "success");
+            }
+            else
+            {
+                ShowStatus("Failed to delete tag", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error deleting tag: {ex.Message}", "error");
+        }
+        
+        ShowDeleteConfirmDialog = false;
+    }
+    
+    private async Task OnTagSubscriptionChanged(TagDisplayItem tag, bool isSubscribed)
+    {
+        await DataService.UpdateTagAsync(tag.TagId, isSubscribed: isSubscribed);
+    }
+    
+    private async Task GenerateSimulatedTags()
+    {
+        if (!SelectedConnectionId.HasValue) return;
+        
+        try
+        {
+            var generatedTags = await DataService.GenerateSimulatedTagsAsync(SelectedConnectionId.Value, 10);
+            
+            foreach (var tag in generatedTags)
+            {
+                Tags.Add(new TagDisplayItem
+                {
+                    TagId = tag.TagId,
+                    ConnectionId = tag.ConnectionId,
+                    TagPath = tag.TagPath,
+                    DataType = tag.DataType ?? "Float",
+                    CurrentValue = "-",
+                    PollGroupName = "Standard",
+                    PollGroupId = tag.PollGroupId,
+                    IsSubscribed = tag.IsSubscribed,
+                    Quality = 0
+                });
+            }
+            
+            // Update connection tag count
+            var conn = Connections.FirstOrDefault(c => c.Id == SelectedConnectionId.Value);
+            if (conn != null) conn.TagCount += generatedTags.Count;
+            
+            // Reload simulator
+            await SimulatorService.LoadConnectionTagsAsync(SelectedConnectionId.Value);
+            
+            ShowStatus($"Generated {generatedTags.Count} simulated tags", "success");
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error generating tags: {ex.Message}", "error");
+        }
+    }
+    
+    private void OnConnectionFilterChanged(Syncfusion.Blazor.DropDowns.ChangeEventArgs<Guid?, ConnectionDisplayItem> args)
+    {
+        // Filter is automatically applied via FilteredTags
+    }
+    
+    #endregion
+    
+    private async Task ConfirmDelete()
+    {
+        if (DeleteConfirmAction != null)
+        {
+            await Task.Run(() => DeleteConfirmAction.Invoke());
+        }
+        ShowDeleteConfirmDialog = false;
+    }
+    
+    private void ShowStatus(string message, string type)
+    {
+        StatusMessage = message;
+        StatusMessageType = type;
+        StateHasChanged();
+        
+        // Clear message after 3 seconds
+        Task.Delay(3000).ContinueWith(_ => 
+        {
+            InvokeAsync(() => 
+            {
+                StatusMessage = "";
+                StateHasChanged();
+            });
+        });
+    }
+    
+    public void Dispose()
+    {
+        _valueUpdateTimer?.Dispose();
     }
     
     class ConnectionDisplayItem
@@ -471,11 +1105,14 @@
     class TagDisplayItem
     {
         public int TagId { get; set; }
+        public Guid ConnectionId { get; set; }
         public string TagPath { get; set; } = "";
         public string DataType { get; set; } = "";
         public string CurrentValue { get; set; } = "";
         public string PollGroupName { get; set; } = "";
+        public int PollGroupId { get; set; }
         public bool IsSubscribed { get; set; }
+        public int Quality { get; set; }
     }
     
     class PollGroupDisplayItem
@@ -502,5 +1139,18 @@
         public string Type { get; set; } = "";
         public string Host { get; set; } = "";
         public int Port { get; set; }
+        public string Description { get; set; } = "";
+        public bool Enabled { get; set; } = true;
+        public int InitialTagCount { get; set; } = 10;
+    }
+    
+    class NewTagModel
+    {
+        public Guid ConnectionId { get; set; }
+        public string TagPath { get; set; } = "";
+        public string DataType { get; set; } = "Float";
+        public string? Description { get; set; }
+        public int PollGroupId { get; set; }
+        public bool IsSubscribed { get; set; } = true;
     }
 }

@@ -410,6 +410,7 @@ public class DataForemanDbContext : DbContext
         // Seed sample Connections
         var connection1Id = Guid.Parse("10000000-0000-0000-0000-000000000001");
         var connection2Id = Guid.Parse("10000000-0000-0000-0000-000000000002");
+        var simulatorConnectionId = Guid.Parse("10000000-0000-0000-0000-000000000003");
         modelBuilder.Entity<Connection>().HasData(
             new Connection 
             { 
@@ -428,6 +429,95 @@ public class DataForemanDbContext : DbContext
                 Type = "OPC UA", 
                 ConfigData = "{\"host\":\"192.168.1.50\",\"port\":4840}",
                 Enabled = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new Connection 
+            { 
+                Id = simulatorConnectionId, 
+                Name = "Demo Simulator", 
+                Type = "Simulator", 
+                ConfigData = "{\"description\":\"Simulated connection for testing\"}",
+                Enabled = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed sample tags for the Simulator connection
+        modelBuilder.Entity<TagMetadata>().HasData(
+            new TagMetadata
+            {
+                TagId = 1,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Temperature_001",
+                TagName = "Temperature_001",
+                DataType = "Float",
+                Description = "Tank 1 Temperature Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 2,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Pressure_001",
+                TagName = "Pressure_001",
+                DataType = "Float",
+                Description = "Tank 1 Pressure Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 3,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Level_001",
+                TagName = "Level_001",
+                DataType = "Float",
+                Description = "Tank 1 Level Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 4,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Flow_001",
+                TagName = "Flow_001",
+                DataType = "Float",
+                Description = "Inlet Flow Rate",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 5,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Status_001",
+                TagName = "Status_001",
+                DataType = "Boolean",
+                Description = "Pump 1 Running Status",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }

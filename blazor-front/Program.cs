@@ -69,6 +69,9 @@ builder.Services.AddScoped<AppStateService>();
 // Node Plugin Registry (singleton for shared node definitions)
 builder.Services.AddSingleton<NodePluginRegistry>();
 
+// Simulator Service (singleton for simulated connections/tags)
+builder.Services.AddSingleton<SimulatorService>();
+
 // Blazor Authentication state provider
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => 

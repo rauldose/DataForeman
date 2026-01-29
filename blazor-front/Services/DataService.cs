@@ -653,6 +653,32 @@ public class DataService
     }
 
     /// <summary>
+    /// Updates a connection.
+    /// </summary>
+    public async Task<bool> UpdateConnectionAsync(Guid id, string? name = null, string? type = null, string? config = null, bool? enabled = null)
+    {
+        try
+        {
+            var connection = await _dbContext.Connections.FindAsync(id);
+            if (connection == null) return false;
+
+            if (name != null) connection.Name = name;
+            if (type != null) connection.Type = type;
+            if (config != null) connection.ConfigData = config;
+            if (enabled.HasValue) connection.Enabled = enabled.Value;
+            connection.UpdatedAt = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating connection {ConnectionId}", id);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Deletes a connection.
     /// </summary>
     public async Task<bool> DeleteConnectionAsync(Guid id)
@@ -696,6 +722,128 @@ public class DataService
             _logger.LogError(ex, "Error getting tags");
             return new List<TagMetadata>();
         }
+    }
+
+    /// <summary>
+    /// Creates a new tag.
+    /// </summary>
+    public async Task<TagMetadata?> CreateTagAsync(Guid connectionId, string tagPath, string? dataType, string? description = null, int pollGroupId = 5)
+    {
+        try
+        {
+            var connection = await _dbContext.Connections.FindAsync(connectionId);
+            if (connection == null) return null;
+
+            var tag = new TagMetadata
+            {
+                ConnectionId = connectionId,
+                TagPath = tagPath,
+                TagName = tagPath.Contains('/') ? tagPath.Split('/').Last() : tagPath,
+                DataType = dataType ?? "Float",
+                Description = description,
+                DriverType = connection.Type.ToUpperInvariant(),
+                PollGroupId = pollGroupId,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _dbContext.TagMetadata.Add(tag);
+            await _dbContext.SaveChangesAsync();
+            return tag;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating tag");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Updates a tag.
+    /// </summary>
+    public async Task<bool> UpdateTagAsync(int tagId, string? tagPath = null, string? dataType = null, string? description = null, bool? isSubscribed = null, int? pollGroupId = null)
+    {
+        try
+        {
+            var tag = await _dbContext.TagMetadata.FindAsync(tagId);
+            if (tag == null) return false;
+
+            if (tagPath != null) tag.TagPath = tagPath;
+            if (dataType != null) tag.DataType = dataType;
+            if (description != null) tag.Description = description;
+            if (isSubscribed.HasValue) tag.IsSubscribed = isSubscribed.Value;
+            if (pollGroupId.HasValue) tag.PollGroupId = pollGroupId.Value;
+            tag.UpdatedAt = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating tag {TagId}", tagId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Deletes a tag.
+    /// </summary>
+    public async Task<bool> DeleteTagAsync(int tagId)
+    {
+        try
+        {
+            var tag = await _dbContext.TagMetadata.FindAsync(tagId);
+            if (tag == null) return false;
+
+            _dbContext.TagMetadata.Remove(tag);
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting tag {TagId}", tagId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Generates simulated tags for a connection.
+    /// </summary>
+    public async Task<List<TagMetadata>> GenerateSimulatedTagsAsync(Guid connectionId, int count = 10)
+    {
+        var tags = new List<TagMetadata>();
+        var connection = await _dbContext.Connections.FindAsync(connectionId);
+        if (connection == null) return tags;
+
+        var dataTypes = new[] { "Float", "Int32", "Boolean", "String" };
+        var tagPrefixes = new[] { "Temperature", "Pressure", "Level", "Flow", "Speed", "Voltage", "Current", "Status" };
+        var random = new Random();
+
+        for (int i = 1; i <= count; i++)
+        {
+            var prefix = tagPrefixes[random.Next(tagPrefixes.Length)];
+            var tag = new TagMetadata
+            {
+                ConnectionId = connectionId,
+                TagPath = $"Simulator/{prefix}_{i:D3}",
+                TagName = $"{prefix}_{i:D3}",
+                DataType = dataTypes[random.Next(dataTypes.Length)],
+                Description = $"Simulated {prefix} sensor #{i}",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            _dbContext.TagMetadata.Add(tag);
+            tags.Add(tag);
+        }
+
+        await _dbContext.SaveChangesAsync();
+        return tags;
     }
 
     #endregion
