@@ -28,6 +28,8 @@ public class DataForemanDbContext : DbContext
     // Charts
     public DbSet<ChartConfig> ChartConfigs => Set<ChartConfig>();
     public DbSet<ChartFolder> ChartFolders => Set<ChartFolder>();
+    public DbSet<ChartSeries> ChartSeries => Set<ChartSeries>();
+    public DbSet<ChartAxis> ChartAxes => Set<ChartAxis>();
 
     // Connectivity
     public DbSet<Connection> Connections => Set<Connection>();
@@ -198,6 +200,44 @@ public class DataForemanDbContext : DbContext
                   .WithMany(f => f.ChildFolders)
                   .HasForeignKey(e => e.ParentFolderId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ChartSeries configuration
+        modelBuilder.Entity<ChartSeries>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Label).IsRequired().HasMaxLength(255);
+            entity.Property(e => e.Color).HasMaxLength(20);
+            entity.Property(e => e.SeriesType).HasMaxLength(20);
+            entity.HasOne(e => e.Chart)
+                  .WithMany(c => c.Series)
+                  .HasForeignKey(e => e.ChartId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Tag)
+                  .WithMany()
+                  .HasForeignKey(e => e.TagId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Axis)
+                  .WithMany(a => a.Series)
+                  .HasForeignKey(e => e.AxisIndex)
+                  .HasPrincipalKey(a => a.AxisIndex)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.ChartId, e.DisplayOrder });
+        });
+
+        // ChartAxis configuration
+        modelBuilder.Entity<ChartAxis>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.AxisType).HasMaxLength(10);
+            entity.Property(e => e.Position).HasMaxLength(20);
+            entity.Property(e => e.Label).HasMaxLength(255);
+            entity.Property(e => e.GridLineStyle).HasMaxLength(20);
+            entity.HasOne(e => e.Chart)
+                  .WithMany(c => c.Axes)
+                  .HasForeignKey(e => e.ChartId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.ChartId, e.AxisIndex }).IsUnique();
         });
 
         // Connection configuration
@@ -731,6 +771,7 @@ public class DataForemanDbContext : DbContext
         // Seed sample Charts
         var chart1Id = Guid.Parse("30000000-0000-0000-0000-000000000001");
         var chart2Id = Guid.Parse("30000000-0000-0000-0000-000000000002");
+        var chart3Id = Guid.Parse("30000000-0000-0000-0000-000000000003");
         modelBuilder.Entity<ChartConfig>().HasData(
             new ChartConfig 
             { 
@@ -739,6 +780,9 @@ public class DataForemanDbContext : DbContext
                 ChartType = "line",
                 UserId = adminUserId,
                 TimeMode = "rolling",
+                TimeDuration = 3600000, // 1 hour
+                LiveEnabled = true,
+                RefreshInterval = 5000,
                 Options = "{}",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -750,7 +794,146 @@ public class DataForemanDbContext : DbContext
                 ChartType = "area",
                 UserId = adminUserId,
                 TimeMode = "rolling",
+                TimeDuration = 7200000, // 2 hours
+                LiveEnabled = true,
                 Options = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartConfig 
+            { 
+                Id = chart3Id, 
+                Name = "Multi-Axis Process Monitor", 
+                Description = "Temperature, Pressure, and Motor Speed on multiple axes",
+                ChartType = "line",
+                UserId = adminUserId,
+                TimeMode = "rolling",
+                TimeDuration = 3600000, // 1 hour
+                LiveEnabled = true,
+                RefreshInterval = 5000,
+                EnableLegend = true,
+                LegendPosition = "bottom",
+                EnableTooltip = true,
+                EnableZoom = true,
+                EnablePan = true,
+                Options = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed Chart Axes for multi-axis chart
+        var axis1Id = Guid.Parse("31000000-0000-0000-0000-000000000001");
+        var axis2Id = Guid.Parse("31000000-0000-0000-0000-000000000002");
+        var axis3Id = Guid.Parse("31000000-0000-0000-0000-000000000003");
+        modelBuilder.Entity<ChartAxis>().HasData(
+            new ChartAxis
+            {
+                Id = axis1Id,
+                ChartId = chart3Id,
+                AxisIndex = 0,
+                AxisType = "Y",
+                Position = "left",
+                Label = "Temperature (°C)",
+                AutoScale = true,
+                ShowGridLines = true,
+                GridLineStyle = "solid",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartAxis
+            {
+                Id = axis2Id,
+                ChartId = chart3Id,
+                AxisIndex = 1,
+                AxisType = "Y",
+                Position = "right",
+                Label = "Pressure (kPa)",
+                AutoScale = true,
+                ShowGridLines = false,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartAxis
+            {
+                Id = axis3Id,
+                ChartId = chart3Id,
+                AxisIndex = 2,
+                AxisType = "Y",
+                Position = "right",
+                Label = "Motor Speed (RPM)",
+                AutoScale = true,
+                ShowGridLines = false,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed Chart Series for multi-axis chart
+        modelBuilder.Entity<ChartSeries>().HasData(
+            new ChartSeries
+            {
+                Id = Guid.Parse("32000000-0000-0000-0000-000000000001"),
+                ChartId = chart3Id,
+                TagId = 1, // Tank1 Temperature
+                Label = "Tank 1 Temperature",
+                Color = "#ff6384",
+                SeriesType = "line",
+                AxisIndex = 0,
+                DisplayOrder = 0,
+                Visible = true,
+                LineWidth = 2,
+                ShowMarkers = true,
+                MarkerSize = 6,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartSeries
+            {
+                Id = Guid.Parse("32000000-0000-0000-0000-000000000002"),
+                ChartId = chart3Id,
+                TagId = 6, // Tank2 Temperature
+                Label = "Tank 2 Temperature",
+                Color = "#ff9f40",
+                SeriesType = "line",
+                AxisIndex = 0,
+                DisplayOrder = 1,
+                Visible = true,
+                LineWidth = 2,
+                ShowMarkers = true,
+                MarkerSize = 6,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartSeries
+            {
+                Id = Guid.Parse("32000000-0000-0000-0000-000000000003"),
+                ChartId = chart3Id,
+                TagId = 2, // Tank1 Pressure
+                Label = "Tank 1 Pressure",
+                Color = "#36a2eb",
+                SeriesType = "line",
+                AxisIndex = 1,
+                DisplayOrder = 2,
+                Visible = true,
+                LineWidth = 2,
+                ShowMarkers = false,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartSeries
+            {
+                Id = Guid.Parse("32000000-0000-0000-0000-000000000004"),
+                ChartId = chart3Id,
+                TagId = 9, // Motor Speed
+                Label = "Motor 1 Speed",
+                Color = "#4bc0c0",
+                SeriesType = "line",
+                AxisIndex = 2,
+                DisplayOrder = 3,
+                Visible = true,
+                LineWidth = 2.5,
+                ShowMarkers = false,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
