@@ -123,15 +123,74 @@
                         </div>
                         <div class="property-group">
                             <label>Label</label>
-                            <SfTextBox @bind-Value="SelectedNodeLabel" Placeholder="Enter label"></SfTextBox>
+                            <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged" Placeholder="Enter label"></SfTextBox>
                         </div>
                         <div class="property-group">
                             <label>Position X</label>
-                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetX" Min="0"></SfNumericTextBox>
+                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetX" ValueChanged="@OnPositionXChanged" Min="0" Step="10"></SfNumericTextBox>
                         </div>
                         <div class="property-group">
                             <label>Position Y</label>
-                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetY" Min="0"></SfNumericTextBox>
+                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetY" ValueChanged="@OnPositionYChanged" Min="0" Step="10"></SfNumericTextBox>
+                        </div>
+                        <div class="property-group">
+                            <label>Width</label>
+                            <SfNumericTextBox TValue="double" Value="@(SelectedNode.Width ?? 180)" ValueChanged="@OnWidthChanged" Min="50" Max="500" Step="10"></SfNumericTextBox>
+                        </div>
+                        <div class="property-group">
+                            <label>Height</label>
+                            <SfNumericTextBox TValue="double" Value="@(SelectedNode.Height ?? 70)" ValueChanged="@OnHeightChanged" Min="30" Max="300" Step="5"></SfNumericTextBox>
+                        </div>
+                        
+                        @* Node-specific properties based on node type *@
+                        @if (GetNodeType(SelectedNode).Contains("TAG"))
+                        {
+                            <div class="property-section">
+                                <h4>Tag Configuration</h4>
+                                <div class="property-group">
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeType(SelectedNode).Contains("COMPARE") || GetNodeType(SelectedNode).Contains("LOGIC"))
+                        {
+                            <div class="property-section">
+                                <h4>Comparison Settings</h4>
+                                <div class="property-group">
+                                    <label>Threshold Value</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetThresholdValue()" ValueChanged="@OnThresholdChanged" Step="1"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeType(SelectedNode).Contains("TRIGGER") && GetNodeType(SelectedNode).Contains("SCHEDULE"))
+                        {
+                            <div class="property-section">
+                                <h4>Schedule Settings</h4>
+                                <div class="property-group">
+                                    <label>Interval (seconds)</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntervalValue()" ValueChanged="@OnIntervalChanged" Min="1" Max="86400"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeType(SelectedNode).Contains("NOTIFICATION"))
+                        {
+                            <div class="property-section">
+                                <h4>Notification Settings</h4>
+                                <div class="property-group">
+                                    <label>Message</label>
+                                    <SfTextBox Value="@GetNodeProperty("message")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Notification message"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Severity</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationSeverities" Value="@GetNodeProperty("severity", "Info")" ValueChanged="@((string val) => SetNodeProperty("severity", val))">
+                                    </SfDropDownList>
+                                </div>
+                            </div>
+                        }
+                        
+                        <div class="property-actions">
+                            <SfButton CssClass="e-danger e-small" IconCss="e-icons e-delete" Content="Delete Node" OnClick="@DeleteSelectedNode"></SfButton>
                         </div>
                     }
                     else
@@ -272,6 +331,26 @@
         font-size: 13px;
     }
     
+    .property-section {
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #3c3c3c;
+    }
+    
+    .property-section h4 {
+        margin: 0 0 12px 0;
+        font-size: 12px;
+        color: #4caf50;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .property-actions {
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid #3c3c3c;
+    }
+
     /* Syncfusion Symbol Palette styling */
     .e-symbol-palette {
         background: #f5f5f5 !important;
@@ -1131,6 +1210,154 @@
         var id = node.ID ?? "";
         var parts = id.Split("-instance-").FirstOrDefault()?.Split('-') ?? Array.Empty<string>();
         return string.Join(" ", parts.Take(2)).ToUpper();
+    }
+    
+    // Node property storage for node-specific settings
+    private Dictionary<string, Dictionary<string, string>> _nodeProperties = new();
+    
+    // Notification severity options
+    private List<string> NotificationSeverities = new() { "Info", "Warning", "Error", "Critical" };
+    
+    // Property change handlers
+    private async Task OnLabelChanged(string newLabel)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNodeLabel = newLabel;
+            
+            // Extract icon from current content
+            var currentContent = SelectedNode.Annotations?.FirstOrDefault()?.Content ?? "";
+            var icon = currentContent.Length >= 2 ? currentContent.Substring(0, 2) : "📦";
+            
+            // Update the node's first annotation
+            if (SelectedNode.Annotations?.Count > 0)
+            {
+                SelectedNode.Annotations[0].Content = $"{icon}  {newLabel}";
+            }
+            
+            // Refresh the diagram
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnPositionXChanged(double newX)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.OffsetX = newX;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnPositionYChanged(double newY)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.OffsetY = newY;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnWidthChanged(double newWidth)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.Width = newWidth;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    private async Task OnHeightChanged(double newHeight)
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            SelectedNode.Height = newHeight;
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
+    }
+    
+    // Get/Set node-specific properties
+    private string GetNodeProperty(string key, string defaultValue = "")
+    {
+        if (SelectedNode == null) return defaultValue;
+        
+        var nodeId = SelectedNode.ID ?? "";
+        if (_nodeProperties.TryGetValue(nodeId, out var props) && props.TryGetValue(key, out var value))
+        {
+            return value;
+        }
+        return defaultValue;
+    }
+    
+    private void SetNodeProperty(string key, string value)
+    {
+        if (SelectedNode == null) return;
+        
+        var nodeId = SelectedNode.ID ?? "";
+        if (!_nodeProperties.ContainsKey(nodeId))
+        {
+            _nodeProperties[nodeId] = new Dictionary<string, string>();
+        }
+        _nodeProperties[nodeId][key] = value;
+        StateHasChanged();
+    }
+    
+    private double GetThresholdValue()
+    {
+        var strValue = GetNodeProperty("threshold", "50");
+        return double.TryParse(strValue, out var val) ? val : 50;
+    }
+    
+    private void OnThresholdChanged(double newValue)
+    {
+        SetNodeProperty("threshold", newValue.ToString());
+    }
+    
+    private int GetIntervalValue()
+    {
+        var strValue = GetNodeProperty("interval", "60");
+        return int.TryParse(strValue, out var val) ? val : 60;
+    }
+    
+    private void OnIntervalChanged(int newValue)
+    {
+        SetNodeProperty("interval", newValue.ToString());
+    }
+    
+    private async Task DeleteSelectedNode()
+    {
+        if (SelectedNode != null && Diagram != null)
+        {
+            var nodeId = SelectedNode.ID;
+            
+            // Remove any connectors connected to this node
+            var connectorsToRemove = Connectors.Where(c => c.SourceID == nodeId || c.TargetID == nodeId).ToList();
+            foreach (var connector in connectorsToRemove)
+            {
+                Connectors.Remove(connector);
+            }
+            
+            // Remove the node
+            Nodes.Remove(SelectedNode);
+            
+            // Clear selection
+            SelectedNode = null;
+            SelectedNodeLabel = "";
+            
+            // Remove node properties
+            if (nodeId != null)
+            {
+                _nodeProperties.Remove(nodeId);
+            }
+            
+            StateHasChanged();
+            await Task.CompletedTask;
+        }
     }
     
     private List<FlowListItem> GetSampleFlows()
