@@ -25,6 +25,246 @@ public class ApiService
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
     }
 
+    public void ClearAuthToken()
+    {
+        _authToken = null;
+        _httpClient.DefaultRequestHeaders.Authorization = null;
+    }
+
+    #region Authentication
+
+    public async Task<LoginResult> LoginAsync(string email, string password)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/auth/login", new { email, password });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (data != null)
+                {
+                    return new LoginResult
+                    {
+                        Success = true,
+                        Token = data.Token,
+                        RefreshToken = data.Refresh,
+                        User = data.User != null ? new UserInfo
+                        {
+                            Id = data.User.Id,
+                            Email = data.User.Email,
+                            DisplayName = data.User.DisplayName
+                        } : null
+                    };
+                }
+            }
+            
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            return new LoginResult { Success = false, Error = error?.Error ?? "Login failed" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Login failed");
+            return new LoginResult { Success = false, Error = "Login failed. Please check your connection." };
+        }
+    }
+
+    public async Task<TokenRefreshResult> RefreshTokenAsync(string refreshToken)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/auth/refresh", new { refresh = refreshToken });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<RefreshResponse>();
+                if (data != null)
+                {
+                    return new TokenRefreshResult
+                    {
+                        Success = true,
+                        Token = data.Token,
+                        RefreshToken = data.Refresh
+                    };
+                }
+            }
+            
+            return new TokenRefreshResult { Success = false };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Token refresh failed");
+            return new TokenRefreshResult { Success = false };
+        }
+    }
+
+    public async Task LogoutAsync(string? refreshToken)
+    {
+        try
+        {
+            await _httpClient.PostAsJsonAsync("api/auth/logout", new { refresh = refreshToken });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Logout API call failed");
+        }
+    }
+
+    public async Task<CurrentUserResponse?> GetCurrentUserAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<CurrentUserResponse>("api/auth/me");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get current user");
+            return null;
+        }
+    }
+
+    public async Task<RegisterResult> RegisterAsync(string email, string password, string? displayName)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/auth/register", 
+                new { email, password, displayName });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var data = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (data != null)
+                {
+                    return new RegisterResult
+                    {
+                        Success = true,
+                        Token = data.Token,
+                        RefreshToken = data.Refresh,
+                        User = data.User != null ? new UserInfo
+                        {
+                            Id = data.User.Id,
+                            Email = data.User.Email,
+                            DisplayName = data.User.DisplayName
+                        } : null
+                    };
+                }
+            }
+            
+            var error = await response.Content.ReadFromJsonAsync<ErrorResponse>();
+            return new RegisterResult { Success = false, Error = error?.Error ?? "Registration failed" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Registration failed");
+            return new RegisterResult { Success = false, Error = "Registration failed. Please try again." };
+        }
+    }
+
+    public async Task<bool> ChangePasswordAsync(string currentPassword, string newPassword)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("api/auth/password", 
+                new { currentPassword, newPassword });
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Password change failed");
+            return false;
+        }
+    }
+
+    #endregion
+
+    #region Users
+
+    public async Task<UsersListResponse?> GetUsersAsync(int limit = 50, int offset = 0)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<UsersListResponse>(
+                $"api/users?limit={limit}&offset={offset}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get users");
+            return null;
+        }
+    }
+
+    public async Task<UserDetailResponse?> GetUserAsync(Guid id)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<UserDetailResponse>($"api/users/{id}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get user {UserId}", id);
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateUserAsync(Guid id, UpdateUserRequest request)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/users/{id}", request);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update user {UserId}", id);
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteUserAsync(Guid id)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/users/{id}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete user {UserId}", id);
+            return false;
+        }
+    }
+
+    public async Task<UserPermissionsResponse?> GetUserPermissionsAsync(Guid userId)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<UserPermissionsResponse>(
+                $"api/users/{userId}/permissions");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get permissions for user {UserId}", userId);
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateUserPermissionsAsync(Guid userId, List<UserPermissionInfo> permissions)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/users/{userId}/permissions", 
+                new { permissions });
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update permissions for user {UserId}", userId);
+            return false;
+        }
+    }
+
+    #endregion
+
     #region Flows
 
     public async Task<FlowsResponse?> GetFlowsAsync(string scope = "all", int limit = 50, int offset = 0)
@@ -414,5 +654,76 @@ public class DashboardItem
     public string? Description { get; set; }
     public string? Definition { get; set; }
 }
+
+// Auth DTOs
+public class LoginResponse
+{
+    public string Token { get; set; } = "";
+    public string Refresh { get; set; } = "";
+    public UserResponse? User { get; set; }
+}
+
+public class RefreshResponse
+{
+    public string Token { get; set; } = "";
+    public string Refresh { get; set; } = "";
+}
+
+public class UserResponse
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = "";
+    public string? DisplayName { get; set; }
+}
+
+public class CurrentUserResponse
+{
+    public Guid Sub { get; set; }
+    public string Email { get; set; } = "";
+    public string? DisplayName { get; set; }
+}
+
+public class ErrorResponse
+{
+    public string? Error { get; set; }
+}
+
+public class TokenRefreshResult
+{
+    public bool Success { get; set; }
+    public string? Token { get; set; }
+    public string? RefreshToken { get; set; }
+}
+
+public class RegisterResult
+{
+    public bool Success { get; set; }
+    public string? Token { get; set; }
+    public string? RefreshToken { get; set; }
+    public UserInfo? User { get; set; }
+    public string? Error { get; set; }
+}
+
+// User DTOs
+public record UsersListResponse(List<UserListItem> Users, int Count, int Limit, int Offset);
+public record UserDetailResponse(UserListItem User);
+public record UserPermissionsResponse(List<UserPermissionInfo> Permissions);
+
+public class UserListItem
+{
+    public Guid Id { get; set; }
+    public string Email { get; set; } = "";
+    public string? DisplayName { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+}
+
+public record UpdateUserRequest(
+    string? DisplayName,
+    string? Email,
+    bool? IsActive,
+    string? Password
+);
 
 #endregion

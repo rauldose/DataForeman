@@ -320,15 +320,17 @@ public class DataForemanDbContext : DbContext
 
     private static void SeedData(ModelBuilder modelBuilder)
     {
-        // Seed default user for anonymous access
-        var defaultUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        // Seed admin user with default credentials (admin@local / admin123)
+        var adminUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        // BCrypt hash of "admin123"
+        var adminPasswordHash = "$2a$11$wBN7FfKoDqY3lCIQVXoqve7Z20u8XDJrysq/69WOFDCfUYhW43Lku";
         modelBuilder.Entity<User>().HasData(
             new User 
             { 
-                Id = defaultUserId, 
-                Email = "default@local", 
-                DisplayName = "Default User",
-                PasswordHash = "", // No password for local user
+                Id = adminUserId, 
+                Email = "admin@local", 
+                DisplayName = "Administrator",
+                PasswordHash = adminPasswordHash, // Password: admin123
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -384,13 +386,13 @@ public class DataForemanDbContext : DbContext
             new UnitOfMeasure { Id = 22, Name = "Boolean", Symbol = "bool", Category = "Dimensionless" }
         );
 
-        // Seed Node Categories
+        // Seed Node Categories (using icon names instead of emojis)
         modelBuilder.Entity<NodeCategory>().HasData(
-            new NodeCategory { CategoryKey = "TRIGGERS", DisplayName = "Triggers", Icon = "⚡", DisplayOrder = 1 },
-            new NodeCategory { CategoryKey = "TAG_OPERATIONS", DisplayName = "Tag Operations", Icon = "🏷️", DisplayOrder = 2 },
-            new NodeCategory { CategoryKey = "DATA_PROCESSING", DisplayName = "Data Processing", Icon = "⚙️", DisplayOrder = 3 },
-            new NodeCategory { CategoryKey = "LOGIC", DisplayName = "Logic", Icon = "🔀", DisplayOrder = 4 },
-            new NodeCategory { CategoryKey = "OUTPUT", DisplayName = "Output", Icon = "📤", DisplayOrder = 5 }
+            new NodeCategory { CategoryKey = "TRIGGERS", DisplayName = "Triggers", Icon = "bolt", DisplayOrder = 1 },
+            new NodeCategory { CategoryKey = "TAG_OPERATIONS", DisplayName = "Tag Operations", Icon = "tag", DisplayOrder = 2 },
+            new NodeCategory { CategoryKey = "DATA_PROCESSING", DisplayName = "Data Processing", Icon = "cog", DisplayOrder = 3 },
+            new NodeCategory { CategoryKey = "LOGIC", DisplayName = "Logic", Icon = "branch", DisplayOrder = 4 },
+            new NodeCategory { CategoryKey = "OUTPUT", DisplayName = "Output", Icon = "export", DisplayOrder = 5 }
         );
 
         // Seed Node Sections
@@ -403,6 +405,201 @@ public class DataForemanDbContext : DbContext
             new NodeSection { CategoryKey = "LOGIC", SectionKey = "COMPARISON", DisplayName = "Comparison", DisplayOrder = 1 },
             new NodeSection { CategoryKey = "LOGIC", SectionKey = "CONTROL", DisplayName = "Control Flow", DisplayOrder = 2 },
             new NodeSection { CategoryKey = "OUTPUT", SectionKey = "BASIC", DisplayName = "Basic", DisplayOrder = 1 }
+        );
+        
+        // Seed sample Connections
+        var connection1Id = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var connection2Id = Guid.Parse("10000000-0000-0000-0000-000000000002");
+        var simulatorConnectionId = Guid.Parse("10000000-0000-0000-0000-000000000003");
+        modelBuilder.Entity<Connection>().HasData(
+            new Connection 
+            { 
+                Id = connection1Id, 
+                Name = "Production-PLC-01", 
+                Type = "EtherNet/IP", 
+                ConfigData = "{\"host\":\"192.168.1.100\",\"port\":44818}",
+                Enabled = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new Connection 
+            { 
+                Id = connection2Id, 
+                Name = "OPC-Server-Main", 
+                Type = "OPC UA", 
+                ConfigData = "{\"host\":\"192.168.1.50\",\"port\":4840}",
+                Enabled = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new Connection 
+            { 
+                Id = simulatorConnectionId, 
+                Name = "Demo Simulator", 
+                Type = "Simulator", 
+                ConfigData = "{\"description\":\"Simulated connection for testing\"}",
+                Enabled = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed sample tags for the Simulator connection
+        modelBuilder.Entity<TagMetadata>().HasData(
+            new TagMetadata
+            {
+                TagId = 1,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Temperature_001",
+                TagName = "Temperature_001",
+                DataType = "Float",
+                Description = "Tank 1 Temperature Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 2,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Pressure_001",
+                TagName = "Pressure_001",
+                DataType = "Float",
+                Description = "Tank 1 Pressure Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 3,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Level_001",
+                TagName = "Level_001",
+                DataType = "Float",
+                Description = "Tank 1 Level Sensor",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 4,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Flow_001",
+                TagName = "Flow_001",
+                DataType = "Float",
+                Description = "Inlet Flow Rate",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new TagMetadata
+            {
+                TagId = 5,
+                ConnectionId = simulatorConnectionId,
+                TagPath = "Simulator/Status_001",
+                TagName = "Status_001",
+                DataType = "Boolean",
+                Description = "Pump 1 Running Status",
+                DriverType = "SIMULATOR",
+                PollGroupId = 5,
+                IsSubscribed = true,
+                Status = "active",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed sample Flows
+        var flow1Id = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var flow2Id = Guid.Parse("20000000-0000-0000-0000-000000000002");
+        modelBuilder.Entity<Flow>().HasData(
+            new Flow 
+            { 
+                Id = flow1Id, 
+                Name = "Temperature Monitor", 
+                Description = "Monitors tank temperatures and triggers alerts",
+                OwnerUserId = adminUserId,
+                Deployed = false,
+                Shared = false,
+                TestMode = false,
+                ExecutionMode = "continuous",
+                ScanRateMs = 1000,
+                Definition = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new Flow 
+            { 
+                Id = flow2Id, 
+                Name = "Data Logger", 
+                Description = "Logs production data to database",
+                OwnerUserId = adminUserId,
+                Deployed = false,
+                Shared = false,
+                TestMode = false,
+                ExecutionMode = "continuous",
+                ScanRateMs = 5000,
+                Definition = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed sample Charts
+        var chart1Id = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        var chart2Id = Guid.Parse("30000000-0000-0000-0000-000000000002");
+        modelBuilder.Entity<ChartConfig>().HasData(
+            new ChartConfig 
+            { 
+                Id = chart1Id, 
+                Name = "Temperature Trends", 
+                ChartType = "line",
+                UserId = adminUserId,
+                TimeMode = "rolling",
+                Options = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new ChartConfig 
+            { 
+                Id = chart2Id, 
+                Name = "Pressure Overview", 
+                ChartType = "area",
+                UserId = adminUserId,
+                TimeMode = "rolling",
+                Options = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed sample Dashboard
+        var dashboard1Id = Guid.Parse("40000000-0000-0000-0000-000000000001");
+        modelBuilder.Entity<Dashboard>().HasData(
+            new Dashboard 
+            { 
+                Id = dashboard1Id, 
+                Name = "Production Overview", 
+                Description = "Main production monitoring dashboard",
+                UserId = adminUserId,
+                Layout = "{}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
         );
     }
 }

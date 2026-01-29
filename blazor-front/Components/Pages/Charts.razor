@@ -1,5 +1,7 @@
 @page "/charts"
 @rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject DataService DataService
 
 <PageTitle>Chart Composer - DataForeman</PageTitle>
 
@@ -11,134 +13,169 @@
         </div>
     </div>
     
-    <div class="charts-container">
-        <div class="charts-sidebar">
-            <h3>Saved Charts</h3>
-            <SfListView TValue="ChartItem" DataSource="@SavedCharts" ShowHeader="false" CssClass="chart-list">
-                <ListViewFieldSettings TValue="ChartItem" Id="Id" Text="Name"></ListViewFieldSettings>
-                <ListViewTemplates TValue="ChartItem">
-                    <Template>
-                        @{
-                            var chart = context as ChartItem;
-                            if (chart != null)
+    @if (IsLoading)
+    {
+        <div class="loading-indicator">Loading charts...</div>
+    }
+    else
+    {
+        <div class="charts-container">
+            <div class="charts-sidebar">
+                <h3>Saved Charts</h3>
+                @if (SavedCharts.Count == 0)
+                {
+                    <p class="no-items">No charts saved yet</p>
+                }
+                else
+                {
+                    <SfListView TValue="ChartListItem" DataSource="@SavedCharts" ShowHeader="false" CssClass="chart-list">
+                        <ListViewFieldSettings TValue="ChartListItem" Id="Id" Text="Name"></ListViewFieldSettings>
+                        <ListViewTemplates TValue="ChartListItem">
+                            <Template>
+                                @{
+                                    var chart = context as ChartListItem;
+                                    if (chart != null)
+                                    {
+                                        <div class="chart-list-item @(SelectedChart?.Id == chart.Id ? "selected" : "")" @onclick="@(() => SelectChart(chart))">
+                                            <span class="chart-icon e-icons e-line-chart"></span>
+                                            <div class="chart-info">
+                                                <span class="chart-name">@chart.Name</span>
+                                                <span class="chart-type">@chart.ChartType</span>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </Template>
+                        </ListViewTemplates>
+                    </SfListView>
+                }
+                
+                <h3>Available Tags</h3>
+                <p class="help-text">Click a tag to add it to the chart</p>
+                <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearchQuery" CssClass="tag-search"></SfTextBox>
+                <div class="tag-list">
+                    @if (FilteredTags.Count == 0)
+                    {
+                        <p class="no-items">No tags available</p>
+                    }
+                    else
+                    {
+                        @foreach (var tag in FilteredTags)
+                        {
+                            <div class="tag-item" @onclick="@(() => AddTagToChart(tag))" title="Click to add to chart">
+                                <span class="tag-icon e-icons e-bookmark"></span>
+                                <span class="tag-path">@tag.Path</span>
+                                <span class="add-icon">+</span>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+            
+            <div class="chart-editor">
+                @if (SelectedChart != null)
+                {
+                    <div class="chart-toolbar">
+                        <SfTextBox @bind-Value="SelectedChart.Name" Placeholder="Chart Name" CssClass="chart-name-input"></SfTextBox>
+                        <SfDropDownList TItem="string" TValue="string" DataSource="@ChartTypes" @bind-Value="SelectedChart.ChartType" Placeholder="Chart Type"></SfDropDownList>
+                        <div class="toolbar-spacer"></div>
+                        @if (_showSaveMessage)
+                        {
+                            <span class="save-message">@_saveMessage</span>
+                        }
+                        <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" @bind-Value="SelectedTimeRange" Placeholder="Time Range">
+                            <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                        <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh"></SfButton>
+                        <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
+                    </div>
+                    
+                    <div class="chart-preview">
+                        @if (ChartSeries.Count > 0)
+                        {
+                            @if (SelectedChart.ChartType == "Line")
                             {
-                                <div class="chart-list-item @(SelectedChart?.Id == chart.Id ? "selected" : "")" @onclick="@(() => SelectChart(chart))">
-                                    <span class="chart-icon">📊</span>
-                                    <div class="chart-info">
-                                        <span class="chart-name">@chart.Name</span>
-                                        <span class="chart-type">@chart.ChartType</span>
-                                    </div>
+                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                    <ChartArea>
+                                        <ChartAreaBorder Width="0"></ChartAreaBorder>
+                                    </ChartArea>
+                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
+                                        <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
+                                    </ChartPrimaryXAxis>
+                                    <ChartPrimaryYAxis>
+                                        <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
+                                    </ChartPrimaryYAxis>
+                                    <ChartTooltipSettings Enable="true"></ChartTooltipSettings>
+                                    <ChartLegendSettings Visible="true" Position="Syncfusion.Blazor.Charts.LegendPosition.Bottom"></ChartLegendSettings>
+                                    <ChartSeriesCollection>
+                                        @foreach (var series in ChartSeries)
+                                        {
+                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.Line">
+                                                <ChartMarker Visible="true" Height="6" Width="6"></ChartMarker>
+                                            </ChartSeries>
+                                        }
+                                    </ChartSeriesCollection>
+                                </SfChart>
+                            }
+                            else if (SelectedChart.ChartType == "Bar")
+                            {
+                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
+                                    <ChartSeriesCollection>
+                                        <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
+                                        </ChartSeries>
+                                    </ChartSeriesCollection>
+                                </SfChart>
+                            }
+                            else if (SelectedChart.ChartType == "Area")
+                            {
+                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
+                                    <ChartSeriesCollection>
+                                        @foreach (var series in ChartSeries)
+                                        {
+                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.SplineArea" Opacity="0.5">
+                                            </ChartSeries>
+                                        }
+                                    </ChartSeriesCollection>
+                                </SfChart>
+                            }
+                        }
+                        else
+                        {
+                            <div class="no-data">Add tags from the sidebar to display chart data</div>
+                        }
+                    </div>
+                    
+                    <div class="series-panel">
+                        <h4>Data Series</h4>
+                        @if (ChartSeries.Count == 0)
+                        {
+                            <p class="no-items">No series added</p>
+                        }
+                        else
+                        {
+                            @foreach (var series in ChartSeries)
+                            {
+                                <div class="series-item">
+                                    <span class="series-color" style="background: @series.Color"></span>
+                                    <span class="series-name">@series.Name</span>
+                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveSeries(series))"></SfButton>
                                 </div>
                             }
                         }
-                    </Template>
-                </ListViewTemplates>
-            </SfListView>
-            
-            <h3>Available Tags</h3>
-            <p class="help-text">Click a tag to add it to the chart</p>
-            <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearchQuery" CssClass="tag-search"></SfTextBox>
-            <div class="tag-list">
-                @foreach (var tag in FilteredTags)
+                    </div>
+                }
+                else
                 {
-                    <div class="tag-item" @onclick="@(() => AddTagToChart(tag))" title="Click to add to chart">
-                        <span class="tag-icon">🏷️</span>
-                        <span class="tag-path">@tag.Path</span>
-                        <span class="add-icon">+</span>
+                    <div class="no-chart-selected">
+                        <span class="e-icons e-line-chart" style="font-size: 64px; margin-bottom: 16px;"></span>
+                        <p>Select a chart to edit or create a new one</p>
                     </div>
                 }
             </div>
         </div>
-        
-        <div class="chart-editor">
-            @if (SelectedChart != null)
-            {
-                <div class="chart-toolbar">
-                    <SfTextBox @bind-Value="SelectedChart.Name" Placeholder="Chart Name" CssClass="chart-name-input"></SfTextBox>
-                    <SfDropDownList TItem="string" TValue="string" DataSource="@ChartTypes" @bind-Value="SelectedChart.ChartType" Placeholder="Chart Type"></SfDropDownList>
-                    <div class="toolbar-spacer"></div>
-                    @if (_showSaveMessage)
-                    {
-                        <span class="save-message">@_saveMessage</span>
-                    }
-                    <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" @bind-Value="SelectedTimeRange" Placeholder="Time Range">
-                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
-                    </SfDropDownList>
-                    <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh"></SfButton>
-                    <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
-                </div>
-                
-                <div class="chart-preview">
-                    @if (SelectedChart.ChartType == "Line")
-                    {
-                        <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                            <ChartArea>
-                                <ChartAreaBorder Width="0"></ChartAreaBorder>
-                            </ChartArea>
-                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
-                                <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                            </ChartPrimaryXAxis>
-                            <ChartPrimaryYAxis>
-                                <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                            </ChartPrimaryYAxis>
-                            <ChartTooltipSettings Enable="true"></ChartTooltipSettings>
-                            <ChartLegendSettings Visible="true" Position="Syncfusion.Blazor.Charts.LegendPosition.Bottom"></ChartLegendSettings>
-                            <ChartSeriesCollection>
-                                @foreach (var series in ChartSeries)
-                                {
-                                    <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.Line">
-                                        <ChartMarker Visible="true" Height="6" Width="6"></ChartMarker>
-                                    </ChartSeries>
-                                }
-                            </ChartSeriesCollection>
-                        </SfChart>
-                    }
-                    else if (SelectedChart.ChartType == "Bar")
-                    {
-                        <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
-                            <ChartSeriesCollection>
-                                <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
-                                </ChartSeries>
-                            </ChartSeriesCollection>
-                        </SfChart>
-                    }
-                    else if (SelectedChart.ChartType == "Area")
-                    {
-                        <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
-                            <ChartSeriesCollection>
-                                @foreach (var series in ChartSeries)
-                                {
-                                    <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.SplineArea" Opacity="0.5">
-                                    </ChartSeries>
-                                }
-                            </ChartSeriesCollection>
-                        </SfChart>
-                    }
-                </div>
-                
-                <div class="series-panel">
-                    <h4>Data Series</h4>
-                    @foreach (var series in ChartSeries)
-                    {
-                        <div class="series-item">
-                            <span class="series-color" style="background: @series.Color"></span>
-                            <span class="series-name">@series.Name</span>
-                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveSeries(series))"></SfButton>
-                        </div>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="no-chart-selected">
-                    <span class="icon">📊</span>
-                    <p>Select a chart to edit or create a new one</p>
-                </div>
-            }
-        </div>
-    </div>
+    }
 </div>
 
 <style>
@@ -157,6 +194,28 @@
     
     .page-header h1 {
         margin: 0;
+    }
+    
+    .loading-indicator {
+        text-align: center;
+        padding: 40px;
+        color: #9d9d9d;
+    }
+    
+    .no-items {
+        color: #9d9d9d;
+        font-size: 13px;
+        font-style: italic;
+        padding: 8px 0;
+    }
+    
+    .no-data {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #9d9d9d;
+        font-style: italic;
     }
     
     .charts-container {
@@ -345,15 +404,11 @@
         justify-content: center;
         color: #9d9d9d;
     }
-    
-    .no-chart-selected .icon {
-        font-size: 64px;
-        margin-bottom: 16px;
-    }
 </style>
 
 @code {
-    private ChartItem? SelectedChart;
+    private bool IsLoading = true;
+    private ChartListItem? SelectedChart;
     private string TagSearchQuery = "";
     private string SelectedTimeRange = "1h";
     
@@ -369,99 +424,80 @@
         new("Custom", "custom")
     };
     
-    private List<ChartItem> SavedCharts = new()
-    {
-        new() { Id = "1", Name = "Temperature Trends", ChartType = "Line" },
-        new() { Id = "2", Name = "Production Overview", ChartType = "Bar" },
-        new() { Id = "3", Name = "Pressure History", ChartType = "Area" }
-    };
+    private List<ChartListItem> SavedCharts = new();
+    private List<TagListItem> AvailableTags = new();
     
-    private List<TagItem> AvailableTags = new()
-    {
-        new() { Id = 1, Path = "PLC1.Tank1.Temperature" },
-        new() { Id = 2, Path = "PLC1.Tank1.Pressure" },
-        new() { Id = 3, Path = "PLC1.Tank1.Level" },
-        new() { Id = 4, Path = "PLC1.Tank2.Temperature" },
-        new() { Id = 5, Path = "PLC1.Tank2.Pressure" },
-        new() { Id = 6, Path = "PLC1.Pump1.Speed" },
-        new() { Id = 7, Path = "PLC1.Pump1.Running" }
-    };
-    
-    private List<TagItem> FilteredTags => string.IsNullOrEmpty(TagSearchQuery) 
+    private List<TagListItem> FilteredTags => string.IsNullOrEmpty(TagSearchQuery) 
         ? AvailableTags 
         : AvailableTags.Where(t => t.Path.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
     
     private List<ChartSeriesData> ChartSeries = new();
     private List<BarChartDataPoint> BarChartData = new();
     
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        GenerateSampleData();
+        await LoadData();
     }
     
-    private void GenerateSampleData()
+    private async Task LoadData()
     {
-        var random = new Random();
-        var now = DateTime.Now;
+        IsLoading = true;
         
-        ChartSeries = new List<ChartSeriesData>
+        try
         {
-            new ChartSeriesData
+            // Load charts from DataService
+            var charts = await DataService.GetChartsAsync();
+            if (charts != null)
             {
-                Name = "Temperature",
-                Color = "#4caf50",
-                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+                SavedCharts = charts.Select(c => new ChartListItem
                 {
-                    Timestamp = now.AddMinutes(-50 + i),
-                    Value = 60 + random.NextDouble() * 20
-                }).ToList()
-            },
-            new ChartSeriesData
-            {
-                Name = "Pressure",
-                Color = "#2196f3",
-                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
-                {
-                    Timestamp = now.AddMinutes(-50 + i),
-                    Value = 80 + random.NextDouble() * 15
-                }).ToList()
+                    Id = c.Id.ToString(),
+                    Name = c.Name,
+                    ChartType = c.ChartType
+                }).ToList();
             }
-        };
-        
-        BarChartData = new List<BarChartDataPoint>
+            
+            // Load tags from DataService
+            var tags = await DataService.GetTagsAsync();
+            if (tags != null)
+            {
+                AvailableTags = tags.Select(t => new TagListItem
+                {
+                    Id = t.TagId,
+                    Path = t.TagPath
+                }).ToList();
+            }
+        }
+        catch (Exception)
         {
-            new("Jan", 35),
-            new("Feb", 28),
-            new("Mar", 45),
-            new("Apr", 32),
-            new("May", 50),
-            new("Jun", 42)
-        };
+            // Data not available
+        }
+        
+        IsLoading = false;
     }
     
     private void CreateNewChart()
     {
-        SelectedChart = new ChartItem
+        SelectedChart = new ChartListItem
         {
             Id = Guid.NewGuid().ToString(),
             Name = "New Chart",
             ChartType = "Line"
         };
         SavedCharts.Add(SelectedChart);
-        // Reset chart series for new chart
         ChartSeries = new List<ChartSeriesData>();
     }
     
-    private void SelectChart(ChartItem chart)
+    private void SelectChart(ChartListItem chart)
     {
         SelectedChart = chart;
-        // Load chart-specific series (in production, load from backend)
-        GenerateSampleData();
+        // In production, load chart series from backend
+        ChartSeries = new List<ChartSeriesData>();
     }
     
     private bool _showSaveMessage = false;
     private string _saveMessage = "";
-    private System.Threading.Timer? _messageTimer;
+    private Timer? _messageTimer;
     
     private void HideMessage(object? state)
     {
@@ -473,38 +509,44 @@
     {
         if (SelectedChart != null)
         {
-            // In production, save to backend via API
-            _saveMessage = "Chart saved successfully!";
+            try
+            {
+                // Save to backend - currently just show success
+                // DataService.UpdateChartAsync would need to be added
+                _saveMessage = "Chart saved successfully!";
+            }
+            catch (Exception)
+            {
+                _saveMessage = "Failed to save chart";
+            }
+            
             _showSaveMessage = true;
             StateHasChanged();
             
-            // Hide message after 3 seconds using timer
             _messageTimer?.Dispose();
             _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
-            await Task.CompletedTask;
         }
     }
     
     private static readonly string[] SeriesColors = { "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4", "#ff5722", "#795548" };
-    private int _colorIndex = 2; // Start after sample data colors
-    private static readonly Random SharedRandom = new(); // Use shared Random instance
+    private int _colorIndex = 0;
+    private static readonly Random SharedRandom = new();
     
-    private void AddTagToChart(TagItem tag)
+    private void AddTagToChart(TagListItem tag)
     {
         // Check if tag is already added
         if (ChartSeries.Any(s => s.Name == tag.Path.Split('.').Last()))
         {
-            return; // Already added
+            return;
         }
         
-        // Generate sample data for the tag
         var now = DateTime.Now;
         var color = SeriesColors[_colorIndex % SeriesColors.Length];
         _colorIndex++;
         
         var newSeries = new ChartSeriesData
         {
-            Name = tag.Path.Split('.').Last(), // Use last part of path as name
+            Name = tag.Path.Split('.').Last(),
             Color = color,
             Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
             {
@@ -525,14 +567,14 @@
     
     record TimeRangeOption(string Label, string Value);
     
-    class ChartItem
+    class ChartListItem
     {
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
         public string ChartType { get; set; } = "Line";
     }
     
-    class TagItem
+    class TagListItem
     {
         public int Id { get; set; }
         public string Path { get; set; } = "";

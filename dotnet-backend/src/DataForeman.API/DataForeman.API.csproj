@@ -9,12 +9,17 @@
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.2" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DataForeman.Auth\DataForeman.Auth.csproj" />
     <ProjectReference Include="..\DataForeman.Core\DataForeman.Core.csproj" />
+    <ProjectReference Include="..\DataForeman.Drivers\DataForeman.Drivers.csproj" />
+    <ProjectReference Include="..\DataForeman.FlowEngine\DataForeman.FlowEngine.csproj" />
     <ProjectReference Include="..\DataForeman.Infrastructure\DataForeman.Infrastructure.csproj" />
+    <ProjectReference Include="..\DataForeman.RedisStreams\DataForeman.RedisStreams.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,321 @@
+@page "/login"
+@layout EmptyLayout
+@using DataForeman.BlazorUI.Services
+@inject CustomAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Login - DataForeman</PageTitle>
+
+<div class="login-page">
+    <div class="login-window">
+        <!-- Window Title Bar -->
+        <div class="window-title">
+            <span class="window-icon" aria-hidden="true">&#9881;</span>
+            <span>DataForeman - Login</span>
+        </div>
+        
+        <!-- Window Content -->
+        <div class="window-content">
+            <div class="login-header">
+                <span class="app-icon" aria-hidden="true">&#9881;</span>
+                <div class="app-info">
+                    <strong>DataForeman</strong>
+                    <span>Industrial Data Management</span>
+                </div>
+            </div>
+            
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="error-box" role="alert">
+                    <span aria-hidden="true">X</span> @ErrorMessage
+                </div>
+            }
+            
+            <div class="login-form">
+                <div class="form-row">
+                    <label for="email">User ID:</label>
+                    <input type="email" id="email" @bind="Email" placeholder="admin@dataforeman.local" disabled="@IsLoading" />
+                </div>
+                
+                <div class="form-row">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" @bind="Password" disabled="@IsLoading" />
+                </div>
+                
+                <div class="form-buttons">
+                    <button class="btn-modern btn-primary" @onclick="HandleLogin" disabled="@IsLoading">
+                        @(IsLoading ? "Logging in..." : "OK")
+                    </button>
+                    <button class="btn-modern" @onclick="ClearForm">Clear</button>
+                </div>
+            </div>
+            
+            @if (ShowDemoMode)
+            {
+                <div class="demo-section">
+                    <div class="demo-header">Demo Mode Available</div>
+                    <p>Use demo account for testing.</p>
+                    <button class="btn-modern" @onclick="UseDemoAccount">Demo Login</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-page {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #1a1d21 0%, #2d323b 100%);
+    }
+    
+    .login-window {
+        width: 340px;
+        background: var(--bg-panel);
+        border: 1px solid var(--border-medium);
+        border-radius: 6px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    
+    .window-title {
+        background: linear-gradient(90deg, #1e293b, #334155);
+        color: var(--text-primary);
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        border-radius: 6px 6px 0 0;
+        border-bottom: 1px solid var(--accent-primary);
+    }
+    
+    .window-icon {
+        font-size: 14px;
+        color: var(--accent-primary);
+    }
+    
+    .window-title span:not(.window-icon) {
+        flex: 1;
+    }
+    
+    .window-content {
+        padding: 16px;
+    }
+    
+    .login-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    
+    .app-icon {
+        font-size: 36px;
+        color: var(--accent-primary);
+    }
+    
+    .app-info {
+        display: flex;
+        flex-direction: column;
+        font-size: 12px;
+    }
+    
+    .app-info strong {
+        font-size: 16px;
+        margin-bottom: 2px;
+        color: var(--text-primary);
+    }
+    
+    .app-info span {
+        color: var(--text-secondary);
+    }
+    
+    .error-box {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--status-error);
+        border-radius: 4px;
+        color: var(--status-error);
+        padding: 8px 10px;
+        margin-bottom: 16px;
+        font-size: 12px;
+    }
+    
+    .login-form {
+        margin-bottom: 8px;
+    }
+    
+    .form-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    
+    .form-row label {
+        width: 75px;
+        font-size: 12px;
+        text-align: right;
+        padding-right: 10px;
+        color: var(--text-secondary);
+    }
+    
+    .form-row input {
+        flex: 1;
+        background: var(--bg-input);
+        border: 1px solid var(--border-medium);
+        border-radius: 3px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-family: inherit;
+        height: 28px;
+        color: var(--text-primary);
+        transition: border-color 0.15s ease;
+    }
+    
+    .form-row input:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+    }
+    
+    .form-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    .btn-modern {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-medium);
+        border-radius: 3px;
+        padding: 6px 20px;
+        font-size: 12px;
+        min-height: 28px;
+        min-width: 80px;
+        cursor: pointer;
+        font-family: inherit;
+        color: var(--text-primary);
+        transition: all 0.15s ease;
+    }
+    
+    .btn-modern:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-strong);
+    }
+    
+    .btn-modern:active {
+        background: var(--bg-dark);
+    }
+    
+    .btn-modern:focus {
+        outline: 1px solid var(--accent-primary);
+        outline-offset: 1px;
+    }
+    
+    .btn-modern:disabled {
+        color: var(--text-muted);
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    .btn-primary {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: #000;
+        font-weight: 600;
+    }
+    
+    .btn-primary:hover {
+        background: var(--accent-primary-hover);
+        border-color: var(--accent-primary-hover);
+    }
+    
+    .demo-section {
+        margin-top: 16px;
+        padding: 10px;
+        border: 1px solid var(--accent-primary);
+        border-radius: 4px;
+        background: rgba(245, 158, 11, 0.1);
+        font-size: 12px;
+    }
+    
+    .demo-header {
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: var(--accent-primary);
+    }
+    
+    .demo-section p {
+        margin: 4px 0 10px;
+        color: var(--text-secondary);
+    }
+</style>
+
+@code {
+    private string Email = "";
+    private string Password = "";
+    private string ErrorMessage = "";
+    private bool IsLoading = false;
+    private bool ShowDemoMode = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
+        {
+            ErrorMessage = "Please enter your user ID and password.";
+            return;
+        }
+
+        IsLoading = true;
+        ErrorMessage = "";
+
+        try
+        {
+            var result = await AuthProvider.LoginAsync(Email, Password);
+
+            if (result.Success)
+            {
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                ErrorMessage = result.Error ?? "Login failed. Please try again.";
+            }
+        }
+        catch (Exception)
+        {
+            ErrorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+    
+    private void ClearForm()
+    {
+        Email = "";
+        Password = "";
+        ErrorMessage = "";
+    }
+
+    private void UseDemoAccount()
+    {
+        Email = "demo@dataforeman.local";
+        Password = "demo123";
+    }
+}

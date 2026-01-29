@@ -1,80 +1,326 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthProvider
+@inject AppStateService AppState
 
-<div class="page-wrapper">
-    <nav class="sidebar @(SidebarToggle ? "expanded" : "collapsed")">
-        <div class="sidebar-header">
-            <span class="sidebar-logo">⚙️</span>
-            @if (SidebarToggle)
+<div class="app-window" @onclick="CloseAllMenus">
+    <!-- Classic Title Bar -->
+    <div class="title-bar">
+        <div class="title-bar-text">
+            <span class="title-bar-icon" aria-hidden="true">&#9881;</span>
+            <span>DataForeman - Industrial Data Management</span>
+        </div>
+    </div>
+    
+    <!-- Classic Menu Bar -->
+    <div class="menu-bar" role="menubar">
+        <div class="menu-bar-item @(ShowFileMenu ? "active" : "")" 
+             @onclick="ToggleFileMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowFileMenu">
+            <u>F</u>ile
+            @if (ShowFileMenu)
             {
-                <span class="sidebar-title">DataForeman</span>
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/"))" role="menuitem">
+                        <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> Dashboard
+                    </div>
+                    <div class="dropdown-divider" role="separator"></div>
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Connections...
+                    </div>
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Flow Editor...
+                    </div>
+                    <div class="dropdown-divider" role="separator"></div>
+                    <div class="dropdown-item" @onclick="SignOut" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Exit
+                    </div>
+                </div>
             }
         </div>
-        <ul class="sidebar-menu">
-            <li class="menu-item @(IsActive("/") ? "active" : "")">
-                <a href="/">
-                    <span class="menu-icon">📊</span>
-                    @if (SidebarToggle) { <span class="menu-text">Dashboard</span> }
-                </a>
-            </li>
-            <li class="menu-item @(IsActive("/flows") ? "active" : "")">
-                <a href="/flows">
-                    <span class="menu-icon">🔀</span>
-                    @if (SidebarToggle) { <span class="menu-text">Flow Studio</span> }
-                </a>
-            </li>
-            <li class="menu-item @(IsActive("/charts") ? "active" : "")">
-                <a href="/charts">
-                    <span class="menu-icon">📈</span>
-                    @if (SidebarToggle) { <span class="menu-text">Chart Composer</span> }
-                </a>
-            </li>
-            <li class="menu-item @(IsActive("/connectivity") ? "active" : "")">
-                <a href="/connectivity">
-                    <span class="menu-icon">🔗</span>
-                    @if (SidebarToggle) { <span class="menu-text">Connectivity</span> }
-                </a>
-            </li>
-            <li class="menu-item @(IsActive("/diagnostics") ? "active" : "")">
-                <a href="/diagnostics">
-                    <span class="menu-icon">🔧</span>
-                    @if (SidebarToggle) { <span class="menu-text">Diagnostics</span> }
-                </a>
-            </li>
-        </ul>
-    </nav>
+        <div class="menu-bar-item @(ShowViewMenu ? "active" : "")" 
+             @onclick="ToggleViewMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowViewMenu">
+            <u>V</u>iew
+            @if (ShowViewMenu)
+            {
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))" role="menuitem">>
+                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/") ? ">" : "")</span> Dashboard
+                    </div>
+                    <div class="dropdown-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" role="menuitem">
+                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/charts") ? ">" : "")</span> Charts
+                    </div>
+                    <div class="dropdown-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" role="menuitem">
+                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/diagnostics") ? ">" : "")</span> Diagnostics
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="menu-bar-item @(ShowToolsMenu ? "active" : "")" 
+             @onclick="ToggleToolsMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowToolsMenu">
+            <u>T</u>ools
+            @if (ShowToolsMenu)
+            {
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Flow Studio
+                    </div>
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Connectivity Manager
+                    </div>
+                    <div class="dropdown-divider" role="separator"></div>
+                    @if (ShowUsersMenu)
+                    {
+                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/users"))" role="menuitem">
+                            <span class="dropdown-item-icon"></span> User Management...
+                        </div>
+                    }
+                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/profile"))" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Options...
+                    </div>
+                </div>
+            }
+        </div>
+        <div class="menu-bar-item @(ShowHelpMenu ? "active" : "")" 
+             @onclick="ToggleHelpMenu" @onclick:stopPropagation="true"
+             role="menuitem" aria-haspopup="true" aria-expanded="@ShowHelpMenu">
+            <u>H</u>elp
+            @if (ShowHelpMenu)
+            {
+                <div class="dropdown-menu" role="menu">
+                    <div class="dropdown-item" role="menuitem">
+                        <span class="dropdown-item-icon"></span> Help Topics
+                    </div>
+                    <div class="dropdown-divider" role="separator"></div>
+                    <div class="dropdown-item" role="menuitem">
+                        <span class="dropdown-item-icon"></span> About DataForeman
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
     
-    <div class="main-content">
-        <header class="top-bar">
-            <button class="sidebar-toggle-btn" @onclick="ToggleSidebar">
-                <span>☰</span>
+    <!-- Classic Toolbar -->
+    <div class="toolbar">
+        <button class="toolbar-btn @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))" title="Dashboard">
+            <span class="tb-icon" aria-hidden="true">&#9632;</span>
+        </button>
+        <button class="toolbar-btn @(IsActive("/flows") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/flows"))" title="Flow Studio">
+            <span class="tb-icon" aria-hidden="true">&#9733;</span>
+        </button>
+        <button class="toolbar-btn @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" title="Charts">
+            <span class="tb-icon" aria-hidden="true">&#9650;</span>
+        </button>
+        <div class="toolbar-separator"></div>
+        <button class="toolbar-btn @(IsActive("/connectivity") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" title="Connectivity">
+            <span class="tb-icon" aria-hidden="true">&#8644;</span>
+        </button>
+        <button class="toolbar-btn @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" title="Diagnostics">
+            <span class="tb-icon" aria-hidden="true">&#9881;</span>
+        </button>
+        <div class="toolbar-separator"></div>
+        @if (ShowUsersMenu)
+        {
+            <button class="toolbar-btn @(IsActive("/users") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/users"))" title="Users">
+                <span class="tb-icon" aria-hidden="true">&#128101;</span>
             </button>
-            <div class="top-bar-title">DataForeman</div>
-            <div class="top-bar-actions">
-                <SfButton CssClass="e-flat" IconCss="e-icons e-user" Content="@UserName"></SfButton>
+        }
+        <div class="toolbar-spacer"></div>
+        <div class="user-menu">
+            <button class="toolbar-btn" @onclick="ToggleUserMenu" @onclick:stopPropagation="true" title="@UserName">
+                <span class="tb-icon" aria-hidden="true">&#128100;</span>
+                <span>@UserName</span>
+                <span style="font-size:8px;" aria-hidden="true">&#9660;</span>
+            </button>
+            @if (ShowUserMenu)
+            {
+                <div class="user-dropdown">
+                    <div class="dropdown-item" @onclick="GoToProfile">
+                        <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> My Profile
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" @onclick="SignOut">
+                        <span class="dropdown-item-icon"></span> Sign Out
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="main-area">
+        <!-- Left Navigation Panel -->
+        <div class="left-panel">
+            <div class="panel-header">
+                <span class="nav-icon" aria-hidden="true">&#128193;</span>
+                Navigator
             </div>
-        </header>
+            <div class="tree-container">
+                <div class="tree-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))">
+                    <span class="tree-item-icon" aria-hidden="true">&#9632;</span>
+                    Dashboard
+                </div>
+                <div class="tree-item @(IsActive("/flows") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/flows"))">
+                    <span class="tree-item-icon" aria-hidden="true">&#9733;</span>
+                    Flow Studio
+                </div>
+                <div class="tree-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))">
+                    <span class="tree-item-icon" aria-hidden="true">&#9650;</span>
+                    Charts
+                </div>
+                <div class="tree-item @(IsActive("/connectivity") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/connectivity"))">
+                    <span class="tree-item-icon" aria-hidden="true">&#8644;</span>
+                    Connectivity
+                </div>
+                <div class="tree-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))">
+                    <span class="tree-item-icon" aria-hidden="true">&#9881;</span>
+                    Diagnostics
+                </div>
+                @if (ShowUsersMenu)
+                {
+                    <div class="tree-item @(IsActive("/users") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/users"))">
+                        <span class="tree-item-icon" aria-hidden="true">&#128101;</span>
+                        Users
+                    </div>
+                }
+            </div>
+        </div>
         
-        <main class="page-content">
-            @Body
-        </main>
+        <!-- Content Panel -->
+        <div class="content-panel">
+            <div class="content-area">
+                @Body
+            </div>
+        </div>
+    </div>
+    
+    <!-- Classic Status Bar -->
+    <div class="status-bar" role="status" aria-live="polite">
+        <div class="status-pane main">Ready</div>
+        <div class="status-pane fixed">@CurrentPage</div>
+        <div class="status-pane fixed">@DateTime.Now.ToString("HH:mm")</div>
     </div>
 </div>
 
-<div id="blazor-error-ui" data-nosnippet>
+<div id="blazor-error-ui" data-nosnippet role="alert">
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+    <span class="dismiss">X</span>
 </div>
 
 @code {
-    [Inject] NavigationManager Navigation { get; set; } = default!;
-    
-    private bool SidebarToggle = true;
     private string UserName = "User";
+    private bool ShowUsersMenu = false;
+    private bool ShowUserMenu = false;
+    private bool ShowFileMenu = false;
+    private bool ShowViewMenu = false;
+    private bool ShowToolsMenu = false;
+    private bool ShowHelpMenu = false;
+    private string CurrentPage = "Dashboard";
     
-    private void ToggleSidebar()
+    protected override void OnInitialized()
     {
-        SidebarToggle = !SidebarToggle;
+        AppState.OnChange += StateHasChanged;
+        Navigation.LocationChanged += OnLocationChanged;
+        UpdateCurrentPage();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Mark JS interop as available now that we've rendered
+            AuthProvider.MarkJsInteropAvailable();
+            
+            // Now we can safely load user info
+            await LoadUserInfo();
+            StateHasChanged();
+        }
+    }
+    
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        UpdateCurrentPage();
+        CloseAllMenus();
+        StateHasChanged();
+    }
+    
+    private void UpdateCurrentPage()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri);
+        CurrentPage = string.IsNullOrEmpty(path) ? "Dashboard" : 
+            path.StartsWith("flows") ? "Flow Studio" :
+            path.StartsWith("charts") ? "Charts" :
+            path.StartsWith("connectivity") ? "Connectivity" :
+            path.StartsWith("diagnostics") ? "Diagnostics" :
+            path.StartsWith("users") ? "Users" :
+            path.StartsWith("profile") ? "Profile" : "Dashboard";
+    }
+    
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            var user = await AuthProvider.GetCurrentUserAsync();
+            if (user != null)
+            {
+                UserName = user.DisplayName ?? user.Email;
+                AppState.SetCurrentUser(user);
+                await AppState.LoadPermissionsAsync(user.Id);
+                ShowUsersMenu = AppState.HasPermission("users", "read");
+            }
+        }
+        catch (Exception)
+        {
+            // User info not available
+        }
+    }
+    
+    private void CloseAllMenus()
+    {
+        ShowFileMenu = false;
+        ShowViewMenu = false;
+        ShowToolsMenu = false;
+        ShowHelpMenu = false;
+        ShowUserMenu = false;
+    }
+    
+    private void ToggleFileMenu()
+    {
+        var wasOpen = ShowFileMenu;
+        CloseAllMenus();
+        ShowFileMenu = !wasOpen;
+    }
+    
+    private void ToggleViewMenu()
+    {
+        var wasOpen = ShowViewMenu;
+        CloseAllMenus();
+        ShowViewMenu = !wasOpen;
+    }
+    
+    private void ToggleToolsMenu()
+    {
+        var wasOpen = ShowToolsMenu;
+        CloseAllMenus();
+        ShowToolsMenu = !wasOpen;
+    }
+    
+    private void ToggleHelpMenu()
+    {
+        var wasOpen = ShowHelpMenu;
+        CloseAllMenus();
+        ShowHelpMenu = !wasOpen;
+    }
+    
+    private void ToggleUserMenu()
+    {
+        var wasOpen = ShowUserMenu;
+        CloseAllMenus();
+        ShowUserMenu = !wasOpen;
     }
     
     private bool IsActive(string path)
@@ -86,5 +332,25 @@
         }
         var fullPath = string.IsNullOrEmpty(currentPath) ? "/" : "/" + currentPath;
         return fullPath.StartsWith(path);
+    }
+    
+    private void GoToProfile()
+    {
+        CloseAllMenus();
+        Navigation.NavigateTo("/profile");
+    }
+    
+    private async Task SignOut()
+    {
+        CloseAllMenus();
+        await AuthProvider.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login");
+    }
+    
+    public void Dispose()
+    {
+        AppState.OnChange -= StateHasChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
