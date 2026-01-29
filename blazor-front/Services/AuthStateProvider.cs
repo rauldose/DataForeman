@@ -1,17 +1,21 @@
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.JSInterop;
 
 namespace DataForeman.BlazorUI.Services;
 
 /// <summary>
-/// Custom authentication state provider for JWT-based authentication.
-/// Manages auth state and persists tokens in browser storage.
+/// Custom authentication state provider for modular monolith.
+/// Uses direct database access via DataService instead of HTTP calls.
 /// </summary>
 public class CustomAuthStateProvider : AuthenticationStateProvider
 {
     private readonly IJSRuntime _jsRuntime;
-    private readonly ApiService _apiService;
+    private readonly DataService _dataService;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<CustomAuthStateProvider> _logger;
     
     private ClaimsPrincipal _anonymous = new(new ClaimsIdentity());
@@ -22,10 +26,15 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     // Flag to track if JS interop is available (after first render)
     private bool _jsInteropAvailable = false;
     
-    public CustomAuthStateProvider(IJSRuntime jsRuntime, ApiService apiService, ILogger<CustomAuthStateProvider> logger)
+    public CustomAuthStateProvider(
+        IJSRuntime jsRuntime, 
+        DataService dataService,
+        IConfiguration configuration,
+        ILogger<CustomAuthStateProvider> logger)
     {
         _jsRuntime = jsRuntime;
-        _apiService = apiService;
+        _dataService = dataService;
+        _configuration = configuration;
         _logger = logger;
     }
     
@@ -62,28 +71,14 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
                 var expDate = DateTimeOffset.FromUnixTimeSeconds(expValue).UtcDateTime;
                 if (expDate < DateTime.UtcNow)
                 {
-                    // Token expired, try to refresh
-                    var refreshed = await TryRefreshTokenAsync();
-                    if (!refreshed)
-                    {
-                        return new AuthenticationState(_anonymous);
-                    }
-                    
-                    // Get new token and claims
-                    token = await GetTokenAsync();
-                    if (string.IsNullOrEmpty(token))
-                    {
-                        return new AuthenticationState(_anonymous);
-                    }
-                    claims = ParseClaimsFromJwt(token);
+                    // Token expired - clear and return anonymous
+                    await ClearTokensAsync();
+                    return new AuthenticationState(_anonymous);
                 }
             }
             
             var identity = new ClaimsIdentity(claims, "jwt");
             var user = new ClaimsPrincipal(identity);
-            
-            // Update API service with token
-            _apiService.SetAuthToken(token);
             
             return new AuthenticationState(user);
         }
@@ -101,34 +96,45 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     }
 
     /// <summary>
-    /// Login user and store tokens.
+    /// Login user using direct database validation.
     /// </summary>
     public async Task<LoginResult> LoginAsync(string email, string password)
     {
         try
         {
-            var result = await _apiService.LoginAsync(email, password);
+            // Validate credentials directly against database
+            var user = await _dataService.ValidateCredentialsAsync(email, password);
             
-            if (result.Success && !string.IsNullOrEmpty(result.Token))
+            if (user == null)
             {
-                await SetTokenAsync(result.Token);
-                await SetRefreshTokenAsync(result.RefreshToken ?? "");
-                
-                if (result.User != null)
-                {
-                    await SetUserAsync(result.User);
-                }
-                
-                _apiService.SetAuthToken(result.Token);
-                
-                var claims = ParseClaimsFromJwt(result.Token);
-                var identity = new ClaimsIdentity(claims, "jwt");
-                var user = new ClaimsPrincipal(identity);
-                
-                NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(user)));
+                return new LoginResult { Success = false, Error = "Invalid email or password" };
             }
+
+            // Generate JWT token
+            var token = GenerateJwtToken(user.Id, user.Email, user.DisplayName);
             
-            return result;
+            var userInfo = new UserInfo
+            {
+                Id = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName
+            };
+            
+            await SetTokenAsync(token);
+            await SetUserAsync(userInfo);
+            
+            var claims = ParseClaimsFromJwt(token);
+            var identity = new ClaimsIdentity(claims, "jwt");
+            var principal = new ClaimsPrincipal(identity);
+            
+            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(principal)));
+            
+            return new LoginResult
+            {
+                Success = true,
+                Token = token,
+                User = userInfo
+            };
         }
         catch (Exception ex)
         {
@@ -138,55 +144,45 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
     }
 
     /// <summary>
+    /// Generate a JWT token for the authenticated user.
+    /// </summary>
+    private string GenerateJwtToken(Guid userId, string email, string? displayName)
+    {
+        var jwtKey = _configuration["Jwt:Key"] ?? "DataForemanSecretKey_ChangeInProduction!";
+        var jwtIssuer = _configuration["Jwt:Issuer"] ?? "DataForeman";
+        var jwtAudience = _configuration["Jwt:Audience"] ?? "DataForeman";
+        var expirationHours = int.Parse(_configuration["Jwt:ExpirationHours"] ?? "24");
+        
+        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+        var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+        
+        var claims = new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, email),
+            new Claim(JwtRegisteredClaimNames.UniqueName, displayName ?? email),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim("role", "User")
+        };
+        
+        var token = new JwtSecurityToken(
+            issuer: jwtIssuer,
+            audience: jwtAudience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(expirationHours),
+            signingCredentials: credentials
+        );
+        
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    /// <summary>
     /// Logout current user.
     /// </summary>
     public async Task LogoutAsync()
     {
-        try
-        {
-            var refreshToken = await GetRefreshTokenAsync();
-            await _apiService.LogoutAsync(refreshToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Logout API call failed");
-        }
-        
         await ClearTokensAsync();
-        _apiService.ClearAuthToken();
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_anonymous)));
-    }
-
-    /// <summary>
-    /// Try to refresh the access token.
-    /// </summary>
-    public async Task<bool> TryRefreshTokenAsync()
-    {
-        try
-        {
-            var refreshToken = await GetRefreshTokenAsync();
-            if (string.IsNullOrEmpty(refreshToken))
-            {
-                return false;
-            }
-
-            var result = await _apiService.RefreshTokenAsync(refreshToken);
-            
-            if (result.Success && !string.IsNullOrEmpty(result.Token))
-            {
-                await SetTokenAsync(result.Token);
-                await SetRefreshTokenAsync(result.RefreshToken ?? "");
-                _apiService.SetAuthToken(result.Token);
-                return true;
-            }
-            
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Token refresh failed");
-            return false;
-        }
     }
 
     /// <summary>
@@ -242,39 +238,10 @@ public class CustomAuthStateProvider : AuthenticationStateProvider
         }
     }
 
-    private async Task<string?> GetRefreshTokenAsync()
-    {
-        if (!_jsInteropAvailable)
-        {
-            return null;
-        }
-        
-        try
-        {
-            return await _jsRuntime.InvokeAsync<string>("localStorage.getItem", RefreshTokenKey);
-        }
-        catch (InvalidOperationException)
-        {
-            // JS interop not available during prerendering
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to get refresh token from localStorage");
-            return null;
-        }
-    }
-
     private async Task SetTokenAsync(string token)
     {
         if (!_jsInteropAvailable) return;
         await _jsRuntime.InvokeVoidAsync("localStorage.setItem", TokenKey, token);
-    }
-
-    private async Task SetRefreshTokenAsync(string refreshToken)
-    {
-        if (!_jsInteropAvailable) return;
-        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", RefreshTokenKey, refreshToken);
     }
 
     private async Task SetUserAsync(UserInfo user)

@@ -19,6 +19,18 @@
     <PackageReference Include="Syncfusion.Blazor.Popups" Version="32.*" />
     <PackageReference Include="Syncfusion.Blazor.ProgressBar" Version="32.*" />
     <PackageReference Include="Syncfusion.Blazor.Themes" Version="32.*" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
+  </ItemGroup>
+
+  <!-- Reference backend modules for modular monolith architecture -->
+  <ItemGroup>
+    <ProjectReference Include="..\dotnet-backend\src\DataForeman.Auth\DataForeman.Auth.csproj" />
+    <ProjectReference Include="..\dotnet-backend\src\DataForeman.Core\DataForeman.Core.csproj" />
+    <ProjectReference Include="..\dotnet-backend\src\DataForeman.Drivers\DataForeman.Drivers.csproj" />
+    <ProjectReference Include="..\dotnet-backend\src\DataForeman.FlowEngine\DataForeman.FlowEngine.csproj" />
+    <ProjectReference Include="..\dotnet-backend\src\DataForeman.Infrastructure\DataForeman.Infrastructure.csproj" />
+    <ProjectReference Include="..\dotnet-backend\src\DataForeman.RedisStreams\DataForeman.RedisStreams.csproj" />
   </ItemGroup>
 
 </Project>
