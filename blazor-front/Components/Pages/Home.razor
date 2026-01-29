@@ -74,7 +74,7 @@
             <div class="panel-body chart-panel">
                 @if (ChartData.Count > 0)
                 {
-                    <SfChart Theme="Syncfusion.Blazor.Theme.Tailwind" Width="100%" Height="200px">
+                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="200px">
                         <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
                         <ChartSeriesCollection>
                             <ChartSeries DataSource="@ChartData" XName="X" YName="Y" Type="ChartSeriesType.Line">

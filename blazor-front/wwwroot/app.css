@@ -557,3 +557,359 @@ a:visited {
     background: rgba(59, 130, 246, 0.2);
     color: var(--status-info);
 }
+
+/* ==============================================
+   Desktop Application Feel - Additional Overrides
+   ============================================== */
+
+/* Ensure no body scrolling - desktop feel */
+html, body {
+    overflow: hidden;
+    height: 100%;
+}
+
+/* Application container fills viewport */
+#blazor-error-ui {
+    display: none;
+}
+
+/* Comprehensive Syncfusion Overrides for Desktop Dark Theme */
+
+/* Input/TextBox */
+.e-textbox,
+.e-input-group,
+.e-input-group.e-control-wrapper {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border-medium) !important;
+    border-radius: 3px !important;
+    font-size: 11px !important;
+}
+
+.e-input-group input.e-input,
+.e-input-group.e-control-wrapper input.e-input {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+}
+
+.e-input-group.e-input-focus,
+.e-input-group.e-control-wrapper.e-input-focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: none !important;
+}
+
+/* DropDown List */
+.e-ddl.e-input-group,
+.e-dropdown-base.e-control {
+    background: var(--bg-input) !important;
+}
+
+.e-ddl.e-popup,
+.e-dropdown-base.e-popup {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-medium) !important;
+    box-shadow: var(--shadow-lg) !important;
+}
+
+.e-ddl.e-popup .e-list-item,
+.e-dropdown-base.e-popup .e-list-item {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+}
+
+.e-ddl.e-popup .e-list-item:hover,
+.e-ddl.e-popup .e-list-item.e-hover,
+.e-dropdown-base.e-popup .e-list-item:hover,
+.e-dropdown-base.e-popup .e-list-item.e-hover {
+    background: var(--bg-hover) !important;
+    color: var(--accent-primary) !important;
+}
+
+.e-ddl.e-popup .e-list-item.e-active,
+.e-dropdown-base.e-popup .e-list-item.e-active {
+    background: var(--bg-surface) !important;
+    color: var(--accent-primary) !important;
+}
+
+/* Tab Component */
+.e-tab .e-tab-header {
+    background: var(--bg-surface) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.e-tab .e-tab-header .e-toolbar-items {
+    background: transparent !important;
+}
+
+.e-tab .e-tab-header .e-toolbar-item {
+    background: transparent !important;
+}
+
+.e-tab .e-content {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-top: none !important;
+}
+
+/* Dialog */
+.e-dialog .e-dlg-content {
+    background: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+    padding: 12px !important;
+}
+
+.e-dialog .e-footer-content {
+    background: var(--bg-surface) !important;
+    border-top: 1px solid var(--border-subtle) !important;
+    padding: 8px 12px !important;
+}
+
+/* ListView */
+.e-listview {
+    background: var(--bg-dark) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 3px !important;
+}
+
+.e-listview .e-list-item {
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.e-listview .e-list-item:hover {
+    background: var(--bg-hover) !important;
+}
+
+.e-listview .e-list-item.e-active {
+    background: var(--bg-surface) !important;
+    color: var(--accent-primary) !important;
+}
+
+/* Symbol Palette (Flow Editor) */
+.e-symbolpalette {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-subtle) !important;
+}
+
+.e-symbolpalette .e-palette-header {
+    background: var(--bg-surface) !important;
+    color: var(--text-secondary) !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.e-symbolpalette .e-symbol {
+    background: var(--bg-dark) !important;
+    border: 1px solid var(--border-subtle) !important;
+}
+
+.e-symbolpalette .e-symbol:hover {
+    border-color: var(--accent-primary) !important;
+}
+
+/* Diagram Canvas */
+.e-diagram {
+    background: var(--bg-dark) !important;
+}
+
+.e-diagram .e-diagram-canvas {
+    background: var(--bg-dark) !important;
+}
+
+/* Chart - Ensure consistent dark theme */
+.e-chart {
+    background: transparent !important;
+}
+
+.e-chart .e-chart-border {
+    stroke: var(--border-subtle) !important;
+}
+
+/* Pager */
+.e-pager {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-top: none !important;
+    font-size: 11px !important;
+}
+
+.e-pager .e-numericitem {
+    background: transparent !important;
+    color: var(--text-secondary) !important;
+}
+
+.e-pager .e-numericitem:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.e-pager .e-numericitem.e-active {
+    background: var(--accent-primary) !important;
+    color: #000 !important;
+}
+
+/* Filter/Search Bar */
+.e-grid .e-filterbar {
+    background: var(--bg-surface) !important;
+}
+
+.e-grid .e-filterbar .e-input-group {
+    background: var(--bg-input) !important;
+}
+
+/* Tooltip */
+.e-tooltip-wrap {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border-medium) !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+    box-shadow: var(--shadow-md) !important;
+}
+
+.e-tooltip-wrap .e-tip-content {
+    color: var(--text-primary) !important;
+}
+
+/* Spinner/Loading */
+.e-spinner-pane {
+    background: rgba(26, 29, 33, 0.8) !important;
+}
+
+/* Form Elements */
+.e-checkbox-wrapper .e-checkbox,
+.e-checkbox-wrapper .e-checkbox + .e-label {
+    color: var(--text-primary) !important;
+}
+
+.e-checkbox-wrapper .e-frame {
+    background: var(--bg-input) !important;
+    border-color: var(--border-medium) !important;
+}
+
+.e-checkbox-wrapper .e-frame.e-check {
+    background: var(--accent-primary) !important;
+    border-color: var(--accent-primary) !important;
+}
+
+/* NumericTextBox */
+.e-numerictextbox.e-input-group {
+    background: var(--bg-input) !important;
+}
+
+/* DatePicker */
+.e-datepicker.e-input-group {
+    background: var(--bg-input) !important;
+}
+
+.e-datepicker.e-popup-wrapper {
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-medium) !important;
+}
+
+/* Page-specific common classes */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.page-header h1,
+.page-header h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.page-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.no-data {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 11px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+}
+
+/* Status indicators - consistent across pages */
+.status-indicator,
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.status-indicator.connected,
+.status-indicator.running,
+.status-badge.deployed,
+.status-badge.running {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--status-ok);
+}
+
+.status-indicator.disconnected,
+.status-indicator.stopped,
+.status-badge.stopped {
+    background: rgba(107, 114, 128, 0.2);
+    color: var(--text-muted);
+}
+
+.status-indicator.warning,
+.status-badge.warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--status-warn);
+}
+
+.status-indicator.error,
+.status-badge.error {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--status-error);
+}
+
+/* Action buttons in grids */
+.action-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+/* Desktop app toolbar spacer */
+.toolbar-spacer {
+    flex: 1;
+}
+
+/* Save message animation */
+.save-message {
+    color: var(--status-ok);
+    font-size: 11px;
+    padding: 0 10px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
