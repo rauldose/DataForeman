@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using DataForeman.Infrastructure.Data;
+using DataForeman.Auth;
+using DataForeman.RedisStreams;
+using DataForeman.FlowEngine;
+using DataForeman.Drivers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,27 +18,17 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<DataForemanDbContext>(options =>
     options.UseSqlite(connectionString));
 
-// Configure JWT authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "DataForeman_Default_Secret_Key_Change_In_Production_123!";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "DataForeman";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DataForeman";
+// Configure JWT authentication using the Auth module
+builder.Services.AddDataForemanAuth(builder.Configuration);
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-        };
-    });
+// Add Redis Streams services (optional - will gracefully handle if Redis is not available)
+builder.Services.AddRedisStreams(builder.Configuration);
 
-builder.Services.AddAuthorization();
+// Add Flow Engine services
+builder.Services.AddFlowEngine(builder.Configuration);
+
+// Add Driver Factory
+builder.Services.AddSingleton<IDriverFactory, DriverFactory>();
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -62,7 +53,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "DataForeman API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseCors("AllowBlazorApp");
