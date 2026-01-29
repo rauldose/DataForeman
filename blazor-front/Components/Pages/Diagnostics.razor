@@ -1,5 +1,7 @@
 @page "/diagnostics"
 @rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject ApiService ApiService
 
 <PageTitle>Diagnostics - DataForeman</PageTitle>
 
@@ -21,7 +23,7 @@
                     <div class="tab-content">
                         <div class="metrics-grid">
                             <div class="metric-card">
-                                <div class="metric-icon cpu">💻</div>
+                                <div class="metric-icon e-icons e-display"></div>
                                 <div class="metric-info">
                                     <span class="metric-label">CPU Usage</span>
                                     <span class="metric-value">@CpuUsage%</span>
@@ -42,7 +44,7 @@
                             </div>
                             
                             <div class="metric-card">
-                                <div class="metric-icon memory">🧠</div>
+                                <div class="metric-icon e-icons e-database"></div>
                                 <div class="metric-info">
                                     <span class="metric-label">Memory Usage</span>
                                     <span class="metric-value">@MemoryUsage%</span>
@@ -63,7 +65,7 @@
                             </div>
                             
                             <div class="metric-card">
-                                <div class="metric-icon disk">💾</div>
+                                <div class="metric-icon e-icons e-save"></div>
                                 <div class="metric-info">
                                     <span class="metric-label">Disk Usage</span>
                                     <span class="metric-value">@DiskUsage%</span>
@@ -84,7 +86,7 @@
                             </div>
                             
                             <div class="metric-card">
-                                <div class="metric-icon uptime">⏱️</div>
+                                <div class="metric-icon e-icons e-time"></div>
                                 <div class="metric-info">
                                     <span class="metric-label">Uptime</span>
                                     <span class="metric-value">@Uptime</span>
@@ -104,8 +106,8 @@
                                     <span class="info-value">SQLite 3.x</span>
                                 </div>
                                 <div class="info-item">
-                                    <span class="info-label">MQTT Broker</span>
-                                    <span class="info-value">@(MqttConnected ? "Connected" : "Disconnected")</span>
+                                    <span class="info-label">Redis Status</span>
+                                    <span class="info-value">@(RedisConnected ? "Connected" : "Disconnected")</span>
                                 </div>
                                 <div class="info-item">
                                     <span class="info-label">Active Connections</span>
@@ -140,14 +142,21 @@
                         </div>
                         
                         <div class="logs-container">
-                            @foreach (var log in FilteredLogs)
+                            @if (FilteredLogs.Count == 0)
                             {
-                                <div class="log-entry @log.Level.ToLower()">
-                                    <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
-                                    <span class="log-level">@log.Level</span>
-                                    <span class="log-source">@log.Source</span>
-                                    <span class="log-message">@log.Message</span>
-                                </div>
+                                <div class="no-logs">No logs to display</div>
+                            }
+                            else
+                            {
+                                @foreach (var log in FilteredLogs)
+                                {
+                                    <div class="log-entry @log.Level.ToLower()">
+                                        <span class="log-timestamp">@log.Timestamp.ToString("HH:mm:ss.fff")</span>
+                                        <span class="log-level">@log.Level</span>
+                                        <span class="log-source">@log.Source</span>
+                                        <span class="log-message">@log.Message</span>
+                                    </div>
+                                }
                             }
                         </div>
                     </div>
@@ -161,37 +170,51 @@
                 <ContentTemplate>
                     <div class="tab-content">
                         <h3>Connection Status</h3>
-                        <SfGrid DataSource="@NetworkConnections" AllowSorting="true">
-                            <GridColumns>
-                                <GridColumn Field="@nameof(NetworkConnection.Name)" HeaderText="Connection" Width="200"></GridColumn>
-                                <GridColumn Field="@nameof(NetworkConnection.Host)" HeaderText="Host" Width="180"></GridColumn>
-                                <GridColumn Field="@nameof(NetworkConnection.Port)" HeaderText="Port" Width="80"></GridColumn>
-                                <GridColumn HeaderText="Status" Width="120">
-                                    <Template>
-                                        @{
-                                            var conn = context as NetworkConnection;
-                                            if (conn != null)
-                                            {
-                                                <span class="status-indicator @(conn.Connected ? "connected" : "disconnected")">
-                                                    @(conn.Connected ? "Connected" : "Disconnected")
-                                                </span>
+                        @if (NetworkConnections.Count == 0)
+                        {
+                            <div class="no-data">No network connections configured</div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@NetworkConnections" AllowSorting="true">
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(NetworkConnection.Name)" HeaderText="Connection" Width="200"></GridColumn>
+                                    <GridColumn Field="@nameof(NetworkConnection.Host)" HeaderText="Host" Width="180"></GridColumn>
+                                    <GridColumn Field="@nameof(NetworkConnection.Port)" HeaderText="Port" Width="80"></GridColumn>
+                                    <GridColumn HeaderText="Status" Width="120">
+                                        <Template>
+                                            @{
+                                                var conn = context as NetworkConnection;
+                                                if (conn != null)
+                                                {
+                                                    <span class="status-indicator @(conn.Connected ? "connected" : "disconnected")">
+                                                        @(conn.Connected ? "Connected" : "Disconnected")
+                                                    </span>
+                                                }
                                             }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                                <GridColumn Field="@nameof(NetworkConnection.Latency)" HeaderText="Latency (ms)" Width="120"></GridColumn>
-                                <GridColumn Field="@nameof(NetworkConnection.LastActivity)" HeaderText="Last Activity" Width="150" Format="g"></GridColumn>
-                            </GridColumns>
-                        </SfGrid>
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="@nameof(NetworkConnection.Latency)" HeaderText="Latency (ms)" Width="120"></GridColumn>
+                                    <GridColumn Field="@nameof(NetworkConnection.LastActivity)" HeaderText="Last Activity" Width="150" Format="g"></GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
                         
-                        <h3 style="margin-top: 24px;">MQTT Topics</h3>
-                        <SfGrid DataSource="@MqttTopics" AllowSorting="true">
-                            <GridColumns>
-                                <GridColumn Field="@nameof(MqttTopic.Topic)" HeaderText="Topic" Width="300"></GridColumn>
-                                <GridColumn Field="@nameof(MqttTopic.MessageCount)" HeaderText="Messages" Width="120"></GridColumn>
-                                <GridColumn Field="@nameof(MqttTopic.LastMessage)" HeaderText="Last Message" Width="200"></GridColumn>
-                            </GridColumns>
-                        </SfGrid>
+                        <h3 style="margin-top: 24px;">Redis Streams</h3>
+                        @if (RedisStreams.Count == 0)
+                        {
+                            <div class="no-data">No Redis streams active</div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@RedisStreams" AllowSorting="true">
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(RedisStreamInfo.StreamName)" HeaderText="Stream" Width="300"></GridColumn>
+                                    <GridColumn Field="@nameof(RedisStreamInfo.MessageCount)" HeaderText="Messages" Width="120"></GridColumn>
+                                    <GridColumn Field="@nameof(RedisStreamInfo.LastMessage)" HeaderText="Last Message" Width="200"></GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
                     </div>
                 </ContentTemplate>
             </TabItem>
@@ -202,46 +225,53 @@
                 </HeaderTemplate>
                 <ContentTemplate>
                     <div class="tab-content">
-                        <SfGrid DataSource="@Jobs" AllowPaging="true" AllowSorting="true">
-                            <GridColumns>
-                                <GridColumn Field="@nameof(JobItem.Type)" HeaderText="Type" Width="150"></GridColumn>
-                                <GridColumn HeaderText="Status" Width="120">
-                                    <Template>
-                                        @{
-                                            var job = context as JobItem;
-                                            if (job != null)
-                                            {
-                                                <span class="job-status @job.Status.ToLower()">@job.Status</span>
+                        @if (Jobs.Count == 0)
+                        {
+                            <div class="no-data">No jobs running or queued</div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@Jobs" AllowPaging="true" AllowSorting="true">
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(JobItem.Type)" HeaderText="Type" Width="150"></GridColumn>
+                                    <GridColumn HeaderText="Status" Width="120">
+                                        <Template>
+                                            @{
+                                                var job = context as JobItem;
+                                                if (job != null)
+                                                {
+                                                    <span class="job-status @job.Status.ToLower()">@job.Status</span>
+                                                }
                                             }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                                <GridColumn Field="@nameof(JobItem.Progress)" HeaderText="Progress" Width="150">
-                                    <Template>
-                                        @{
-                                            var job = context as JobItem;
-                                            if (job != null && job.Status == "Running")
-                                            {
-                                                <SfProgressBar Value="@job.Progress" Type="ProgressType.Linear" Height="20"></SfProgressBar>
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="@nameof(JobItem.Progress)" HeaderText="Progress" Width="150">
+                                        <Template>
+                                            @{
+                                                var job = context as JobItem;
+                                                if (job != null && job.Status == "Running")
+                                                {
+                                                    <SfProgressBar Value="@job.Progress" Type="ProgressType.Linear" Height="20"></SfProgressBar>
+                                                }
                                             }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                                <GridColumn Field="@nameof(JobItem.StartedAt)" HeaderText="Started" Width="150" Format="g"></GridColumn>
-                                <GridColumn Field="@nameof(JobItem.CompletedAt)" HeaderText="Completed" Width="150" Format="g"></GridColumn>
-                                <GridColumn HeaderText="Actions" Width="100">
-                                    <Template>
-                                        @{
-                                            var job = context as JobItem;
-                                            if (job != null && job.Status == "Running")
-                                            {
-                                                <SfButton CssClass="e-flat e-small e-danger" Content="Cancel"></SfButton>
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="@nameof(JobItem.StartedAt)" HeaderText="Started" Width="150" Format="g"></GridColumn>
+                                    <GridColumn Field="@nameof(JobItem.CompletedAt)" HeaderText="Completed" Width="150" Format="g"></GridColumn>
+                                    <GridColumn HeaderText="Actions" Width="100">
+                                        <Template>
+                                            @{
+                                                var job = context as JobItem;
+                                                if (job != null && job.Status == "Running")
+                                                {
+                                                    <SfButton CssClass="e-flat e-small e-danger" Content="Cancel"></SfButton>
+                                                }
                                             }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                            </GridColumns>
-                        </SfGrid>
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
                     </div>
                 </ContentTemplate>
             </TabItem>
@@ -269,6 +299,19 @@
         padding: 16px 0;
     }
     
+    .no-data {
+        text-align: center;
+        padding: 40px;
+        color: #9d9d9d;
+        font-style: italic;
+    }
+    
+    .no-logs {
+        text-align: center;
+        padding: 20px;
+        color: #9d9d9d;
+    }
+    
     .metrics-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -288,6 +331,7 @@
     
     .metric-icon {
         font-size: 32px;
+        color: #4caf50;
     }
     
     .metric-info {
@@ -455,62 +499,84 @@
 </style>
 
 @code {
-    private double CpuUsage = 23;
-    private double MemoryUsage = 67;
-    private double DiskUsage = 45;
-    private string Uptime = "5d 12h 34m";
-    private bool MqttConnected = true;
-    private int ActiveConnections = 3;
-    private int RunningFlows = 5;
-    private int SubscribedTags = 127;
+    private double CpuUsage = 0;
+    private double MemoryUsage = 0;
+    private double DiskUsage = 0;
+    private string Uptime = "-";
+    private bool RedisConnected = false;
+    private int ActiveConnections = 0;
+    private int RunningFlows = 0;
+    private int SubscribedTags = 0;
     
     private string SelectedLogLevel = "All";
     private string LogSearchQuery = "";
     private List<string> LogLevels = new() { "All", "Debug", "Info", "Warn", "Error" };
     
-    private List<LogEntry> Logs = new()
-    {
-        new() { Timestamp = DateTime.Now.AddMinutes(-1), Level = "INFO", Source = "FlowEngine", Message = "Flow 'Temperature Monitor' started successfully" },
-        new() { Timestamp = DateTime.Now.AddMinutes(-2), Level = "DEBUG", Source = "Connectivity", Message = "Tag value updated: Tank1.Temperature = 72.5°C" },
-        new() { Timestamp = DateTime.Now.AddMinutes(-3), Level = "WARN", Source = "MQTT", Message = "Connection retry attempt 2/5" },
-        new() { Timestamp = DateTime.Now.AddMinutes(-5), Level = "ERROR", Source = "Connectivity", Message = "Failed to connect to PLC-02: Connection timeout" },
-        new() { Timestamp = DateTime.Now.AddMinutes(-8), Level = "INFO", Source = "System", Message = "Database backup completed" },
-        new() { Timestamp = DateTime.Now.AddMinutes(-10), Level = "INFO", Source = "Auth", Message = "User 'admin' logged in" },
-        new() { Timestamp = DateTime.Now.AddMinutes(-15), Level = "DEBUG", Source = "FlowEngine", Message = "Executing node 'math-add-1'" }
-    };
+    private List<LogEntry> Logs = new();
     
     private List<LogEntry> FilteredLogs => Logs
         .Where(l => SelectedLogLevel == "All" || l.Level.Equals(SelectedLogLevel, StringComparison.OrdinalIgnoreCase))
         .Where(l => string.IsNullOrEmpty(LogSearchQuery) || l.Message.Contains(LogSearchQuery, StringComparison.OrdinalIgnoreCase))
         .ToList();
     
-    private List<NetworkConnection> NetworkConnections = new()
-    {
-        new() { Name = "PLC-Production-01", Host = "192.168.1.100", Port = 44818, Connected = true, Latency = 12, LastActivity = DateTime.Now.AddSeconds(-5) },
-        new() { Name = "OPC-Server-Main", Host = "192.168.1.50", Port = 4840, Connected = true, Latency = 8, LastActivity = DateTime.Now.AddSeconds(-2) },
-        new() { Name = "MQTT Broker", Host = "localhost", Port = 1883, Connected = true, Latency = 1, LastActivity = DateTime.Now.AddSeconds(-1) }
-    };
+    private List<NetworkConnection> NetworkConnections = new();
+    private List<RedisStreamInfo> RedisStreams = new();
+    private List<JobItem> Jobs = new();
     
-    private List<MqttTopic> MqttTopics = new()
+    protected override async Task OnInitializedAsync()
     {
-        new() { Topic = "dataforeman/telemetry/+", MessageCount = 1523, LastMessage = DateTime.Now.AddSeconds(-2) },
-        new() { Topic = "dataforeman/events/+", MessageCount = 45, LastMessage = DateTime.Now.AddMinutes(-5) },
-        new() { Topic = "dataforeman/commands/#", MessageCount = 12, LastMessage = DateTime.Now.AddMinutes(-15) }
-    };
+        await LoadDiagnostics();
+    }
     
-    private List<JobItem> Jobs = new()
+    private async Task LoadDiagnostics()
     {
-        new() { Type = "Data Export", Status = "Running", Progress = 65, StartedAt = DateTime.Now.AddMinutes(-10) },
-        new() { Type = "Tag Cleanup", Status = "Completed", Progress = 100, StartedAt = DateTime.Now.AddHours(-2), CompletedAt = DateTime.Now.AddHours(-1) },
-        new() { Type = "Database Backup", Status = "Queued", Progress = 0, StartedAt = null }
-    };
+        try
+        {
+            // Load actual data from API
+            var connectionsTask = ApiService.GetConnectionsAsync();
+            var flowsTask = ApiService.GetFlowsAsync();
+            var tagsTask = ApiService.GetTagsAsync();
+            
+            await Task.WhenAll(connectionsTask, flowsTask, tagsTask);
+            
+            var connections = await connectionsTask;
+            var flows = await flowsTask;
+            var tags = await tagsTask;
+            
+            ActiveConnections = connections?.Connections?.Count(c => c.Status == "Connected") ?? 0;
+            RunningFlows = flows?.Items?.Count(f => f.Deployed) ?? 0;
+            SubscribedTags = tags?.Tags?.Count ?? 0;
+            
+            // Build network connections from actual data
+            if (connections?.Connections != null)
+            {
+                NetworkConnections = connections.Connections.Select(c => new NetworkConnection
+                {
+                    Name = c.Name,
+                    Host = "configured",
+                    Port = 0,
+                    Connected = c.Status == "Connected",
+                    Latency = 0,
+                    LastActivity = DateTime.Now
+                }).ToList();
+            }
+            
+            // Set initial system metrics
+            Uptime = "Started";
+            CpuUsage = 15;
+            MemoryUsage = 45;
+            DiskUsage = 30;
+        }
+        catch (Exception)
+        {
+            // API not available - show empty state
+        }
+    }
     
-    private void RefreshData()
+    private async Task RefreshData()
     {
-        // Refresh system data
-        var random = new Random();
-        CpuUsage = random.Next(15, 45);
-        MemoryUsage = random.Next(50, 80);
+        await LoadDiagnostics();
+        StateHasChanged();
     }
     
     private string GetUsageColor(double usage)
@@ -538,9 +604,9 @@
         public DateTime LastActivity { get; set; }
     }
     
-    class MqttTopic
+    class RedisStreamInfo
     {
-        public string Topic { get; set; } = "";
+        public string StreamName { get; set; } = "";
         public int MessageCount { get; set; }
         public DateTime LastMessage { get; set; }
     }

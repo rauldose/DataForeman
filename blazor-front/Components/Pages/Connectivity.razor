@@ -1,5 +1,7 @@
 @page "/connectivity"
 @rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject ApiService ApiService
 
 <PageTitle>Connectivity - DataForeman</PageTitle>
 
@@ -11,142 +13,177 @@
         </div>
     </div>
     
-    <SfTab>
-        <TabItems>
-            <TabItem>
-                <HeaderTemplate>
-                    <span>Connections</span>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="tab-content">
-                        <SfGrid DataSource="@Connections" AllowPaging="true" AllowSorting="true">
-                            <GridColumns>
-                                <GridColumn Field="@nameof(ConnectionItem.Name)" HeaderText="Name" Width="200"></GridColumn>
-                                <GridColumn Field="@nameof(ConnectionItem.Type)" HeaderText="Type" Width="120"></GridColumn>
-                                <GridColumn HeaderText="Status" Width="100">
-                                    <Template>
-                                        @{
-                                            var conn = context as ConnectionItem;
-                                            if (conn != null)
-                                            {
-                                                <span class="status-indicator @(conn.Enabled ? "connected" : "disconnected")">
-                                                    @(conn.Enabled ? "Connected" : "Disabled")
-                                                </span>
-                                            }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                                <GridColumn Field="@nameof(ConnectionItem.TagCount)" HeaderText="Tags" Width="80"></GridColumn>
-                                <GridColumn HeaderText="Actions" Width="150">
-                                    <Template>
-                                        @{
-                                            var conn = context as ConnectionItem;
-                                            if (conn != null)
-                                            {
-                                                <div class="action-buttons">
-                                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditConnection(conn))"></SfButton>
-                                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-refresh" OnClick="@(() => TestConnection(conn))"></SfButton>
-                                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteConnection(conn))"></SfButton>
-                                                </div>
-                                            }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                            </GridColumns>
-                        </SfGrid>
-                    </div>
-                </ContentTemplate>
-            </TabItem>
-            
-            <TabItem>
-                <HeaderTemplate>
-                    <span>Tags</span>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="tab-content">
-                        <div class="tags-toolbar">
-                            <SfDropDownList TItem="ConnectionItem" TValue="Guid?" DataSource="@Connections" @bind-Value="SelectedConnectionId" Placeholder="Select Connection" Width="250px">
-                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
-                            </SfDropDownList>
-                            <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearch" Width="300px"></SfTextBox>
-                            <div class="toolbar-spacer"></div>
-                            <SfButton CssClass="e-outline" IconCss="e-icons e-browse" Content="Browse Tags" OnClick="@BrowseTags"></SfButton>
-                            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag"></SfButton>
+    @if (IsLoading)
+    {
+        <div class="loading-indicator">Loading connectivity data...</div>
+    }
+    else
+    {
+        <SfTab>
+            <TabItems>
+                <TabItem>
+                    <HeaderTemplate>
+                        <span>Connections</span>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="tab-content">
+                            @if (Connections.Count == 0)
+                            {
+                                <div class="no-data">No connections configured. Click "Add Connection" to create one.</div>
+                            }
+                            else
+                            {
+                                <SfGrid DataSource="@Connections" AllowPaging="true" AllowSorting="true">
+                                    <GridColumns>
+                                        <GridColumn Field="@nameof(ConnectionDisplayItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                                        <GridColumn Field="@nameof(ConnectionDisplayItem.Type)" HeaderText="Type" Width="120"></GridColumn>
+                                        <GridColumn HeaderText="Status" Width="100">
+                                            <Template>
+                                                @{
+                                                    var conn = context as ConnectionDisplayItem;
+                                                    if (conn != null)
+                                                    {
+                                                        <span class="status-indicator @(conn.Enabled ? "connected" : "disconnected")">
+                                                            @(conn.Enabled ? "Connected" : "Disabled")
+                                                        </span>
+                                                    }
+                                                }
+                                            </Template>
+                                        </GridColumn>
+                                        <GridColumn Field="@nameof(ConnectionDisplayItem.TagCount)" HeaderText="Tags" Width="80"></GridColumn>
+                                        <GridColumn HeaderText="Actions" Width="150">
+                                            <Template>
+                                                @{
+                                                    var conn = context as ConnectionDisplayItem;
+                                                    if (conn != null)
+                                                    {
+                                                        <div class="action-buttons">
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditConnection(conn))"></SfButton>
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-refresh" OnClick="@(() => TestConnection(conn))"></SfButton>
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => DeleteConnection(conn))"></SfButton>
+                                                        </div>
+                                                    }
+                                                }
+                                            </Template>
+                                        </GridColumn>
+                                    </GridColumns>
+                                </SfGrid>
+                            }
                         </div>
-                        
-                        <SfGrid DataSource="@FilteredTags" AllowPaging="true" AllowSorting="true" AllowFiltering="true" AllowSelection="true">
-                            <GridSelectionSettings Type="Syncfusion.Blazor.Grids.SelectionType.Multiple"></GridSelectionSettings>
-                            <GridColumns>
-                                <GridColumn Type="ColumnType.CheckBox" Width="50"></GridColumn>
-                                <GridColumn Field="@nameof(TagItem.TagPath)" HeaderText="Tag Path" Width="300"></GridColumn>
-                                <GridColumn Field="@nameof(TagItem.DataType)" HeaderText="Data Type" Width="100"></GridColumn>
-                                <GridColumn Field="@nameof(TagItem.CurrentValue)" HeaderText="Current Value" Width="120"></GridColumn>
-                                <GridColumn Field="@nameof(TagItem.PollGroupName)" HeaderText="Poll Group" Width="120"></GridColumn>
-                                <GridColumn HeaderText="Subscribed" Width="100">
-                                    <Template>
-                                        @{
-                                            var tag = context as TagItem;
-                                            if (tag != null)
-                                            {
-                                                <SfSwitch @bind-Checked="tag.IsSubscribed" TChecked="bool"></SfSwitch>
-                                            }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                            </GridColumns>
-                        </SfGrid>
-                    </div>
-                </ContentTemplate>
-            </TabItem>
-            
-            <TabItem>
-                <HeaderTemplate>
-                    <span>Poll Groups</span>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="tab-content">
-                        <SfGrid DataSource="@PollGroups" AllowPaging="true">
-                            <GridColumns>
-                                <GridColumn Field="@nameof(PollGroupItem.Name)" HeaderText="Name" Width="200"></GridColumn>
-                                <GridColumn Field="@nameof(PollGroupItem.PollRateMs)" HeaderText="Poll Rate (ms)" Width="150"></GridColumn>
-                                <GridColumn Field="@nameof(PollGroupItem.Description)" HeaderText="Description" Width="300"></GridColumn>
-                                <GridColumn Field="@nameof(PollGroupItem.TagCount)" HeaderText="Tags" Width="100"></GridColumn>
-                                <GridColumn HeaderText="Active" Width="100">
-                                    <Template>
-                                        @{
-                                            var pg = context as PollGroupItem;
-                                            if (pg != null)
-                                            {
-                                                <SfSwitch @bind-Checked="pg.IsActive" TChecked="bool"></SfSwitch>
-                                            }
-                                        }
-                                    </Template>
-                                </GridColumn>
-                            </GridColumns>
-                        </SfGrid>
-                    </div>
-                </ContentTemplate>
-            </TabItem>
-            
-            <TabItem>
-                <HeaderTemplate>
-                    <span>Units</span>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="tab-content">
-                        <SfGrid DataSource="@Units" AllowPaging="true" AllowGrouping="true">
-                            <GridGroupSettings Columns="@(new string[] { "Category" })"></GridGroupSettings>
-                            <GridColumns>
-                                <GridColumn Field="@nameof(UnitItem.Name)" HeaderText="Name" Width="200"></GridColumn>
-                                <GridColumn Field="@nameof(UnitItem.Symbol)" HeaderText="Symbol" Width="100"></GridColumn>
-                                <GridColumn Field="@nameof(UnitItem.Category)" HeaderText="Category" Width="150"></GridColumn>
-                            </GridColumns>
-                        </SfGrid>
-                    </div>
-                </ContentTemplate>
-            </TabItem>
-        </TabItems>
-    </SfTab>
+                    </ContentTemplate>
+                </TabItem>
+                
+                <TabItem>
+                    <HeaderTemplate>
+                        <span>Tags</span>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="tab-content">
+                            <div class="tags-toolbar">
+                                <SfDropDownList TItem="ConnectionDisplayItem" TValue="Guid?" DataSource="@Connections" @bind-Value="SelectedConnectionId" Placeholder="Select Connection" Width="250px">
+                                    <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                </SfDropDownList>
+                                <SfTextBox Placeholder="Search tags..." @bind-Value="TagSearch" Width="300px"></SfTextBox>
+                                <div class="toolbar-spacer"></div>
+                                <SfButton CssClass="e-outline" IconCss="e-icons e-browse" Content="Browse Tags" OnClick="@BrowseTags"></SfButton>
+                                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag"></SfButton>
+                            </div>
+                            
+                            @if (FilteredTags.Count == 0)
+                            {
+                                <div class="no-data">No tags found. Add a connection and browse tags to get started.</div>
+                            }
+                            else
+                            {
+                                <SfGrid DataSource="@FilteredTags" AllowPaging="true" AllowSorting="true" AllowFiltering="true" AllowSelection="true">
+                                    <GridSelectionSettings Type="Syncfusion.Blazor.Grids.SelectionType.Multiple"></GridSelectionSettings>
+                                    <GridColumns>
+                                        <GridColumn Type="ColumnType.CheckBox" Width="50"></GridColumn>
+                                        <GridColumn Field="@nameof(TagDisplayItem.TagPath)" HeaderText="Tag Path" Width="300"></GridColumn>
+                                        <GridColumn Field="@nameof(TagDisplayItem.DataType)" HeaderText="Data Type" Width="100"></GridColumn>
+                                        <GridColumn Field="@nameof(TagDisplayItem.CurrentValue)" HeaderText="Current Value" Width="120"></GridColumn>
+                                        <GridColumn Field="@nameof(TagDisplayItem.PollGroupName)" HeaderText="Poll Group" Width="120"></GridColumn>
+                                        <GridColumn HeaderText="Subscribed" Width="100">
+                                            <Template>
+                                                @{
+                                                    var tag = context as TagDisplayItem;
+                                                    if (tag != null)
+                                                    {
+                                                        <SfSwitch @bind-Checked="tag.IsSubscribed" TChecked="bool"></SfSwitch>
+                                                    }
+                                                }
+                                            </Template>
+                                        </GridColumn>
+                                    </GridColumns>
+                                </SfGrid>
+                            }
+                        </div>
+                    </ContentTemplate>
+                </TabItem>
+                
+                <TabItem>
+                    <HeaderTemplate>
+                        <span>Poll Groups</span>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="tab-content">
+                            @if (PollGroups.Count == 0)
+                            {
+                                <div class="no-data">No poll groups defined.</div>
+                            }
+                            else
+                            {
+                                <SfGrid DataSource="@PollGroups" AllowPaging="true">
+                                    <GridColumns>
+                                        <GridColumn Field="@nameof(PollGroupDisplayItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                                        <GridColumn Field="@nameof(PollGroupDisplayItem.PollRateMs)" HeaderText="Poll Rate (ms)" Width="150"></GridColumn>
+                                        <GridColumn Field="@nameof(PollGroupDisplayItem.Description)" HeaderText="Description" Width="300"></GridColumn>
+                                        <GridColumn Field="@nameof(PollGroupDisplayItem.TagCount)" HeaderText="Tags" Width="100"></GridColumn>
+                                        <GridColumn HeaderText="Active" Width="100">
+                                            <Template>
+                                                @{
+                                                    var pg = context as PollGroupDisplayItem;
+                                                    if (pg != null)
+                                                    {
+                                                        <SfSwitch @bind-Checked="pg.IsActive" TChecked="bool"></SfSwitch>
+                                                    }
+                                                }
+                                            </Template>
+                                        </GridColumn>
+                                    </GridColumns>
+                                </SfGrid>
+                            }
+                        </div>
+                    </ContentTemplate>
+                </TabItem>
+                
+                <TabItem>
+                    <HeaderTemplate>
+                        <span>Units</span>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="tab-content">
+                            @if (Units.Count == 0)
+                            {
+                                <div class="no-data">No units of measure defined.</div>
+                            }
+                            else
+                            {
+                                <SfGrid DataSource="@Units" AllowPaging="true" AllowGrouping="true">
+                                    <GridGroupSettings Columns="@(new string[] { "Category" })"></GridGroupSettings>
+                                    <GridColumns>
+                                        <GridColumn Field="@nameof(UnitDisplayItem.Name)" HeaderText="Name" Width="200"></GridColumn>
+                                        <GridColumn Field="@nameof(UnitDisplayItem.Symbol)" HeaderText="Symbol" Width="100"></GridColumn>
+                                        <GridColumn Field="@nameof(UnitDisplayItem.Category)" HeaderText="Category" Width="150"></GridColumn>
+                                    </GridColumns>
+                                </SfGrid>
+                            }
+                        </div>
+                    </ContentTemplate>
+                </TabItem>
+            </TabItems>
+        </SfTab>
+    }
 </div>
 
 <SfDialog @bind-Visible="ShowAddConnectionDialog" Header="Add Connection" Width="500px" IsModal="true">
@@ -192,6 +229,19 @@
     
     .page-header h1 {
         margin: 0;
+    }
+    
+    .loading-indicator {
+        text-align: center;
+        padding: 40px;
+        color: #9d9d9d;
+    }
+    
+    .no-data {
+        text-align: center;
+        padding: 40px;
+        color: #9d9d9d;
+        font-style: italic;
     }
     
     .tab-content {
@@ -267,6 +317,7 @@
 </style>
 
 @code {
+    private bool IsLoading = true;
     private bool ShowAddConnectionDialog = false;
     private Guid? SelectedConnectionId;
     private string TagSearch = "";
@@ -275,43 +326,94 @@
     
     private List<string> ConnectionTypes = new() { "OPC UA", "EtherNet/IP", "Siemens S7", "MQTT", "Modbus TCP" };
     
-    private List<ConnectionItem> Connections = new()
-    {
-        new() { Id = Guid.NewGuid(), Name = "PLC-Production-01", Type = "EtherNet/IP", Enabled = true, TagCount = 45 },
-        new() { Id = Guid.NewGuid(), Name = "OPC-Server-Main", Type = "OPC UA", Enabled = true, TagCount = 128 },
-        new() { Id = Guid.NewGuid(), Name = "Siemens-S7-1500", Type = "Siemens S7", Enabled = false, TagCount = 67 }
-    };
+    private List<ConnectionDisplayItem> Connections = new();
+    private List<TagDisplayItem> Tags = new();
+    private List<PollGroupDisplayItem> PollGroups = new();
+    private List<UnitDisplayItem> Units = new();
     
-    private List<TagItem> Tags = new()
-    {
-        new() { TagId = 1, TagPath = "Production.Tank1.Temperature", DataType = "REAL", CurrentValue = "72.5", PollGroupName = "Standard", IsSubscribed = true },
-        new() { TagId = 2, TagPath = "Production.Tank1.Pressure", DataType = "REAL", CurrentValue = "14.2", PollGroupName = "Fast", IsSubscribed = true },
-        new() { TagId = 3, TagPath = "Production.Tank1.Level", DataType = "REAL", CurrentValue = "85.0", PollGroupName = "Standard", IsSubscribed = false },
-        new() { TagId = 4, TagPath = "Production.Pump1.Running", DataType = "BOOL", CurrentValue = "True", PollGroupName = "Fast", IsSubscribed = true },
-        new() { TagId = 5, TagPath = "Production.Pump1.Speed", DataType = "INT", CurrentValue = "1750", PollGroupName = "Standard", IsSubscribed = true }
-    };
-    
-    private List<TagItem> FilteredTags => string.IsNullOrEmpty(TagSearch)
+    private List<TagDisplayItem> FilteredTags => string.IsNullOrEmpty(TagSearch)
         ? Tags
         : Tags.Where(t => t.TagPath.Contains(TagSearch, StringComparison.OrdinalIgnoreCase)).ToList();
     
-    private List<PollGroupItem> PollGroups = new()
+    protected override async Task OnInitializedAsync()
     {
-        new() { GroupId = 1, Name = "Ultra Fast", PollRateMs = 50, Description = "Critical real-time control", TagCount = 12, IsActive = true },
-        new() { GroupId = 2, Name = "Fast", PollRateMs = 250, Description = "Fast process control", TagCount = 28, IsActive = true },
-        new() { GroupId = 3, Name = "Standard", PollRateMs = 1000, Description = "Default polling rate", TagCount = 87, IsActive = true },
-        new() { GroupId = 4, Name = "Slow", PollRateMs = 5000, Description = "Infrequent updates", TagCount = 45, IsActive = true }
-    };
+        await LoadData();
+    }
     
-    private List<UnitItem> Units = new()
+    private async Task LoadData()
     {
-        new() { Id = 1, Name = "Degrees Celsius", Symbol = "°C", Category = "Temperature" },
-        new() { Id = 2, Name = "Degrees Fahrenheit", Symbol = "°F", Category = "Temperature" },
-        new() { Id = 3, Name = "PSI", Symbol = "psi", Category = "Pressure" },
-        new() { Id = 4, Name = "Bar", Symbol = "bar", Category = "Pressure" },
-        new() { Id = 5, Name = "Liters per minute", Symbol = "L/min", Category = "Flow" },
-        new() { Id = 6, Name = "RPM", Symbol = "rpm", Category = "Speed" }
-    };
+        IsLoading = true;
+        
+        try
+        {
+            // Load connections from API
+            var connectionsTask = ApiService.GetConnectionsAsync();
+            var tagsTask = ApiService.GetTagsAsync();
+            var pollGroupsTask = ApiService.GetPollGroupsAsync();
+            var unitsTask = ApiService.GetUnitsAsync();
+            
+            await Task.WhenAll(connectionsTask, tagsTask, pollGroupsTask, unitsTask);
+            
+            var connectionsResponse = await connectionsTask;
+            if (connectionsResponse?.Connections != null)
+            {
+                Connections = connectionsResponse.Connections.Select(c => new ConnectionDisplayItem
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Type = c.Type,
+                    Enabled = c.Status == "Connected",
+                    TagCount = c.TagCount
+                }).ToList();
+            }
+            
+            var tagsResponse = await tagsTask;
+            if (tagsResponse?.Tags != null)
+            {
+                Tags = tagsResponse.Tags.Select(t => new TagDisplayItem
+                {
+                    TagId = t.Id,
+                    TagPath = t.Path,
+                    DataType = t.DataType ?? "Unknown",
+                    CurrentValue = t.CurrentValue?.ToString() ?? "-",
+                    PollGroupName = "Standard",
+                    IsSubscribed = false
+                }).ToList();
+            }
+            
+            var pollGroupsResponse = await pollGroupsTask;
+            if (pollGroupsResponse?.PollGroups != null)
+            {
+                PollGroups = pollGroupsResponse.PollGroups.Select(pg => new PollGroupDisplayItem
+                {
+                    GroupId = pg.Id,
+                    Name = pg.Name,
+                    PollRateMs = pg.PollRateMs,
+                    Description = "",
+                    TagCount = 0,
+                    IsActive = true
+                }).ToList();
+            }
+            
+            var unitsResponse = await unitsTask;
+            if (unitsResponse?.Units != null)
+            {
+                Units = unitsResponse.Units.Select(u => new UnitDisplayItem
+                {
+                    Id = u.Id,
+                    Name = u.Name,
+                    Symbol = u.Symbol ?? "",
+                    Category = "General"
+                }).ToList();
+            }
+        }
+        catch (Exception)
+        {
+            // API not available
+        }
+        
+        IsLoading = false;
+    }
     
     private void OpenAddConnectionDialog()
     {
@@ -326,28 +428,28 @@
     
     private void AddConnection()
     {
-        Connections.Add(new ConnectionItem
+        Connections.Add(new ConnectionDisplayItem
         {
             Id = Guid.NewGuid(),
             Name = NewConnection.Name,
             Type = NewConnection.Type,
-            Enabled = true,
+            Enabled = false,
             TagCount = 0
         });
         ShowAddConnectionDialog = false;
     }
     
-    private void EditConnection(ConnectionItem conn)
+    private void EditConnection(ConnectionDisplayItem conn)
     {
         // Open edit dialog
     }
     
-    private void TestConnection(ConnectionItem conn)
+    private void TestConnection(ConnectionDisplayItem conn)
     {
         // Test connection
     }
     
-    private void DeleteConnection(ConnectionItem conn)
+    private void DeleteConnection(ConnectionDisplayItem conn)
     {
         Connections.Remove(conn);
     }
@@ -357,7 +459,7 @@
         // Open tag browser dialog
     }
     
-    class ConnectionItem
+    class ConnectionDisplayItem
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = "";
@@ -366,9 +468,9 @@
         public int TagCount { get; set; }
     }
     
-    class TagItem
+    class TagDisplayItem
     {
-        public int TagId { get; set; }
+        public Guid TagId { get; set; }
         public string TagPath { get; set; } = "";
         public string DataType { get; set; } = "";
         public string CurrentValue { get; set; } = "";
@@ -376,9 +478,9 @@
         public bool IsSubscribed { get; set; }
     }
     
-    class PollGroupItem
+    class PollGroupDisplayItem
     {
-        public int GroupId { get; set; }
+        public Guid GroupId { get; set; }
         public string Name { get; set; } = "";
         public int PollRateMs { get; set; }
         public string Description { get; set; } = "";
@@ -386,9 +488,9 @@
         public bool IsActive { get; set; }
     }
     
-    class UnitItem
+    class UnitDisplayItem
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public string Name { get; set; } = "";
         public string Symbol { get; set; } = "";
         public string Category { get; set; } = "";

@@ -7,7 +7,7 @@
 <div class="page-wrapper">
     <nav class="sidebar @(SidebarToggle ? "expanded" : "collapsed")">
         <div class="sidebar-header">
-            <span class="sidebar-logo">⚙️</span>
+            <span class="sidebar-logo e-icons e-settings"></span>
             @if (SidebarToggle)
             {
                 <span class="sidebar-title">DataForeman</span>
@@ -16,31 +16,31 @@
         <ul class="sidebar-menu">
             <li class="menu-item @(IsActive("/") ? "active" : "")">
                 <a href="/">
-                    <span class="menu-icon">📊</span>
+                    <span class="menu-icon e-icons e-chart"></span>
                     @if (SidebarToggle) { <span class="menu-text">Dashboard</span> }
                 </a>
             </li>
             <li class="menu-item @(IsActive("/flows") ? "active" : "")">
                 <a href="/flows">
-                    <span class="menu-icon">🔀</span>
+                    <span class="menu-icon e-icons e-flow"></span>
                     @if (SidebarToggle) { <span class="menu-text">Flow Studio</span> }
                 </a>
             </li>
             <li class="menu-item @(IsActive("/charts") ? "active" : "")">
                 <a href="/charts">
-                    <span class="menu-icon">📈</span>
+                    <span class="menu-icon e-icons e-line-chart"></span>
                     @if (SidebarToggle) { <span class="menu-text">Chart Composer</span> }
                 </a>
             </li>
             <li class="menu-item @(IsActive("/connectivity") ? "active" : "")">
                 <a href="/connectivity">
-                    <span class="menu-icon">🔗</span>
+                    <span class="menu-icon e-icons e-link"></span>
                     @if (SidebarToggle) { <span class="menu-text">Connectivity</span> }
                 </a>
             </li>
             <li class="menu-item @(IsActive("/diagnostics") ? "active" : "")">
                 <a href="/diagnostics">
-                    <span class="menu-icon">🔧</span>
+                    <span class="menu-icon e-icons e-diagnose"></span>
                     @if (SidebarToggle) { <span class="menu-text">Diagnostics</span> }
                 </a>
             </li>
@@ -48,7 +48,7 @@
             {
                 <li class="menu-item @(IsActive("/users") ? "active" : "")">
                     <a href="/users">
-                        <span class="menu-icon">👥</span>
+                        <span class="menu-icon e-icons e-people"></span>
                         @if (SidebarToggle) { <span class="menu-text">Users</span> }
                     </a>
                 </li>
@@ -69,11 +69,11 @@
                     {
                         <div class="user-dropdown-menu">
                             <div class="user-dropdown-item" @onclick="@GoToProfile">
-                                <span class="menu-icon">👤</span>
+                                <span class="menu-icon e-icons e-user"></span>
                                 <span>My Profile</span>
                             </div>
                             <div class="user-dropdown-item" @onclick="@SignOut">
-                                <span class="menu-icon">🚪</span>
+                                <span class="menu-icon e-icons e-exit"></span>
                                 <span>Sign Out</span>
                             </div>
                         </div>

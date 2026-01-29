@@ -1,5 +1,8 @@
 ﻿@page "/"
 @rendermode InteractiveServer
+@using DataForeman.BlazorUI.Services
+@inject ApiService ApiService
+@inject NavigationManager Navigation
 
 <PageTitle>Dashboard - DataForeman</PageTitle>
 
@@ -11,84 +14,98 @@
         </div>
     </div>
 
-    <SfDashboardLayout CellSpacing="@(new double[] {10, 10})" 
-                       Columns="12" 
-                       AllowDragging="true" 
-                       AllowResizing="true"
-                       CellAspectRatio="1">
-        <DashboardLayoutPanels>
-            <DashboardLayoutPanel Id="panel1" SizeX="4" SizeY="3" Row="0" Column="0">
-                <HeaderTemplate>
-                    <div class="panel-header">System Overview</div>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="panel-content">
-                        <div class="stat-item">
-                            <span class="stat-label">Active Connections</span>
-                            <span class="stat-value">@ActiveConnections</span>
+    @if (IsLoading)
+    {
+        <div class="loading-indicator">Loading dashboard data...</div>
+    }
+    else
+    {
+        <SfDashboardLayout CellSpacing="@(new double[] {10, 10})" 
+                           Columns="12" 
+                           AllowDragging="true" 
+                           AllowResizing="true"
+                           CellAspectRatio="1">
+            <DashboardLayoutPanels>
+                <DashboardLayoutPanel Id="panel1" SizeX="4" SizeY="3" Row="0" Column="0">
+                    <HeaderTemplate>
+                        <div class="panel-header">System Overview</div>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="panel-content">
+                            <div class="stat-item">
+                                <span class="stat-label">Active Connections</span>
+                                <span class="stat-value">@ActiveConnections</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Running Flows</span>
+                                <span class="stat-value">@RunningFlows</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Subscribed Tags</span>
+                                <span class="stat-value">@SubscribedTags</span>
+                            </div>
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Running Flows</span>
-                            <span class="stat-value">@RunningFlows</span>
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+                
+                <DashboardLayoutPanel Id="panel2" SizeX="4" SizeY="3" Row="0" Column="4">
+                    <HeaderTemplate>
+                        <div class="panel-header">Recent Activity</div>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="panel-content">
+                            <ul class="activity-list">
+                                @foreach (var activity in RecentActivities)
+                                {
+                                    <li class="activity-item">
+                                        <span class="activity-icon e-icons @activity.IconClass"></span>
+                                        <span class="activity-text">@activity.Text</span>
+                                        <span class="activity-time">@activity.Time</span>
+                                    </li>
+                                }
+                            </ul>
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Subscribed Tags</span>
-                            <span class="stat-value">@SubscribedTags</span>
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+                
+                <DashboardLayoutPanel Id="panel3" SizeX="4" SizeY="3" Row="0" Column="8">
+                    <HeaderTemplate>
+                        <div class="panel-header">Quick Actions</div>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        <div class="panel-content quick-actions">
+                            <SfButton CssClass="e-outline" Content="Create Flow" OnClick="@(() => NavigateTo("/flows/new"))"></SfButton>
+                            <SfButton CssClass="e-outline" Content="Add Connection" OnClick="@(() => NavigateTo("/connectivity/new"))"></SfButton>
+                            <SfButton CssClass="e-outline" Content="View Charts" OnClick="@(() => NavigateTo("/charts"))"></SfButton>
                         </div>
-                    </div>
-                </ContentTemplate>
-            </DashboardLayoutPanel>
-            
-            <DashboardLayoutPanel Id="panel2" SizeX="4" SizeY="3" Row="0" Column="4">
-                <HeaderTemplate>
-                    <div class="panel-header">Recent Activity</div>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="panel-content">
-                        <ul class="activity-list">
-                            @foreach (var activity in RecentActivities)
-                            {
-                                <li class="activity-item">
-                                    <span class="activity-icon">@activity.Icon</span>
-                                    <span class="activity-text">@activity.Text</span>
-                                    <span class="activity-time">@activity.Time</span>
-                                </li>
-                            }
-                        </ul>
-                    </div>
-                </ContentTemplate>
-            </DashboardLayoutPanel>
-            
-            <DashboardLayoutPanel Id="panel3" SizeX="4" SizeY="3" Row="0" Column="8">
-                <HeaderTemplate>
-                    <div class="panel-header">Quick Actions</div>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <div class="panel-content quick-actions">
-                        <SfButton CssClass="e-outline" Content="Create Flow" OnClick="@(() => NavigateTo("/flows/new"))"></SfButton>
-                        <SfButton CssClass="e-outline" Content="Add Connection" OnClick="@(() => NavigateTo("/connectivity/new"))"></SfButton>
-                        <SfButton CssClass="e-outline" Content="View Charts" OnClick="@(() => NavigateTo("/charts"))"></SfButton>
-                    </div>
-                </ContentTemplate>
-            </DashboardLayoutPanel>
-            
-            <DashboardLayoutPanel Id="panel4" SizeX="12" SizeY="4" Row="3" Column="0">
-                <HeaderTemplate>
-                    <div class="panel-header">Sample Chart</div>
-                </HeaderTemplate>
-                <ContentTemplate>
-                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
-                        <ChartSeriesCollection>
-                            <ChartSeries DataSource="@ChartData" XName="X" YName="Y" Type="ChartSeriesType.Line">
-                                <ChartMarker Visible="true" Height="10" Width="10"></ChartMarker>
-                            </ChartSeries>
-                        </ChartSeriesCollection>
-                    </SfChart>
-                </ContentTemplate>
-            </DashboardLayoutPanel>
-        </DashboardLayoutPanels>
-    </SfDashboardLayout>
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+                
+                <DashboardLayoutPanel Id="panel4" SizeX="12" SizeY="4" Row="3" Column="0">
+                    <HeaderTemplate>
+                        <div class="panel-header">Tag Values (Live)</div>
+                    </HeaderTemplate>
+                    <ContentTemplate>
+                        @if (ChartData.Count > 0)
+                        {
+                            <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
+                                <ChartSeriesCollection>
+                                    <ChartSeries DataSource="@ChartData" XName="X" YName="Y" Type="ChartSeriesType.Line">
+                                        <ChartMarker Visible="true" Height="10" Width="10"></ChartMarker>
+                                    </ChartSeries>
+                                </ChartSeriesCollection>
+                            </SfChart>
+                        }
+                        else
+                        {
+                            <div class="no-data">No tag data available. Configure connections to view live data.</div>
+                        }
+                    </ContentTemplate>
+                </DashboardLayoutPanel>
+            </DashboardLayoutPanels>
+        </SfDashboardLayout>
+    }
 </div>
 
 <style>
@@ -107,6 +124,12 @@
         margin: 0;
         font-size: 24px;
         font-weight: 500;
+    }
+    
+    .loading-indicator {
+        text-align: center;
+        padding: 40px;
+        color: #9d9d9d;
     }
     
     .panel-header {
@@ -155,7 +178,8 @@
     }
     
     .activity-icon {
-        font-size: 16px;
+        font-size: 14px;
+        color: #4caf50;
     }
     
     .activity-text {
@@ -177,33 +201,99 @@
     .quick-actions button {
         width: 100%;
     }
+    
+    .no-data {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #9d9d9d;
+        font-style: italic;
+    }
 </style>
 
 @code {
-    [Inject] NavigationManager Navigation { get; set; } = default!;
+    private bool IsLoading = true;
+    private int ActiveConnections = 0;
+    private int RunningFlows = 0;
+    private int SubscribedTags = 0;
     
-    private int ActiveConnections = 3;
-    private int RunningFlows = 5;
-    private int SubscribedTags = 127;
-    
-    private List<ActivityItem> RecentActivities = new()
+    private List<ActivityItem> RecentActivities = new();
+    private List<ChartDataPoint> ChartData = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        new("⚡", "Flow 'Temperature Monitor' deployed", "2 min ago"),
-        new("🔗", "Connection 'PLC-01' reconnected", "5 min ago"),
-        new("📊", "Chart 'Production Stats' updated", "12 min ago"),
-        new("⚠️", "Tag 'Tank_Level' threshold alert", "25 min ago")
-    };
-    
-    private List<ChartDataPoint> ChartData = new()
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
     {
-        new("Jan", 35),
-        new("Feb", 28),
-        new("Mar", 45),
-        new("Apr", 32),
-        new("May", 50),
-        new("Jun", 42),
-        new("Jul", 55)
-    };
+        IsLoading = true;
+        
+        try
+        {
+            // Load real data from API
+            var connectionsTask = ApiService.GetConnectionsAsync();
+            var flowsTask = ApiService.GetFlowsAsync();
+            var tagsTask = ApiService.GetTagsAsync();
+            
+            await Task.WhenAll(connectionsTask, flowsTask, tagsTask);
+            
+            var connections = await connectionsTask;
+            var flows = await flowsTask;
+            var tags = await tagsTask;
+            
+            ActiveConnections = connections?.Connections?.Count(c => c.Status == "Connected") ?? 0;
+            RunningFlows = flows?.Items?.Count(f => f.Deployed) ?? 0;
+            SubscribedTags = tags?.Tags?.Count ?? 0;
+            
+            // Build recent activity from actual data
+            RecentActivities = new List<ActivityItem>();
+            
+            if (flows?.Items != null)
+            {
+                foreach (var flow in flows.Items.OrderByDescending(f => f.UpdatedAt).Take(2))
+                {
+                    RecentActivities.Add(new ActivityItem(
+                        "e-play",
+                        $"Flow '{flow.Name}' {(flow.Deployed ? "deployed" : "saved")}",
+                        GetRelativeTime(flow.UpdatedAt)
+                    ));
+                }
+            }
+            
+            if (connections?.Connections != null)
+            {
+                foreach (var conn in connections.Connections.Take(2))
+                {
+                    RecentActivities.Add(new ActivityItem(
+                        "e-link",
+                        $"Connection '{conn.Name}' {conn.Status.ToLower()}",
+                        "Active"
+                    ));
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // API not available - show empty state
+            RecentActivities = new List<ActivityItem>
+            {
+                new ActivityItem("e-info", "No recent activity", "")
+            };
+        }
+        
+        IsLoading = false;
+    }
+    
+    private string GetRelativeTime(DateTime dateTime)
+    {
+        var diff = DateTime.UtcNow - dateTime.ToUniversalTime();
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
     
     private void CreateNewDashboard()
     {
@@ -215,6 +305,6 @@
         Navigation.NavigateTo(url);
     }
     
-    record ActivityItem(string Icon, string Text, string Time);
+    record ActivityItem(string IconClass, string Text, string Time);
     record ChartDataPoint(string X, double Y);
 }
