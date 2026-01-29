@@ -1,6 +1,6 @@
 # DataForeman .NET Backend
 
-.NET 8+ Web API backend for DataForeman industrial data management platform.
+.NET 10 Web API backend for DataForeman industrial data management platform.
 
 ## Architecture
 

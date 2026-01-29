@@ -247,7 +247,7 @@ public class OpcUaDriver : IProtocolDriver
             var message = new TelemetryMessage
             {
                 ConnectionId = ConnectionId,
-                TagId = tagPath.GetHashCode(), // Would need proper tag ID mapping
+                TagId = TagIdGenerator.GenerateTagId(tagPath, ConnectionId),
                 Timestamp = value.Timestamp,
                 Value = value.Value,
                 Quality = value.Quality

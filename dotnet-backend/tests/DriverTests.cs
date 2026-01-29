@@ -97,4 +97,64 @@ public class DriverTests
         // Assert - just verifying the enum values exist
         Assert.True(Enum.IsDefined(typeof(DriverConnectionState), state));
     }
+
+    [Fact]
+    public void TagIdGenerator_GeneratesDeterministicIds()
+    {
+        // Arrange
+        var tagPath = "ns=2;s=Demo.Temperature";
+        var connectionId = Guid.NewGuid();
+
+        // Act
+        var id1 = TagIdGenerator.GenerateTagId(tagPath, connectionId);
+        var id2 = TagIdGenerator.GenerateTagId(tagPath, connectionId);
+
+        // Assert - same input should produce same output
+        Assert.Equal(id1, id2);
+        Assert.True(id1 >= 0);
+    }
+
+    [Fact]
+    public void TagIdGenerator_DifferentPathsProduceDifferentIds()
+    {
+        // Arrange
+        var connectionId = Guid.NewGuid();
+
+        // Act
+        var id1 = TagIdGenerator.GenerateTagId("Tag1", connectionId);
+        var id2 = TagIdGenerator.GenerateTagId("Tag2", connectionId);
+
+        // Assert - different inputs should produce different outputs
+        Assert.NotEqual(id1, id2);
+    }
+
+    [Fact]
+    public void TagIdGenerator_DifferentConnectionsProduceDifferentIds()
+    {
+        // Arrange
+        var tagPath = "TestTag";
+        var conn1 = Guid.NewGuid();
+        var conn2 = Guid.NewGuid();
+
+        // Act
+        var id1 = TagIdGenerator.GenerateTagId(tagPath, conn1);
+        var id2 = TagIdGenerator.GenerateTagId(tagPath, conn2);
+
+        // Assert - different connections should produce different IDs for same tag
+        Assert.NotEqual(id1, id2);
+    }
+
+    [Fact]
+    public void TagIdGenerator_GenerateTagKey_CreatesExpectedFormat()
+    {
+        // Arrange
+        var tagPath = "TestTag";
+        var connectionId = Guid.Parse("12345678-1234-1234-1234-123456789012");
+
+        // Act
+        var key = TagIdGenerator.GenerateTagKey(tagPath, connectionId);
+
+        // Assert
+        Assert.Equal("12345678-1234-1234-1234-123456789012:TestTag", key);
+    }
 }

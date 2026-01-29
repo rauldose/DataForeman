@@ -12,10 +12,15 @@ on:
       - 'dotnet-backend/**'
       - '.github/workflows/dotnet-ci.yml'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     defaults:
       run:
@@ -50,6 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code

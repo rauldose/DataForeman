@@ -241,7 +241,7 @@ public class S7Driver : IProtocolDriver
             var message = new TelemetryMessage
             {
                 ConnectionId = ConnectionId,
-                TagId = tagPath.GetHashCode(),
+                TagId = TagIdGenerator.GenerateTagId(tagPath, ConnectionId),
                 Timestamp = value.Timestamp,
                 Value = value.Value,
                 Quality = value.Quality
