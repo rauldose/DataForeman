@@ -228,9 +228,21 @@ select:focus {
 }
 
 .status-pane {
-    padding: 1px 8px;
+    padding: 2px 10px;
     background: var(--bg-surface);
     border-radius: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.status-pane.main {
+    flex: 1;
+}
+
+.status-pane.fixed {
+    min-width: 80px;
+    text-align: center;
+    justify-content: center;
 }
 
 .status-pane.flex {
