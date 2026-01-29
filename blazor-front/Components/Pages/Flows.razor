@@ -888,7 +888,7 @@
         // Build palettes dynamically from the node registry
         Palettes = new DiagramObjectCollection<Palette>();
         
-        foreach (var category in NodeRegistry.Categories)
+        foreach (var category in NodePluginRegistry.Categories)
         {
             var plugins = NodeRegistry.GetByCategory(category);
             if (plugins.Count == 0) continue;
@@ -1470,11 +1470,24 @@
                 break;
                 
             case PropertyType.Select:
-                var options = prop.Options.Select(o => o.Value).ToList();
-                builder.OpenComponent<SfDropDownList<string, string>>(0);
-                builder.AddAttribute(1, "DataSource", options);
+                // Use SelectOption list with text/value fields for proper label display
+                builder.OpenComponent<SfDropDownList<string, SelectOption>>(0);
+                builder.AddAttribute(1, "DataSource", prop.Options);
                 builder.AddAttribute(2, "Value", string.IsNullOrEmpty(value) ? prop.DefaultValue : value);
                 builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(4, "TValue", typeof(string));
+                builder.AddAttribute(5, "TItem", typeof(SelectOption));
+                builder.AddAttribute(6, "TextField", "Label");
+                builder.AddAttribute(7, "ValueField", "Value");
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Color:
+                // Color picker fallback to text input with color format hint
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", value);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(3, "Placeholder", "#RRGGBB");
                 builder.CloseComponent();
                 break;
                 

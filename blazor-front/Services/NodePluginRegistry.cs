@@ -8,16 +8,26 @@ public class NodePluginRegistry
 {
     private readonly Dictionary<string, NodePluginDefinition> _plugins = new();
     private readonly Dictionary<string, List<NodePluginDefinition>> _byCategory = new();
+    private readonly object _lock = new();
     
     /// <summary>
     /// Gets all registered node plugins
     /// </summary>
-    public IReadOnlyCollection<NodePluginDefinition> All => _plugins.Values;
+    public IReadOnlyCollection<NodePluginDefinition> All
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _plugins.Values.ToList().AsReadOnly();
+            }
+        }
+    }
     
     /// <summary>
-    /// Gets all categories with their plugins
+    /// Gets all category names in display order
     /// </summary>
-    public IReadOnlyDictionary<string, List<NodePluginDefinition>> ByCategory => _byCategory;
+    public static IReadOnlyList<string> Categories { get; } = new[] { "Triggers", "Tags", "Math", "Logic", "Output" };
     
     public NodePluginRegistry()
     {
@@ -25,20 +35,23 @@ public class NodePluginRegistry
     }
     
     /// <summary>
-    /// Registers a node plugin definition
+    /// Registers a node plugin definition (thread-safe)
     /// </summary>
     public void Register(NodePluginDefinition plugin)
     {
-        _plugins[plugin.Id] = plugin;
-        
-        if (!_byCategory.ContainsKey(plugin.Category))
-            _byCategory[plugin.Category] = new List<NodePluginDefinition>();
-        
-        var existing = _byCategory[plugin.Category].FindIndex(p => p.Id == plugin.Id);
-        if (existing >= 0)
-            _byCategory[plugin.Category][existing] = plugin;
-        else
-            _byCategory[plugin.Category].Add(plugin);
+        lock (_lock)
+        {
+            _plugins[plugin.Id] = plugin;
+            
+            if (!_byCategory.ContainsKey(plugin.Category))
+                _byCategory[plugin.Category] = new List<NodePluginDefinition>();
+            
+            var existing = _byCategory[plugin.Category].FindIndex(p => p.Id == plugin.Id);
+            if (existing >= 0)
+                _byCategory[plugin.Category][existing] = plugin;
+            else
+                _byCategory[plugin.Category].Add(plugin);
+        }
     }
     
     /// <summary>
@@ -48,7 +61,10 @@ public class NodePluginRegistry
     {
         // Handle instance IDs (e.g., "trigger-manual-instance-123")
         var baseId = id.Contains("-instance-") ? id.Split("-instance-")[0] : id;
-        return _plugins.TryGetValue(baseId, out var plugin) ? plugin : null;
+        lock (_lock)
+        {
+            return _plugins.TryGetValue(baseId, out var plugin) ? plugin : null;
+        }
     }
     
     /// <summary>
@@ -56,13 +72,13 @@ public class NodePluginRegistry
     /// </summary>
     public IReadOnlyList<NodePluginDefinition> GetByCategory(string category)
     {
-        return _byCategory.TryGetValue(category, out var plugins) ? plugins : Array.Empty<NodePluginDefinition>();
+        lock (_lock)
+        {
+            return _byCategory.TryGetValue(category, out var plugins) 
+                ? plugins.ToList().AsReadOnly() 
+                : Array.Empty<NodePluginDefinition>();
+        }
     }
-    
-    /// <summary>
-    /// Gets all category names in display order
-    /// </summary>
-    public IReadOnlyList<string> Categories => new[] { "Triggers", "Tags", "Math", "Logic", "Output" };
     
     /// <summary>
     /// Registers all built-in node plugins
