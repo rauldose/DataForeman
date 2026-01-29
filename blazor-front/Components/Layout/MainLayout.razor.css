@@ -50,10 +50,6 @@
     flex: 1;
 }
 
-.user-menu {
-    margin-left: auto;
-}
-
 .menu-bar-item {
     padding: 3px 10px;
     cursor: pointer;
@@ -122,149 +118,11 @@
     color: var(--accent-primary);
 }
 
-/* Modern Toolbar */
-.toolbar {
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 3px 6px;
-    display: flex;
-    gap: 2px;
-    align-items: center;
-    min-height: 28px;
-}
-
-.toolbar-btn {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    padding: 3px 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    min-width: 26px;
-    min-height: 24px;
-    justify-content: center;
-    transition: all 0.15s ease;
-}
-
-.toolbar-btn:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-subtle);
-    color: var(--text-primary);
-}
-
-.toolbar-btn:active {
-    background: var(--bg-dark);
-}
-
-.toolbar-btn.active {
-    background: var(--bg-surface);
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-}
-
-.toolbar-btn:disabled {
-    color: var(--text-muted);
-    opacity: 0.5;
-}
-
-.toolbar-separator {
-    width: 1px;
-    height: 18px;
-    background: var(--border-subtle);
-    margin: 0 4px;
-}
-
-.toolbar-spacer {
-    flex: 1;
-}
-
 /* Main Content Area */
 .main-area {
     flex: 1;
     display: flex;
     overflow: hidden;
-}
-
-/* Left Panel (Navigation) */
-.left-panel {
-    width: 180px;
-    background: var(--bg-panel);
-    border-right: 1px solid var(--border-subtle);
-    display: flex;
-    flex-direction: column;
-}
-
-.panel-header {
-    background: var(--bg-surface);
-    padding: 6px 10px;
-    font-weight: 600;
-    font-size: 11px;
-    color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-subtle);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.tree-container {
-    flex: 1;
-    background: var(--bg-dark);
-    margin: 4px;
-    border-radius: 3px;
-    overflow: auto;
-    border: 1px solid var(--border-subtle);
-}
-
-.tree-item {
-    padding: 6px 8px 6px 12px;
-    cursor: pointer;
-    font-size: 11px;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-secondary);
-    border-left: 2px solid transparent;
-    transition: all 0.15s ease;
-}
-
-.tree-item:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-
-.tree-item.active {
-    background: var(--bg-surface);
-    color: var(--accent-primary);
-    border-left-color: var(--accent-primary);
-}
-
-.tree-item-icon {
-    width: 16px;
-    height: 16px;
-    font-size: 12px;
-    color: inherit;
-    display: inline-block;
-    text-align: center;
-}
-
-/* Toolbar icons */
-.tb-icon {
-    font-size: 14px;
-    width: 16px;
-    text-align: center;
-    display: inline-block;
-}
-
-/* Navigator icon */
-.nav-icon {
-    font-size: 12px;
 }
 
 /* Content Panel */
@@ -322,23 +180,10 @@
     justify-content: center;
 }
 
-/* User Menu in Toolbar */
+/* User Menu in Menu Bar */
 .user-menu {
     position: relative;
-}
-
-.user-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 4px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-medium);
-    border-radius: 4px;
-    box-shadow: var(--shadow-lg);
-    z-index: 1000;
-    min-width: 140px;
-    padding: 4px 0;
+    margin-left: auto;
 }
 
 /* Blazor Error UI */
