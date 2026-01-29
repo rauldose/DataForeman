@@ -67,10 +67,10 @@
 }
 
 /* Dropdown Menu - Modern Style */
-.dropdown-menu {
+.dropdown-menu,
+.user-dropdown {
     position: absolute;
     top: 100%;
-    left: 0;
     background: var(--bg-panel);
     border: 1px solid var(--border-medium);
     border-radius: 4px;
@@ -78,6 +78,15 @@
     z-index: 1000;
     min-width: 160px;
     padding: 4px 0;
+}
+
+.dropdown-menu {
+    left: 0;
+}
+
+.user-dropdown {
+    right: 0;
+    margin-top: 4px;
 }
 
 .dropdown-item {
@@ -116,13 +125,7 @@
 
 /* Modern Toolbar */
 .toolbar {
-    background: var(--bg-panel);
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 3px 6px;
-    display: flex;
-    gap: 2px;
-    align-items: center;
-    min-height: 28px;
+    /* Uses styles from app.css */
 }
 
 .toolbar-btn {
@@ -278,54 +281,11 @@
     padding: 12px;
 }
 
-/* Status Bar */
-.status-bar {
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border-subtle);
-    padding: 3px 8px;
-    display: flex;
-    gap: 8px;
-    font-size: 11px;
-    min-height: 24px;
-    align-items: stretch;
-    color: var(--text-secondary);
-}
-
-.status-pane {
-    padding: 2px 10px;
-    background: var(--bg-surface);
-    border-radius: 2px;
-    display: flex;
-    align-items: center;
-}
-
-.status-pane.main {
-    flex: 1;
-}
-
-.status-pane.fixed {
-    min-width: 80px;
-    text-align: center;
-    justify-content: center;
-}
+/* Status Bar - uses styles from app.css */
 
 /* User Menu in Toolbar */
 .user-menu {
     position: relative;
-}
-
-.user-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    margin-top: 4px;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-medium);
-    border-radius: 4px;
-    box-shadow: var(--shadow-lg);
-    z-index: 1000;
-    min-width: 140px;
-    padding: 4px 0;
 }
 
 /* Blazor Error UI */

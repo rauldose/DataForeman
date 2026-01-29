@@ -208,30 +208,6 @@ select:focus {
     min-height: 28px;
 }
 
-.toolbar-button {
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    padding: 3px 6px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    transition: all 0.15s ease;
-}
-
-.toolbar-button:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-subtle);
-    color: var(--text-primary);
-}
-
-.toolbar-button:active {
-    background: var(--bg-dark);
-}
-
 .toolbar-separator {
     width: 1px;
     height: 18px;
@@ -269,50 +245,6 @@ select:focus {
     overflow: auto;
 }
 
-/* Modern Tab Control */
-.tab-container {
-    background: var(--bg-panel);
-}
-
-.tab-header {
-    display: flex;
-    border-bottom: 1px solid var(--border-subtle);
-    padding-left: 4px;
-    gap: 2px;
-}
-
-.tab-item {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-bottom: none;
-    border-radius: 3px 3px 0 0;
-    padding: 4px 12px;
-    cursor: pointer;
-    font-size: 11px;
-    color: var(--text-secondary);
-    transition: all 0.15s ease;
-}
-
-.tab-item:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-
-.tab-item.active {
-    background: var(--bg-panel);
-    color: var(--accent-primary);
-    border-color: var(--accent-primary);
-    border-bottom: 1px solid var(--bg-panel);
-    margin-bottom: -1px;
-}
-
-.tab-content {
-    border: 1px solid var(--border-subtle);
-    border-top: none;
-    padding: 8px;
-    background: var(--bg-panel);
-}
-
 /* Form Validation */
 .valid.modified:not([type=checkbox]) {
     outline: none;
@@ -348,105 +280,105 @@ select:focus {
 
 /* Syncfusion Overrides - Modern Industrial Theme */
 .e-grid {
-    font-size: 11px !important;
-    border: 1px solid var(--border-subtle) !important;
-    border-radius: 3px !important;
-    background: var(--bg-panel) !important;
+    font-size: 11px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    background: var(--bg-panel);
 }
 
 .e-grid .e-gridheader {
-    background: var(--bg-surface) !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .e-grid .e-headercell {
-    background: var(--bg-surface) !important;
-    border-right: 1px solid var(--border-subtle) !important;
-    font-weight: 600 !important;
-    font-size: 11px !important;
-    padding: 6px 8px !important;
-    color: var(--text-secondary) !important;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-subtle);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 6px 8px;
+    color: var(--text-secondary);
 }
 
 .e-grid .e-rowcell {
-    padding: 4px 8px !important;
-    font-size: 11px !important;
-    border-color: var(--border-subtle) !important;
-    color: var(--text-primary) !important;
-    background: var(--bg-panel) !important;
+    padding: 4px 8px;
+    font-size: 11px;
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+    background: var(--bg-panel);
 }
 
 .e-grid .e-row:hover .e-rowcell {
-    background: var(--bg-hover) !important;
-    color: var(--text-primary) !important;
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .e-grid .e-row.e-altrow .e-rowcell {
-    background: var(--bg-surface) !important;
+    background: var(--bg-surface);
 }
 
 .e-tab {
-    font-size: 11px !important;
-    background: var(--bg-panel) !important;
+    font-size: 11px;
+    background: var(--bg-panel);
 }
 
 .e-tab .e-tab-header .e-toolbar-item .e-tab-text {
-    font-size: 11px !important;
-    color: var(--text-secondary) !important;
+    font-size: 11px;
+    color: var(--text-secondary);
 }
 
 .e-tab .e-tab-header .e-toolbar-item.e-active .e-tab-text {
-    color: var(--accent-primary) !important;
+    color: var(--accent-primary);
 }
 
 .e-dialog {
-    border: 1px solid var(--border-subtle) !important;
-    border-radius: 4px !important;
-    background: var(--bg-panel) !important;
-    box-shadow: var(--shadow-lg) !important;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background: var(--bg-panel);
+    box-shadow: var(--shadow-lg);
 }
 
 .e-dialog .e-dlg-header-content {
-    background: var(--bg-surface) !important;
-    color: var(--text-primary) !important;
-    padding: 6px 10px !important;
-    font-size: 12px !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 6px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .e-btn {
-    font-size: 11px !important;
-    padding: 4px 12px !important;
-    min-height: 24px !important;
-    border-radius: 3px !important;
+    font-size: 11px;
+    padding: 4px 12px;
+    min-height: 24px;
+    border-radius: 3px;
 }
 
 .e-btn.e-flat {
-    background: transparent !important;
-    border: 1px solid transparent !important;
-    color: var(--text-secondary) !important;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
 }
 
 .e-btn.e-flat:hover {
-    background: var(--bg-hover) !important;
-    border: 1px solid var(--border-subtle) !important;
-    color: var(--text-primary) !important;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
 }
 
 .e-btn.e-primary {
-    background: var(--accent-primary) !important;
-    border-color: var(--accent-primary) !important;
-    color: #000 !important;
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #000;
 }
 
 .e-btn.e-primary:hover {
-    background: var(--accent-primary-hover) !important;
-    border-color: var(--accent-primary-hover) !important;
+    background: var(--accent-primary-hover);
+    border-color: var(--accent-primary-hover);
 }
 
 .e-chart {
-    font-size: 12px !important;
-    background: transparent !important;
+    font-size: 12px;
+    background: transparent;
 }
 
 /* Ensure buttons have proper cursor */
@@ -579,237 +511,237 @@ html, body {
 .e-textbox,
 .e-input-group,
 .e-input-group.e-control-wrapper {
-    background: var(--bg-input) !important;
-    border: 1px solid var(--border-medium) !important;
-    border-radius: 3px !important;
-    font-size: 11px !important;
+    background: var(--bg-input);
+    border: 1px solid var(--border-medium);
+    border-radius: 3px;
+    font-size: 11px;
 }
 
 .e-input-group input.e-input,
 .e-input-group.e-control-wrapper input.e-input {
-    background: transparent !important;
-    color: var(--text-primary) !important;
-    font-size: 11px !important;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 11px;
 }
 
 .e-input-group.e-input-focus,
 .e-input-group.e-control-wrapper.e-input-focus {
-    border-color: var(--accent-primary) !important;
-    box-shadow: none !important;
+    border-color: var(--accent-primary);
+    box-shadow: none;
 }
 
 /* DropDown List */
 .e-ddl.e-input-group,
 .e-dropdown-base.e-control {
-    background: var(--bg-input) !important;
+    background: var(--bg-input);
 }
 
 .e-ddl.e-popup,
 .e-dropdown-base.e-popup {
-    background: var(--bg-panel) !important;
-    border: 1px solid var(--border-medium) !important;
-    box-shadow: var(--shadow-lg) !important;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-medium);
+    box-shadow: var(--shadow-lg);
 }
 
 .e-ddl.e-popup .e-list-item,
 .e-dropdown-base.e-popup .e-list-item {
-    background: transparent !important;
-    color: var(--text-primary) !important;
-    font-size: 11px !important;
-    padding: 6px 10px !important;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 11px;
+    padding: 6px 10px;
 }
 
 .e-ddl.e-popup .e-list-item:hover,
 .e-ddl.e-popup .e-list-item.e-hover,
 .e-dropdown-base.e-popup .e-list-item:hover,
 .e-dropdown-base.e-popup .e-list-item.e-hover {
-    background: var(--bg-hover) !important;
-    color: var(--accent-primary) !important;
+    background: var(--bg-hover);
+    color: var(--accent-primary);
 }
 
 .e-ddl.e-popup .e-list-item.e-active,
 .e-dropdown-base.e-popup .e-list-item.e-active {
-    background: var(--bg-surface) !important;
-    color: var(--accent-primary) !important;
+    background: var(--bg-surface);
+    color: var(--accent-primary);
 }
 
 /* Tab Component */
 .e-tab .e-tab-header {
-    background: var(--bg-surface) !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .e-tab .e-tab-header .e-toolbar-items {
-    background: transparent !important;
+    background: transparent;
 }
 
 .e-tab .e-tab-header .e-toolbar-item {
-    background: transparent !important;
+    background: transparent;
 }
 
 .e-tab .e-content {
-    background: var(--bg-panel) !important;
-    border: 1px solid var(--border-subtle) !important;
-    border-top: none !important;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-top: none;
 }
 
 /* Dialog */
 .e-dialog .e-dlg-content {
-    background: var(--bg-panel) !important;
-    color: var(--text-primary) !important;
-    font-size: 11px !important;
-    padding: 12px !important;
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    font-size: 11px;
+    padding: 12px;
 }
 
 .e-dialog .e-footer-content {
-    background: var(--bg-surface) !important;
-    border-top: 1px solid var(--border-subtle) !important;
-    padding: 8px 12px !important;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    padding: 8px 12px;
 }
 
 /* ListView */
 .e-listview {
-    background: var(--bg-dark) !important;
-    border: 1px solid var(--border-subtle) !important;
-    border-radius: 3px !important;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
 }
 
 .e-listview .e-list-item {
-    background: transparent !important;
-    color: var(--text-primary) !important;
-    font-size: 11px !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 11px;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .e-listview .e-list-item:hover {
-    background: var(--bg-hover) !important;
+    background: var(--bg-hover);
 }
 
 .e-listview .e-list-item.e-active {
-    background: var(--bg-surface) !important;
-    color: var(--accent-primary) !important;
+    background: var(--bg-surface);
+    color: var(--accent-primary);
 }
 
 /* Symbol Palette (Flow Editor) */
 .e-symbolpalette {
-    background: var(--bg-panel) !important;
-    border: 1px solid var(--border-subtle) !important;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
 }
 
 .e-symbolpalette .e-palette-header {
-    background: var(--bg-surface) !important;
-    color: var(--text-secondary) !important;
-    font-size: 11px !important;
-    font-weight: 600 !important;
-    border-bottom: 1px solid var(--border-subtle) !important;
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .e-symbolpalette .e-symbol {
-    background: var(--bg-dark) !important;
-    border: 1px solid var(--border-subtle) !important;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-subtle);
 }
 
 .e-symbolpalette .e-symbol:hover {
-    border-color: var(--accent-primary) !important;
+    border-color: var(--accent-primary);
 }
 
 /* Diagram Canvas */
 .e-diagram {
-    background: var(--bg-dark) !important;
+    background: var(--bg-dark);
 }
 
 .e-diagram .e-diagram-canvas {
-    background: var(--bg-dark) !important;
+    background: var(--bg-dark);
 }
 
 /* Chart - Ensure consistent dark theme */
 .e-chart {
-    background: transparent !important;
+    background: transparent;
 }
 
 .e-chart .e-chart-border {
-    stroke: var(--border-subtle) !important;
+    stroke: var(--border-subtle);
 }
 
 /* Pager */
 .e-pager {
-    background: var(--bg-surface) !important;
-    border: 1px solid var(--border-subtle) !important;
-    border-top: none !important;
-    font-size: 11px !important;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-top: none;
+    font-size: 11px;
 }
 
 .e-pager .e-numericitem {
-    background: transparent !important;
-    color: var(--text-secondary) !important;
+    background: transparent;
+    color: var(--text-secondary);
 }
 
 .e-pager .e-numericitem:hover {
-    background: var(--bg-hover) !important;
-    color: var(--text-primary) !important;
+    background: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 .e-pager .e-numericitem.e-active {
-    background: var(--accent-primary) !important;
-    color: #000 !important;
+    background: var(--accent-primary);
+    color: #000;
 }
 
 /* Filter/Search Bar */
 .e-grid .e-filterbar {
-    background: var(--bg-surface) !important;
+    background: var(--bg-surface);
 }
 
 .e-grid .e-filterbar .e-input-group {
-    background: var(--bg-input) !important;
+    background: var(--bg-input);
 }
 
 /* Tooltip */
 .e-tooltip-wrap {
-    background: var(--bg-surface) !important;
-    border: 1px solid var(--border-medium) !important;
-    color: var(--text-primary) !important;
-    font-size: 11px !important;
-    box-shadow: var(--shadow-md) !important;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    font-size: 11px;
+    box-shadow: var(--shadow-md);
 }
 
 .e-tooltip-wrap .e-tip-content {
-    color: var(--text-primary) !important;
+    color: var(--text-primary);
 }
 
 /* Spinner/Loading */
 .e-spinner-pane {
-    background: rgba(26, 29, 33, 0.8) !important;
+    background: rgba(26, 29, 33, 0.8);
 }
 
 /* Form Elements */
 .e-checkbox-wrapper .e-checkbox,
 .e-checkbox-wrapper .e-checkbox + .e-label {
-    color: var(--text-primary) !important;
+    color: var(--text-primary);
 }
 
 .e-checkbox-wrapper .e-frame {
-    background: var(--bg-input) !important;
-    border-color: var(--border-medium) !important;
+    background: var(--bg-input);
+    border-color: var(--border-medium);
 }
 
 .e-checkbox-wrapper .e-frame.e-check {
-    background: var(--accent-primary) !important;
-    border-color: var(--accent-primary) !important;
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
 }
 
 /* NumericTextBox */
 .e-numerictextbox.e-input-group {
-    background: var(--bg-input) !important;
+    background: var(--bg-input);
 }
 
 /* DatePicker */
 .e-datepicker.e-input-group {
-    background: var(--bg-input) !important;
+    background: var(--bg-input);
 }
 
 .e-datepicker.e-popup-wrapper {
-    background: var(--bg-panel) !important;
-    border: 1px solid var(--border-medium) !important;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-medium);
 }
 
 /* Page-specific common classes */
