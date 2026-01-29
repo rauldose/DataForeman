@@ -86,8 +86,7 @@
                                               SymbolHeight="50"
                                               SymbolWidth="100"
                                               SymbolMargin="@SymbolMargin"
-                                              GetSymbolInfo="@GetSymbolInfo"
-                                              Targets="@DiagramTargets">
+                                              GetSymbolInfo="@GetSymbolInfo">
                     </SfSymbolPaletteComponent>
                 </div>
                 
@@ -565,9 +564,6 @@
     private DiagramObjectCollection<Palette> Palettes = new();
     private SymbolMargin SymbolMargin = new() { Left = 4, Right = 4, Top = 4, Bottom = 4 };
     
-    // Targets collection for symbol palette drag-drop binding
-    private DiagramObjectCollection<SfDiagramComponent> DiagramTargets = new();
-    
     private FlowListItem CurrentFlow = new() { Name = "New Flow" };
     private bool IsLoading = true;
     
@@ -613,10 +609,12 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Set up diagram targets for symbol palette drag-drop
-        if (firstRender && Diagram != null && !_diagramTargetsSet)
+        if (firstRender && Diagram != null && SymbolPalette != null && !_diagramTargetsSet)
         {
             _diagramTargetsSet = true;
-            DiagramTargets.Add(Diagram);
+            // Set the Targets property on the SymbolPalette reference directly
+            // This enables drag-drop from palette to diagram
+            SymbolPalette.Targets = new DiagramObjectCollection<SfDiagramComponent?> { Diagram };
             StateHasChanged();
         }
         
