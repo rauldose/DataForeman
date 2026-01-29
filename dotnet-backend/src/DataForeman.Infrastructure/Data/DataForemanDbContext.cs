@@ -735,34 +735,225 @@ public class DataForemanDbContext : DbContext
         // Seed sample Flows
         var flow1Id = Guid.Parse("20000000-0000-0000-0000-000000000001");
         var flow2Id = Guid.Parse("20000000-0000-0000-0000-000000000002");
+        var flow3Id = Guid.Parse("20000000-0000-0000-0000-000000000003");
+        
+        // Flow 1: Temperature Alert System
+        var flow1Definition = @"{
+            ""nodes"": [
+                {
+                    ""id"": ""node_1"",
+                    ""type"": ""tag-input"",
+                    ""label"": ""Tank 1 Temp"",
+                    ""position"": { ""x"": 100, ""y"": 100 },
+                    ""config"": {
+                        ""tagId"": 1,
+                        ""maxDataAge"": -1
+                    }
+                },
+                {
+                    ""id"": ""node_2"",
+                    ""type"": ""tag-input"",
+                    ""label"": ""Tank 2 Temp"",
+                    ""position"": { ""x"": 100, ""y"": 250 },
+                    ""config"": {
+                        ""tagId"": 6,
+                        ""maxDataAge"": -1
+                    }
+                },
+                {
+                    ""id"": ""node_3"",
+                    ""type"": ""math"",
+                    ""label"": ""Calculate Average"",
+                    ""position"": { ""x"": 400, ""y"": 175 },
+                    ""config"": {
+                        ""operation"": ""average"",
+                        ""inputs"": [""input1"", ""input2""]
+                    }
+                },
+                {
+                    ""id"": ""node_4"",
+                    ""type"": ""comparison"",
+                    ""label"": ""High Temp Alert"",
+                    ""position"": { ""x"": 400, ""y"": 50 },
+                    ""config"": {
+                        ""operator"": "">"",
+                        ""threshold"": 75
+                    }
+                },
+                {
+                    ""id"": ""node_5"",
+                    ""type"": ""comparison"",
+                    ""label"": ""Low Temp Alert"",
+                    ""position"": { ""x"": 400, ""y"": 300 },
+                    ""config"": {
+                        ""operator"": ""<"",
+                        ""threshold"": 30
+                    }
+                },
+                {
+                    ""id"": ""node_6"",
+                    ""type"": ""javascript"",
+                    ""label"": ""Alert Logic"",
+                    ""position"": { ""x"": 700, ""y"": 175 },
+                    ""config"": {
+                        ""code"": ""// Determine alert status\nconst highAlert = $input.highTemp || false;\nconst lowAlert = $input.lowTemp || false;\nconst avgTemp = $input.average || 0;\n\nif (highAlert) {\n  return { alert: true, level: 'high', message: 'Temperature too high!', value: avgTemp };\n} else if (lowAlert) {\n  return { alert: true, level: 'low', message: 'Temperature too low!', value: avgTemp };\n} else {\n  return { alert: false, level: 'normal', message: 'Temperature normal', value: avgTemp };\n}""
+                    }
+                }
+            ],
+            ""edges"": [
+                {
+                    ""id"": ""edge_1"",
+                    ""source"": ""node_1"",
+                    ""target"": ""node_3"",
+                    ""targetHandle"": ""input1""
+                },
+                {
+                    ""id"": ""edge_2"",
+                    ""source"": ""node_2"",
+                    ""target"": ""node_3"",
+                    ""targetHandle"": ""input2""
+                },
+                {
+                    ""id"": ""edge_3"",
+                    ""source"": ""node_3"",
+                    ""target"": ""node_6"",
+                    ""targetHandle"": ""average""
+                },
+                {
+                    ""id"": ""edge_4"",
+                    ""source"": ""node_1"",
+                    ""target"": ""node_4"",
+                    ""targetHandle"": ""value""
+                },
+                {
+                    ""id"": ""edge_5"",
+                    ""source"": ""node_4"",
+                    ""target"": ""node_6"",
+                    ""targetHandle"": ""highTemp""
+                },
+                {
+                    ""id"": ""edge_6"",
+                    ""source"": ""node_2"",
+                    ""target"": ""node_5"",
+                    ""targetHandle"": ""value""
+                },
+                {
+                    ""id"": ""edge_7"",
+                    ""source"": ""node_5"",
+                    ""target"": ""node_6"",
+                    ""targetHandle"": ""lowTemp""
+                }
+            ]
+        }";
+        
+        // Flow 2: Production Efficiency Calculator
+        var flow2Definition = @"{
+            ""nodes"": [
+                {
+                    ""id"": ""node_1"",
+                    ""type"": ""tag-input"",
+                    ""label"": ""Production Rate"",
+                    ""position"": { ""x"": 100, ""y"": 100 },
+                    ""config"": {
+                        ""tagId"": 12,
+                        ""maxDataAge"": -1
+                    }
+                },
+                {
+                    ""id"": ""node_2"",
+                    ""type"": ""tag-input"",
+                    ""label"": ""Motor Power"",
+                    ""position"": { ""x"": 100, ""y"": 200 },
+                    ""config"": {
+                        ""tagId"": 11,
+                        ""maxDataAge"": -1
+                    }
+                },
+                {
+                    ""id"": ""node_3"",
+                    ""type"": ""math"",
+                    ""label"": ""Efficiency"",
+                    ""position"": { ""x"": 400, ""y"": 150 },
+                    ""config"": {
+                        ""operation"": ""divide"",
+                        ""description"": ""Calculate units per kW""
+                    }
+                },
+                {
+                    ""id"": ""node_4"",
+                    ""type"": ""javascript"",
+                    ""label"": ""Format Result"",
+                    ""position"": { ""x"": 650, ""y"": 150 },
+                    ""config"": {
+                        ""code"": ""// Calculate efficiency percentage\nconst efficiency = ($input.value || 0);\nconst percentage = Math.min(100, Math.max(0, efficiency * 10));\nreturn {\n  efficiency: efficiency.toFixed(2),\n  percentage: percentage.toFixed(1),\n  rating: percentage > 80 ? 'Excellent' : percentage > 60 ? 'Good' : 'Poor'\n};""
+                    }
+                }
+            ],
+            ""edges"": [
+                {
+                    ""id"": ""edge_1"",
+                    ""source"": ""node_1"",
+                    ""target"": ""node_3"",
+                    ""targetHandle"": ""numerator""
+                },
+                {
+                    ""id"": ""edge_2"",
+                    ""source"": ""node_2"",
+                    ""target"": ""node_3"",
+                    ""targetHandle"": ""denominator""
+                },
+                {
+                    ""id"": ""edge_3"",
+                    ""source"": ""node_3"",
+                    ""target"": ""node_4"",
+                    ""targetHandle"": ""value""
+                }
+            ]
+        }";
+        
         modelBuilder.Entity<Flow>().HasData(
             new Flow 
             { 
                 Id = flow1Id, 
-                Name = "Temperature Monitor", 
-                Description = "Monitors tank temperatures and triggers alerts",
+                Name = "Temperature Alert System", 
+                Description = "Monitors tank temperatures, calculates average, and generates alerts when out of normal range (30-75°C)",
                 OwnerUserId = adminUserId,
                 Deployed = false,
-                Shared = false,
+                Shared = true,
                 TestMode = false,
                 ExecutionMode = "continuous",
-                ScanRateMs = 1000,
-                Definition = "{}",
+                ScanRateMs = 2000,
+                Definition = flow1Definition,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             },
             new Flow 
             { 
                 Id = flow2Id, 
-                Name = "Data Logger", 
-                Description = "Logs production data to database",
+                Name = "Production Efficiency Calculator", 
+                Description = "Calculates production efficiency as units produced per kW of power consumed",
                 OwnerUserId = adminUserId,
                 Deployed = false,
-                Shared = false,
+                Shared = true,
                 TestMode = false,
                 ExecutionMode = "continuous",
                 ScanRateMs = 5000,
-                Definition = "{}",
+                Definition = flow2Definition,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            },
+            new Flow 
+            { 
+                Id = flow3Id, 
+                Name = "Simple Math Example", 
+                Description = "Basic example: reads two tags and calculates their sum",
+                OwnerUserId = adminUserId,
+                Deployed = false,
+                Shared = true,
+                TestMode = false,
+                ExecutionMode = "continuous",
+                ScanRateMs = 1000,
+                Definition = @"{""nodes"":[{""id"":""n1"",""type"":""tag-input"",""label"":""Tag 1"",""position"":{""x"":100,""y"":100},""config"":{""tagId"":1}},{""id"":""n2"",""type"":""tag-input"",""label"":""Tag 2"",""position"":{""x"":100,""y"":200},""config"":{""tagId"":2}},{""id"":""n3"",""type"":""math"",""label"":""Add"",""position"":{""x"":350,""y"":150},""config"":{""operation"":""add""}}],""edges"":[{""id"":""e1"",""source"":""n1"",""target"":""n3""},{""id"":""e2"",""source"":""n2"",""target"":""n3""}]}",
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
