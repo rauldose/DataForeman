@@ -113,78 +113,192 @@
                     <h3>Properties</h3>
                     @if (SelectedNode != null)
                     {
-                        <div class="property-group">
-                            <label>Node ID</label>
-                            <span class="property-value">@SelectedNode.ID</span>
+                        <div class="property-header">
+                            <span class="node-type-badge">@GetNodeType(SelectedNode)</span>
                         </div>
-                        <div class="property-group">
-                            <label>Type</label>
-                            <span class="property-value">@GetNodeType(SelectedNode)</span>
-                        </div>
+                        
                         <div class="property-group">
                             <label>Label</label>
                             <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged" Placeholder="Enter label"></SfTextBox>
                         </div>
-                        <div class="property-group">
-                            <label>Position X</label>
-                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetX" ValueChanged="@OnPositionXChanged" Min="0" Step="10"></SfNumericTextBox>
-                        </div>
-                        <div class="property-group">
-                            <label>Position Y</label>
-                            <SfNumericTextBox TValue="double" Value="@SelectedNode.OffsetY" ValueChanged="@OnPositionYChanged" Min="0" Step="10"></SfNumericTextBox>
-                        </div>
-                        <div class="property-group">
-                            <label>Width</label>
-                            <SfNumericTextBox TValue="double" Value="@(SelectedNode.Width ?? 180)" ValueChanged="@OnWidthChanged" Min="50" Max="500" Step="10"></SfNumericTextBox>
-                        </div>
-                        <div class="property-group">
-                            <label>Height</label>
-                            <SfNumericTextBox TValue="double" Value="@(SelectedNode.Height ?? 70)" ValueChanged="@OnHeightChanged" Min="30" Max="300" Step="5"></SfNumericTextBox>
-                        </div>
                         
-                        @* Node-specific properties based on node type *@
-                        @if (GetNodeType(SelectedNode).Contains("TAG"))
+                        @* TRIGGER NODES *@
+                        @if (GetNodeBaseType(SelectedNode) == "trigger-manual")
                         {
                             <div class="property-section">
-                                <h4>Tag Configuration</h4>
+                                <h4>⚡ Manual Trigger</h4>
+                                <p class="property-hint">This trigger fires when manually activated or when the flow starts.</p>
                                 <div class="property-group">
-                                    <label>Tag Path</label>
-                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
+                                    <label>Run on Deploy</label>
+                                    <SfCheckBox TChecked="bool" @bind-Checked="@_triggerOnDeploy" Label="Fire when flow is deployed"></SfCheckBox>
                                 </div>
                             </div>
                         }
-                        @if (GetNodeType(SelectedNode).Contains("COMPARE") || GetNodeType(SelectedNode).Contains("LOGIC"))
+                        @if (GetNodeBaseType(SelectedNode) == "trigger-schedule")
                         {
                             <div class="property-section">
-                                <h4>Comparison Settings</h4>
-                                <div class="property-group">
-                                    <label>Threshold Value</label>
-                                    <SfNumericTextBox TValue="double" Value="@GetThresholdValue()" ValueChanged="@OnThresholdChanged" Step="1"></SfNumericTextBox>
-                                </div>
-                            </div>
-                        }
-                        @if (GetNodeType(SelectedNode).Contains("TRIGGER") && GetNodeType(SelectedNode).Contains("SCHEDULE"))
-                        {
-                            <div class="property-section">
-                                <h4>Schedule Settings</h4>
+                                <h4>⏰ Schedule Trigger</h4>
                                 <div class="property-group">
                                     <label>Interval (seconds)</label>
                                     <SfNumericTextBox TValue="int" Value="@GetIntervalValue()" ValueChanged="@OnIntervalChanged" Min="1" Max="86400"></SfNumericTextBox>
                                 </div>
+                                <div class="property-group">
+                                    <label>Cron Expression (optional)</label>
+                                    <SfTextBox Value="@GetNodeProperty("cron")" ValueChanged="@((string val) => SetNodeProperty("cron", val))" Placeholder="e.g., 0 */5 * * * *"></SfTextBox>
+                                </div>
                             </div>
                         }
-                        @if (GetNodeType(SelectedNode).Contains("NOTIFICATION"))
+                        @if (GetNodeBaseType(SelectedNode) == "trigger-tag")
                         {
                             <div class="property-section">
-                                <h4>Notification Settings</h4>
+                                <h4>🔔 Tag Change Trigger</h4>
                                 <div class="property-group">
-                                    <label>Message</label>
-                                    <SfTextBox Value="@GetNodeProperty("message")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Notification message"></SfTextBox>
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Trigger Mode</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@TriggerModes" Value="@GetNodeProperty("triggerMode", "Any Change")" ValueChanged="@((string val) => SetNodeProperty("triggerMode", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Deadband</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("deadband", 0)" ValueChanged="@((double val) => SetNodeProperty("deadband", val.ToString()))" Min="0" Step="0.1"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* TAG OPERATION NODES *@
+                        @if (GetNodeBaseType(SelectedNode) == "tag-input")
+                        {
+                            <div class="property-section">
+                                <h4>📥 Tag Input</h4>
+                                <div class="property-group">
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.Temperature"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Data Type</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" Value="@GetNodeProperty("dataType", "Float")" ValueChanged="@((string val) => SetNodeProperty("dataType", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Default Value (on error)</label>
+                                    <SfTextBox Value="@GetNodeProperty("defaultValue", "0")" ValueChanged="@((string val) => SetNodeProperty("defaultValue", val))" Placeholder="0"></SfTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "tag-output" || GetNodeBaseType(SelectedNode) == "tag-write")
+                        {
+                            <div class="property-section">
+                                <h4>📤 Tag Output</h4>
+                                <div class="property-group">
+                                    <label>Tag Path</label>
+                                    <SfTextBox Value="@GetNodeProperty("tagPath")" ValueChanged="@((string val) => SetNodeProperty("tagPath", val))" Placeholder="e.g., PLC1.Tank1.SetPoint"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Data Type</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" Value="@GetNodeProperty("dataType", "Float")" ValueChanged="@((string val) => SetNodeProperty("dataType", val))">
+                                    </SfDropDownList>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* MATH NODES *@
+                        @if (GetNodeBaseType(SelectedNode).StartsWith("math-"))
+                        {
+                            <div class="property-section">
+                                <h4>🧮 Math Operation</h4>
+                                <div class="property-group">
+                                    <label>Operation</label>
+                                    <span class="property-value">@GetMathOperation(SelectedNode)</span>
+                                </div>
+                                <div class="property-group">
+                                    <label>Second Operand (if no input)</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("operand", 0)" ValueChanged="@((double val) => SetNodeProperty("operand", val.ToString()))" Step="1"></SfNumericTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Result Precision</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("precision", 2)" ValueChanged="@((int val) => SetNodeProperty("precision", val.ToString()))" Min="0" Max="10"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* LOGIC/COMPARISON NODES *@
+                        @if (GetNodeBaseType(SelectedNode).StartsWith("compare-") || GetNodeBaseType(SelectedNode).StartsWith("logic-"))
+                        {
+                            <div class="property-section">
+                                <h4>⚖️ Comparison</h4>
+                                <div class="property-group">
+                                    <label>Comparison Type</label>
+                                    <span class="property-value">@GetComparisonType(SelectedNode)</span>
+                                </div>
+                                <div class="property-group">
+                                    <label>Threshold Value</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetThresholdValue()" ValueChanged="@OnThresholdChanged" Step="1"></SfNumericTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Hysteresis</label>
+                                    <SfNumericTextBox TValue="double" Value="@GetDoubleProperty("hysteresis", 0)" ValueChanged="@((double val) => SetNodeProperty("hysteresis", val.ToString()))" Min="0" Step="0.1"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* OUTPUT NODES *@
+                        @if (GetNodeBaseType(SelectedNode) == "notification")
+                        {
+                            <div class="property-section">
+                                <h4>🔔 Notification</h4>
+                                <div class="property-group">
+                                    <label>Message Template</label>
+                                    <SfTextBox Value="@GetNodeProperty("message")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Alert: {{value}} detected" Multiline="true"></SfTextBox>
                                 </div>
                                 <div class="property-group">
                                     <label>Severity</label>
                                     <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationSeverities" Value="@GetNodeProperty("severity", "Info")" ValueChanged="@((string val) => SetNodeProperty("severity", val))">
                                     </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Notification Channel</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@NotificationChannels" Value="@GetNodeProperty("channel", "App")" ValueChanged="@((string val) => SetNodeProperty("channel", val))">
+                                    </SfDropDownList>
+                                </div>
+                                <div class="property-group">
+                                    <label>Rate Limit (min between alerts)</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("rateLimit", 0)" ValueChanged="@((int val) => SetNodeProperty("rateLimit", val.ToString()))" Min="0" Max="1440"></SfNumericTextBox>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "debug-log")
+                        {
+                            <div class="property-section">
+                                <h4>📋 Debug Log</h4>
+                                <div class="property-group">
+                                    <label>Log Message Template</label>
+                                    <SfTextBox Value="@GetNodeProperty("message", "Value: {{value}}")" ValueChanged="@((string val) => SetNodeProperty("message", val))" Placeholder="Value: {{value}}" Multiline="true"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Log Level</label>
+                                    <SfDropDownList TItem="string" TValue="string" DataSource="@LogLevels" Value="@GetNodeProperty("logLevel", "Info")" ValueChanged="@((string val) => SetNodeProperty("logLevel", val))">
+                                    </SfDropDownList>
+                                </div>
+                            </div>
+                        }
+                        @if (GetNodeBaseType(SelectedNode) == "database-write")
+                        {
+                            <div class="property-section">
+                                <h4>💾 Database Write</h4>
+                                <div class="property-group">
+                                    <label>Table Name</label>
+                                    <SfTextBox Value="@GetNodeProperty("tableName", "flow_data")" ValueChanged="@((string val) => SetNodeProperty("tableName", val))" Placeholder="flow_data"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Column Mapping (JSON)</label>
+                                    <SfTextBox Value="@GetNodeProperty("columnMapping", "{\"value\": \"value\", \"timestamp\": \"created_at\"}")" ValueChanged="@((string val) => SetNodeProperty("columnMapping", val))" Placeholder="{\"value\": \"value\"}" Multiline="true"></SfTextBox>
+                                </div>
+                                <div class="property-group">
+                                    <label>Batch Size</label>
+                                    <SfNumericTextBox TValue="int" Value="@GetIntProperty("batchSize", 1)" ValueChanged="@((int val) => SetNodeProperty("batchSize", val.ToString()))" Min="1" Max="1000"></SfNumericTextBox>
                                 </div>
                             </div>
                         }
@@ -309,6 +423,21 @@
         padding-bottom: 8px;
     }
     
+    .property-header {
+        margin-bottom: 16px;
+    }
+    
+    .node-type-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        background: #3c3c3c;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #4caf50;
+        letter-spacing: 0.5px;
+    }
+    
     .property-group {
         margin-bottom: 16px;
     }
@@ -323,6 +452,17 @@
     .property-value {
         font-size: 13px;
         color: #cccccc;
+        padding: 4px 8px;
+        background: #3c3c3c;
+        border-radius: 4px;
+    }
+    
+    .property-hint {
+        font-size: 11px;
+        color: #757575;
+        font-style: italic;
+        margin: 0 0 12px 0;
+        line-height: 1.4;
     }
     
     .no-selection {
@@ -339,10 +479,9 @@
     
     .property-section h4 {
         margin: 0 0 12px 0;
-        font-size: 12px;
-        color: #4caf50;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-size: 13px;
+        color: #ffffff;
+        font-weight: 600;
     }
     
     .property-actions {
@@ -1212,11 +1351,48 @@
         return string.Join(" ", parts.Take(2)).ToUpper();
     }
     
+    private string GetNodeBaseType(Node node)
+    {
+        var id = node.ID ?? "";
+        return id.Split("-instance-").FirstOrDefault() ?? "unknown";
+    }
+    
+    private string GetMathOperation(Node node)
+    {
+        var baseType = GetNodeBaseType(node);
+        return baseType switch
+        {
+            "math-add" => "Add (+)",
+            "math-subtract" => "Subtract (-)",
+            "math-multiply" => "Multiply (×)",
+            "math-divide" => "Divide (÷)",
+            _ => "Unknown"
+        };
+    }
+    
+    private string GetComparisonType(Node node)
+    {
+        var baseType = GetNodeBaseType(node);
+        return baseType switch
+        {
+            "compare-equal" => "Equal (==)",
+            "compare-greater" => "Greater Than (>)",
+            "compare-less" => "Less Than (<)",
+            "logic-if" => "If/Else Conditional",
+            _ => "Comparison"
+        };
+    }
+    
     // Node property storage for node-specific settings
     private Dictionary<string, Dictionary<string, string>> _nodeProperties = new();
+    private bool _triggerOnDeploy = true;
     
-    // Notification severity options
+    // Dropdown options for node properties
     private List<string> NotificationSeverities = new() { "Info", "Warning", "Error", "Critical" };
+    private List<string> NotificationChannels = new() { "App", "Email", "SMS", "Webhook" };
+    private List<string> LogLevels = new() { "Debug", "Info", "Warning", "Error" };
+    private List<string> DataTypes = new() { "Float", "Integer", "Boolean", "String" };
+    private List<string> TriggerModes = new() { "Any Change", "Rising Edge", "Falling Edge", "Value Match" };
     
     // Property change handlers
     private async Task OnLabelChanged(string newLabel)
@@ -1292,6 +1468,18 @@
             return value;
         }
         return defaultValue;
+    }
+    
+    private double GetDoubleProperty(string key, double defaultValue = 0)
+    {
+        var strValue = GetNodeProperty(key, defaultValue.ToString());
+        return double.TryParse(strValue, out var val) ? val : defaultValue;
+    }
+    
+    private int GetIntProperty(string key, int defaultValue = 0)
+    {
+        var strValue = GetNodeProperty(key, defaultValue.ToString());
+        return int.TryParse(strValue, out var val) ? val : defaultValue;
     }
     
     private void SetNodeProperty(string key, string value)
