@@ -450,6 +450,7 @@
         display: flex;
         flex-direction: column;
         overflow-y: auto;
+        max-height: calc(100vh - 200px);
     }
     
     .charts-sidebar h3 {
@@ -466,19 +467,31 @@
         border-radius: 4px;
         cursor: pointer;
         transition: background 0.2s;
+        overflow: hidden;
     }
     
-    .chart-list-item:hover, .chart-list-item.selected {
+    .chart-list-item:hover {
         background: #3c3c3c;
+    }
+    
+    .chart-list-item.selected {
+        background: #404040;
+        border-left: 3px solid #4caf50;
+        padding-left: 9px;
     }
     
     .chart-info {
         display: flex;
         flex-direction: column;
+        flex: 1;
+        min-width: 0;
     }
     
     .chart-name {
         font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     
     .chart-type {
@@ -493,6 +506,7 @@
     .tag-list {
         flex: 1;
         overflow-y: auto;
+        max-height: 400px;
     }
     
     .help-text {
@@ -595,6 +609,8 @@
         height: 300px;
         border-top: 1px solid #3c3c3c;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
     }
     
     .config-tabs {
@@ -849,8 +865,6 @@
     
     private static readonly string[] SeriesColors = { "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4", "#ff5722", "#795548" };
     private int _colorIndex = 0;
-    private static readonly Random SharedRandom = new();
-    
     private void AddTagToChart(TagListItem tag)
     {
         // Check if tag is already added
@@ -880,7 +894,7 @@
             Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
             {
                 Timestamp = now.AddMinutes(-50 + i),
-                Value = 50 + SharedRandom.NextDouble() * 30
+                Value = 50 + Random.Shared.NextDouble() * 30 // Thread-safe Random for Blazor Server
             }).ToList()
         };
         
