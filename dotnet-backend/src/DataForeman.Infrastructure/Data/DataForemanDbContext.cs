@@ -125,6 +125,12 @@ public class DataForemanDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ResourceChartId)
                   .OnDelete(DeleteBehavior.SetNull);
+            // Template flow relationship
+            entity.HasOne(e => e.TemplateFlow)
+                  .WithMany(f => f.InstantiatedFlows)
+                  .HasForeignKey(e => e.TemplateFlowId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.IsTemplate);
         });
 
         // FlowFolder configuration
@@ -954,6 +960,72 @@ public class DataForemanDbContext : DbContext
                 ExecutionMode = "continuous",
                 ScanRateMs = 1000,
                 Definition = @"{""nodes"":[{""id"":""n1"",""type"":""tag-input"",""label"":""Tag 1"",""position"":{""x"":100,""y"":100},""config"":{""tagId"":1}},{""id"":""n2"",""type"":""tag-input"",""label"":""Tag 2"",""position"":{""x"":100,""y"":200},""config"":{""tagId"":2}},{""id"":""n3"",""type"":""math"",""label"":""Add"",""position"":{""x"":350,""y"":150},""config"":{""operation"":""add""}}],""edges"":[{""id"":""e1"",""source"":""n1"",""target"":""n3""},{""id"":""e2"",""source"":""n2"",""target"":""n3""}]}",
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
+        
+        // Seed Template Flow - Reusable Threshold Monitor
+        var templateFlowId = Guid.Parse("10000000-0000-0000-0000-000000000004");
+        var templateFlowDefinition = @"{
+            ""nodes"": [
+                {
+                    ""id"": ""input_value"",
+                    ""type"": ""tag-input"",
+                    ""label"": ""Value Input"",
+                    ""position"": { ""x"": 100, ""y"": 150 },
+                    ""config"": { ""tagId"": 1, ""maxDataAge"": -1 }
+                },
+                {
+                    ""id"": ""high_check"",
+                    ""type"": ""compare"",
+                    ""label"": ""Check High"",
+                    ""position"": { ""x"": 350, ""y"": 100 },
+                    ""config"": { ""operation"": "">"", ""threshold"": 75.0 }
+                },
+                {
+                    ""id"": ""low_check"",
+                    ""type"": ""compare"",
+                    ""label"": ""Check Low"",
+                    ""position"": { ""x"": 350, ""y"": 200 },
+                    ""config"": { ""operation"": ""<"", ""threshold"": 30.0 }
+                },
+                {
+                    ""id"": ""alert_logic"",
+                    ""type"": ""csharp"",
+                    ""label"": ""Alert Logic"",
+                    ""position"": { ""x"": 600, ""y"": 150 },
+                    ""config"": {
+                        ""code"": ""var high = input.GetBool(\""highAlert\"") ?? false; var low = input.GetBool(\""lowAlert\"") ?? false; var value = input.GetDouble(\""value\"") ?? 0.0; var highThreshold = flow.parameters.GetValueOrDefault(\""highThreshold\"", 75.0); var lowThreshold = flow.parameters.GetValueOrDefault(\""lowThreshold\"", 30.0); if (high) { return new { alert = true, level = \""high\"", message = $\""Value {value:F1} exceeds high threshold {highThreshold}\"", value = value }; } else if (low) { return new { alert = true, level = \""low\"", message = $\""Value {value:F1} below low threshold {lowThreshold}\"", value = value }; } return new { alert = false, level = \""normal\"", message = \""Value within range\"", value = value };""
+                    }
+                }
+            ],
+            ""edges"": [
+                { ""id"": ""e1"", ""source"": ""input_value"", ""target"": ""high_check"", ""targetHandle"": ""value"" },
+                { ""id"": ""e2"", ""source"": ""input_value"", ""target"": ""low_check"", ""targetHandle"": ""value"" },
+                { ""id"": ""e3"", ""source"": ""high_check"", ""target"": ""alert_logic"", ""targetHandle"": ""highAlert"" },
+                { ""id"": ""e4"", ""source"": ""low_check"", ""target"": ""alert_logic"", ""targetHandle"": ""lowAlert"" },
+                { ""id"": ""e5"", ""source"": ""input_value"", ""target"": ""alert_logic"", ""targetHandle"": ""value"" }
+            ]
+        }";
+        
+        modelBuilder.Entity<Flow>().HasData(
+            new Flow 
+            { 
+                Id = templateFlowId, 
+                Name = "Threshold Monitor Template", 
+                Description = "Reusable template for monitoring a value against high and low thresholds with configurable limits",
+                OwnerUserId = adminUserId,
+                Deployed = false,
+                Shared = true,
+                TestMode = false,
+                IsTemplate = true,
+                TemplateInputs = @"[""value""]",
+                TemplateOutputs = @"[""alert"", ""level"", ""message"", ""value""]",
+                ExposedParameters = @"[{""name"":""highThreshold"",""type"":""double"",""default"":75.0,""description"":""High threshold limit""},{""name"":""lowThreshold"",""type"":""double"",""default"":30.0,""description"":""Low threshold limit""}]",
+                ExecutionMode = "continuous",
+                ScanRateMs = 2000,
+                Definition = templateFlowDefinition,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
                 UpdatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }

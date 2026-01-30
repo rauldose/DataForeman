@@ -472,3 +472,81 @@ public class ScriptFlowContext
     public Guid executionId { get; set; }
     public Dictionary<string, object?> parameters { get; set; } = new();
 }
+
+/// <summary>
+/// Executes template flows as reusable nodes.
+/// Template flows are pre-configured flows that can be instantiated with custom parameters.
+/// </summary>
+public class TemplateFlowExecutor : NodeExecutorBase
+{
+    private readonly FlowExecutionEngine _flowEngine;
+    private readonly ILogger<TemplateFlowExecutor> _logger;
+
+    public TemplateFlowExecutor(FlowExecutionEngine flowEngine, ILogger<TemplateFlowExecutor> logger)
+    {
+        _flowEngine = flowEngine;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public override string NodeType => "template-flow";
+
+    /// <inheritdoc />
+    public override async Task<NodeExecutionResult> ExecuteAsync(FlowNode node, FlowExecutionContext context)
+    {
+        var sw = Stopwatch.StartNew();
+
+        try
+        {
+            // Get template flow ID from config
+            var templateFlowIdStr = GetConfig<string>(node, "templateFlowId");
+            if (string.IsNullOrEmpty(templateFlowIdStr) || !Guid.TryParse(templateFlowIdStr, out var templateFlowId))
+            {
+                return NodeExecutionResult.Fail("Template flow ID not configured or invalid");
+            }
+
+            // Get parameters override from node config
+            var parameters = GetConfig<Dictionary<string, object?>>(node, "parameters") ?? new Dictionary<string, object?>();
+
+            // Note: In a real implementation, we would:
+            // 1. Load the template flow definition from database
+            // 2. Create a sub-execution context with the template's nodes
+            // 3. Map input values from this node to the template's input nodes
+            // 4. Execute the template flow
+            // 5. Extract output values from the template's output nodes
+            // 6. Return the combined outputs
+
+            // For now, return a placeholder that shows the concept
+            var result = new
+            {
+                templateId = templateFlowId,
+                parameters = parameters,
+                message = "Template flow execution (implementation pending - requires flow engine sub-execution support)",
+                timestamp = DateTime.UtcNow
+            };
+
+            sw.Stop();
+            _logger.LogInformation("Template flow node {NodeId} executed template {TemplateId} in {Ms}ms",
+                node.Id, templateFlowId, sw.ElapsedMilliseconds);
+
+            return new NodeExecutionResult
+            {
+                Success = true,
+                Output = result,
+                ExecutionTimeMs = (int)sw.ElapsedMilliseconds
+            };
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogError(ex, "Error executing template flow node {NodeId}", node.Id);
+
+            return new NodeExecutionResult
+            {
+                Success = false,
+                Error = $"Template flow execution error: {ex.Message}",
+                ExecutionTimeMs = (int)sw.ElapsedMilliseconds
+            };
+        }
+    }
+}

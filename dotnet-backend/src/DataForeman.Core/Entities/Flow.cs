@@ -23,6 +23,10 @@ public class Flow
     public Guid? ResourceChartId { get; set; }
     public string Definition { get; set; } = "{}"; // JSON for flow definition (nodes, edges)
     public string StaticData { get; set; } = "{}"; // JSON for static data
+    public bool IsTemplate { get; set; } = false; // Mark flow as reusable template
+    public Guid? TemplateFlowId { get; set; } // Reference to template if instantiated from one
+    public string TemplateInputs { get; set; } = "[]"; // JSON array of input parameter names
+    public string TemplateOutputs { get; set; } = "[]"; // JSON array of output parameter names
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
@@ -30,8 +34,10 @@ public class Flow
     public virtual User? Owner { get; set; }
     public virtual FlowFolder? Folder { get; set; }
     public virtual ChartConfig? ResourceChart { get; set; }
+    public virtual Flow? TemplateFlow { get; set; } // Reference to the template flow
     public virtual ICollection<FlowExecution> Executions { get; set; } = new List<FlowExecution>();
     public virtual ICollection<FlowSession> Sessions { get; set; } = new List<FlowSession>();
+    public virtual ICollection<Flow> InstantiatedFlows { get; set; } = new List<Flow>(); // Flows created from this template
 }
 
 public class FlowFolder
