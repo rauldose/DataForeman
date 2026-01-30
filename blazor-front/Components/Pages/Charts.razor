@@ -2,6 +2,9 @@
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
 @using Syncfusion.Blazor.Calendars
+@using Syncfusion.Blazor.Inputs
+@using Syncfusion.Blazor.Buttons
+@using Syncfusion.Blazor.Navigations
 @inject DataService DataService
 
 <PageTitle>Chart Composer - DataForeman</PageTitle>
@@ -109,16 +112,38 @@
                                     <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
                                         <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
                                     </ChartPrimaryXAxis>
-                                    <ChartPrimaryYAxis>
-                                        <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
+                                    <ChartPrimaryYAxis Title="@PrimaryAxisLabel" Minimum="@(PrimaryAxisAutoScale ? null : PrimaryAxisMin)" Maximum="@(PrimaryAxisAutoScale ? null : PrimaryAxisMax)">
+                                        <ChartAxisMajorGridLines Width="@(PrimaryAxisShowGrid ? 0.5 : 0)" Color="#3c3c3c"></ChartAxisMajorGridLines>
                                     </ChartPrimaryYAxis>
-                                    <ChartTooltipSettings Enable="true"></ChartTooltipSettings>
-                                    <ChartLegendSettings Visible="true" Position="Syncfusion.Blazor.Charts.LegendPosition.Bottom"></ChartLegendSettings>
+                                    @if (EnableSecondaryAxis)
+                                    {
+                                        <ChartAxes>
+                                            <ChartAxis Name="secondary" OpposedPosition="true" Title="@SecondaryAxisLabel" Minimum="@(SecondaryAxisAutoScale ? null : SecondaryAxisMin)" Maximum="@(SecondaryAxisAutoScale ? null : SecondaryAxisMax)">
+                                                <ChartAxisMajorGridLines Width="@(SecondaryAxisShowGrid ? 0.5 : 0)" Color="#3c3c3c"></ChartAxisMajorGridLines>
+                                            </ChartAxis>
+                                        </ChartAxes>
+                                    }
+                                    <ChartTooltipSettings Enable="@ShowTooltip"></ChartTooltipSettings>
+                                    <ChartLegendSettings Visible="@ShowLegend" Position="@GetLegendPosition()"></ChartLegendSettings>
+                                    @if (EnableZoom)
+                                    {
+                                        <ChartZoomSettings EnableSelectionZooming="true" EnablePinchZooming="true" EnableMouseWheelZooming="true"></ChartZoomSettings>
+                                    }
+                                    @if (EnableCrosshair)
+                                    {
+                                        <ChartCrosshairSettings Enable="true"></ChartCrosshairSettings>
+                                    }
                                     <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries)
+                                        @foreach (var series in ChartSeries.Where(s => s.Visible))
                                         {
-                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.Line">
-                                                <ChartMarker Visible="true" Height="6" Width="6"></ChartMarker>
+                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" 
+                                                         Type="@GetChartSeriesType(series.LineType)" 
+                                                         Width="@series.LineWidth" 
+                                                         Opacity="@series.Opacity" 
+                                                         Fill="@series.Color"
+                                                         DashArray="@GetDashArray(series.DashStyle)"
+                                                         YAxisName="@series.YAxisName">
+                                                <ChartMarker Visible="@series.ShowMarkers" Height="@series.MarkerSize" Width="@series.MarkerSize"></ChartMarker>
                                             </ChartSeries>
                                         }
                                     </ChartSeriesCollection>
@@ -139,9 +164,9 @@
                                 <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
                                     <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
                                     <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries)
+                                        @foreach (var series in ChartSeries.Where(s => s.Visible))
                                         {
-                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.Name" Type="ChartSeriesType.SplineArea" Opacity="0.5">
+                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.SplineArea" Opacity="@series.Opacity" Fill="@series.Color">
                                             </ChartSeries>
                                         }
                                     </ChartSeriesCollection>
@@ -154,23 +179,208 @@
                         }
                     </div>
                     
-                    <div class="series-panel">
-                        <h4>Data Series</h4>
-                        @if (ChartSeries.Count == 0)
-                        {
-                            <p class="no-items">No series added</p>
-                        }
-                        else
-                        {
-                            @foreach (var series in ChartSeries)
-                            {
-                                <div class="series-item">
-                                    <span class="series-color" style="background: @series.Color"></span>
-                                    <span class="series-name">@series.Name</span>
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveSeries(series))"></SfButton>
-                                </div>
-                            }
-                        }
+                    <div class="configuration-panel">
+                        <SfTab CssClass="config-tabs">
+                            <TabItems>
+                                <TabItem>
+                                    <ChildContent>
+                                        <TabHeader Text="Series Configuration"></TabHeader>
+                                    </ChildContent>
+                                    <ContentTemplate>
+                                        <div class="tab-content">
+                                            @if (ChartSeries.Count == 0)
+                                            {
+                                                <p class="no-items">No series added. Click tags from the sidebar to add series.</p>
+                                            }
+                                            else
+                                            {
+                                                @foreach (var series in ChartSeries)
+                                                {
+                                                    <div class="series-config-card">
+                                                        <div class="config-header" @onclick="@(() => ToggleSeriesExpanded(series))">
+                                                            <span class="expand-icon e-icons @(series.IsExpanded ? "e-chevron-down" : "e-chevron-right")"></span>
+                                                            <span class="series-color-indicator" style="background: @series.Color"></span>
+                                                            <span class="config-series-name">@series.DisplayName</span>
+                                                            <div class="config-actions">
+                                                                <SfSwitch @bind-Checked="@series.Visible" CssClass="visibility-switch" OnLabel="ON" OffLabel="OFF"></SfSwitch>
+                                                                <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveSeries(series))"></SfButton>
+                                                            </div>
+                                                        </div>
+                                                        @if (series.IsExpanded)
+                                                        {
+                                                            <div class="config-body">
+                                                                <div class="config-section">
+                                                                    <label class="config-label">Display Name</label>
+                                                                    <SfTextBox @bind-Value="@series.DisplayName" Placeholder="Series name"></SfTextBox>
+                                                                </div>
+                                                                
+                                                                <div class="config-row">
+                                                                    <div class="config-section">
+                                                                        <label class="config-label">Color</label>
+                                                                        <SfColorPicker @bind-Value="@series.Color" Mode="ColorPickerMode.Palette" ModeSwitcher="false"></SfColorPicker>
+                                                                    </div>
+                                                                    
+                                                                    <div class="config-section">
+                                                                        <label class="config-label">Line Type</label>
+                                                                        <SfDropDownList TItem="string" TValue="string" @bind-Value="@series.LineType" DataSource="@LineTypes" Width="100%"></SfDropDownList>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div class="config-row">
+                                                                    <div class="config-section">
+                                                                        <label class="config-label">Line Width: @series.LineWidth.ToString("F1")</label>
+                                                                        <SfSlider @bind-Value="@series.LineWidth" Min="0.5" Max="5" Step="0.5" Type="SliderType.MinRange">
+                                                                            <SliderTicks Placement="Placement.After" ShowSmallTicks="false"></SliderTicks>
+                                                                        </SfSlider>
+                                                                    </div>
+                                                                    
+                                                                    <div class="config-section">
+                                                                        <label class="config-label">Opacity: @series.Opacity.ToString("P0")</label>
+                                                                        <SfSlider @bind-Value="@series.Opacity" Min="0" Max="1" Step="0.1" Type="SliderType.MinRange">
+                                                                            <SliderTicks Placement="Placement.After" ShowSmallTicks="false"></SliderTicks>
+                                                                        </SfSlider>
+                                                                    </div>
+                                                                </div>
+                                                                
+                                                                <div class="config-section">
+                                                                    <label class="config-label">Dash Style</label>
+                                                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="@series.DashStyle" DataSource="@DashStyles" Width="100%"></SfDropDownList>
+                                                                </div>
+                                                                
+                                                                <div class="config-row">
+                                                                    <div class="config-section">
+                                                                        <SfCheckBox @bind-Checked="@series.ShowMarkers" Label="Show Markers"></SfCheckBox>
+                                                                    </div>
+                                                                    
+                                                                    @if (series.ShowMarkers)
+                                                                    {
+                                                                        <div class="config-section">
+                                                                            <label class="config-label">Marker Size</label>
+                                                                            <SfNumericTextBox @bind-Value="@series.MarkerSize" Min="3" Max="12" Step="1" Width="100%"></SfNumericTextBox>
+                                                                        </div>
+                                                                    }
+                                                                </div>
+                                                                
+                                                                <div class="config-section">
+                                                                    <label class="config-label">Y-Axis Assignment</label>
+                                                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="@series.YAxisName" DataSource="@AxisOptions" Width="100%"></SfDropDownList>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </ContentTemplate>
+                                </TabItem>
+                                
+                                <TabItem>
+                                    <ChildContent>
+                                        <TabHeader Text="Axes Configuration"></TabHeader>
+                                    </ChildContent>
+                                    <ContentTemplate>
+                                        <div class="tab-content">
+                                            <div class="axis-config-card">
+                                                <h4>Primary Y-Axis (Left)</h4>
+                                                <div class="config-section">
+                                                    <label class="config-label">Axis Label</label>
+                                                    <SfTextBox @bind-Value="@PrimaryAxisLabel" Placeholder="e.g., Temperature (°C)"></SfTextBox>
+                                                </div>
+                                                
+                                                <div class="config-section">
+                                                    <SfCheckBox @bind-Checked="@PrimaryAxisAutoScale" Label="Auto Scale"></SfCheckBox>
+                                                </div>
+                                                
+                                                @if (!PrimaryAxisAutoScale)
+                                                {
+                                                    <div class="config-row">
+                                                        <div class="config-section">
+                                                            <label class="config-label">Minimum</label>
+                                                            <SfNumericTextBox @bind-Value="@PrimaryAxisMin" Placeholder="Min" Width="100%"></SfNumericTextBox>
+                                                        </div>
+                                                        <div class="config-section">
+                                                            <label class="config-label">Maximum</label>
+                                                            <SfNumericTextBox @bind-Value="@PrimaryAxisMax" Placeholder="Max" Width="100%"></SfNumericTextBox>
+                                                        </div>
+                                                    </div>
+                                                }
+                                                
+                                                <div class="config-section">
+                                                    <SfCheckBox @bind-Checked="@PrimaryAxisShowGrid" Label="Show Grid Lines"></SfCheckBox>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="axis-config-card">
+                                                <h4>Secondary Y-Axis (Right)</h4>
+                                                <div class="config-section">
+                                                    <SfCheckBox @bind-Checked="@EnableSecondaryAxis" Label="Enable Secondary Axis"></SfCheckBox>
+                                                </div>
+                                                
+                                                @if (EnableSecondaryAxis)
+                                                {
+                                                    <div class="config-section">
+                                                        <label class="config-label">Axis Label</label>
+                                                        <SfTextBox @bind-Value="@SecondaryAxisLabel" Placeholder="e.g., Pressure (kPa)"></SfTextBox>
+                                                    </div>
+                                                    
+                                                    <div class="config-section">
+                                                        <SfCheckBox @bind-Checked="@SecondaryAxisAutoScale" Label="Auto Scale"></SfCheckBox>
+                                                    </div>
+                                                    
+                                                    @if (!SecondaryAxisAutoScale)
+                                                    {
+                                                        <div class="config-row">
+                                                            <div class="config-section">
+                                                                <label class="config-label">Minimum</label>
+                                                                <SfNumericTextBox @bind-Value="@SecondaryAxisMin" Placeholder="Min" Width="100%"></SfNumericTextBox>
+                                                            </div>
+                                                            <div class="config-section">
+                                                                <label class="config-label">Maximum</label>
+                                                                <SfNumericTextBox @bind-Value="@SecondaryAxisMax" Placeholder="Max" Width="100%"></SfNumericTextBox>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                    
+                                                    <div class="config-section">
+                                                        <SfCheckBox @bind-Checked="@SecondaryAxisShowGrid" Label="Show Grid Lines"></SfCheckBox>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </ContentTemplate>
+                                </TabItem>
+                                
+                                <TabItem>
+                                    <ChildContent>
+                                        <TabHeader Text="Chart Settings"></TabHeader>
+                                    </ChildContent>
+                                    <ContentTemplate>
+                                        <div class="tab-content">
+                                            <div class="config-section">
+                                                <label class="config-label">Legend Position</label>
+                                                <SfDropDownList TItem="string" TValue="string" @bind-Value="@LegendPosition" DataSource="@LegendPositions" Width="100%"></SfDropDownList>
+                                            </div>
+                                            
+                                            <div class="config-section">
+                                                <SfCheckBox @bind-Checked="@ShowLegend" Label="Show Legend"></SfCheckBox>
+                                            </div>
+                                            
+                                            <div class="config-section">
+                                                <SfCheckBox @bind-Checked="@ShowTooltip" Label="Enable Tooltip"></SfCheckBox>
+                                            </div>
+                                            
+                                            <div class="config-section">
+                                                <SfCheckBox @bind-Checked="@EnableZoom" Label="Enable Zoom"></SfCheckBox>
+                                            </div>
+                                            
+                                            <div class="config-section">
+                                                <SfCheckBox @bind-Checked="@EnableCrosshair" Label="Enable Crosshair"></SfCheckBox>
+                                            </div>
+                                        </div>
+                                    </ContentTemplate>
+                                </TabItem>
+                            </TabItems>
+                        </SfTab>
                     </div>
                 }
                 else
@@ -378,39 +588,104 @@
     .chart-preview {
         flex: 1;
         padding: 16px;
-        min-height: 300px;
+        min-height: 400px;
     }
     
-    .series-panel {
-        padding: 12px;
+    .configuration-panel {
+        height: 300px;
         border-top: 1px solid #3c3c3c;
+        overflow: hidden;
     }
     
-    .series-panel h4 {
-        margin: 0 0 12px 0;
-        font-size: 13px;
-        color: #9d9d9d;
+    .config-tabs {
+        height: 100%;
     }
     
-    .series-item {
+    .tab-content {
+        padding: 16px;
+        height: calc(100% - 48px);
+        overflow-y: auto;
+    }
+    
+    .series-config-card, .axis-config-card {
+        background: #2d2d2d;
+        border-radius: 6px;
+        margin-bottom: 12px;
+        border: 1px solid #3c3c3c;
+    }
+    
+    .config-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .config-header:hover {
+        background: #3c3c3c;
+    }
+    
+    .expand-icon {
+        font-size: 12px;
+        transition: transform 0.2s;
+    }
+    
+    .series-color-indicator {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .config-series-name {
+        flex: 1;
+        font-weight: 500;
+        font-size: 14px;
+    }
+    
+    .config-actions {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 8px;
-        background: #2d2d2d;
-        border-radius: 4px;
-        margin-bottom: 4px;
     }
     
-    .series-color {
-        width: 12px;
-        height: 12px;
-        border-radius: 2px;
+    .visibility-switch {
+        font-size: 11px;
     }
     
-    .series-name {
-        flex: 1;
-        font-size: 13px;
+    .config-body {
+        padding: 0 16px 16px 16px;
+        border-top: 1px solid #3c3c3c;
+    }
+    
+    .config-section {
+        margin-top: 16px;
+    }
+    
+    .config-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    
+    .config-label {
+        display: block;
+        font-size: 12px;
+        color: #9d9d9d;
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+    
+    .axis-config-card {
+        padding: 16px;
+    }
+    
+    .axis-config-card h4 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        color: #e0e0e0;
     }
     
     .no-chart-selected {
@@ -432,6 +707,31 @@
     private DateTime? CustomEndDate = DateTime.Now;
     
     private List<string> ChartTypes = new() { "Line", "Bar", "Area", "Scatter" };
+    private List<string> LineTypes = new() { "Line", "Spline", "StepLine" };
+    private List<string> DashStyles = new() { "Solid", "Dash", "Dot", "DashDot", "LongDash" };
+    private List<string> AxisOptions = new() { "primary", "secondary" };
+    private List<string> LegendPositions = new() { "Top", "Bottom", "Left", "Right" };
+    
+    // Axis Configuration
+    private string PrimaryAxisLabel = "Value";
+    private bool PrimaryAxisAutoScale = true;
+    private double? PrimaryAxisMin = 0;
+    private double? PrimaryAxisMax = 100;
+    private bool PrimaryAxisShowGrid = true;
+    
+    private bool EnableSecondaryAxis = false;
+    private string SecondaryAxisLabel = "Secondary Value";
+    private bool SecondaryAxisAutoScale = true;
+    private double? SecondaryAxisMin = 0;
+    private double? SecondaryAxisMax = 100;
+    private bool SecondaryAxisShowGrid = true;
+    
+    // Chart Settings
+    private string LegendPosition = "Bottom";
+    private bool ShowLegend = true;
+    private bool ShowTooltip = true;
+    private bool EnableZoom = false;
+    private bool EnableCrosshair = false;
     
     private List<TimeRangeOption> TimeRanges = new()
     {
@@ -566,7 +866,17 @@
         var newSeries = new ChartSeriesData
         {
             Name = tag.Path.Split('.').Last(),
+            DisplayName = tag.Path.Split('.').Last(),
             Color = color,
+            LineType = "Line",
+            DashStyle = "Solid",
+            LineWidth = 2.0,
+            Opacity = 1.0,
+            ShowMarkers = true,
+            MarkerSize = 6,
+            Visible = true,
+            YAxisName = "primary",
+            IsExpanded = false,
             Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
             {
                 Timestamp = now.AddMinutes(-50 + i),
@@ -582,6 +892,45 @@
     {
         ChartSeries.Remove(series);
         StateHasChanged();
+    }
+    
+    private void ToggleSeriesExpanded(ChartSeriesData series)
+    {
+        series.IsExpanded = !series.IsExpanded;
+        StateHasChanged();
+    }
+    
+    private ChartSeriesType GetChartSeriesType(string lineType)
+    {
+        return lineType switch
+        {
+            "Spline" => ChartSeriesType.Spline,
+            "StepLine" => ChartSeriesType.StepLine,
+            _ => ChartSeriesType.Line
+        };
+    }
+    
+    private string GetDashArray(string dashStyle)
+    {
+        return dashStyle switch
+        {
+            "Dash" => "5,5",
+            "Dot" => "2,2",
+            "DashDot" => "5,2,2,2",
+            "LongDash" => "10,5",
+            _ => "" // Solid
+        };
+    }
+    
+    private Syncfusion.Blazor.Charts.LegendPosition GetLegendPosition()
+    {
+        return LegendPosition switch
+        {
+            "Top" => Syncfusion.Blazor.Charts.LegendPosition.Top,
+            "Left" => Syncfusion.Blazor.Charts.LegendPosition.Left,
+            "Right" => Syncfusion.Blazor.Charts.LegendPosition.Right,
+            _ => Syncfusion.Blazor.Charts.LegendPosition.Bottom
+        };
     }
     
     record TimeRangeOption(string Label, string Value);
@@ -602,7 +951,17 @@
     class ChartSeriesData
     {
         public string Name { get; set; } = "";
+        public string DisplayName { get; set; } = "";
         public string Color { get; set; } = "#4caf50";
+        public string LineType { get; set; } = "Line";
+        public string DashStyle { get; set; } = "Solid";
+        public double LineWidth { get; set; } = 2.0;
+        public double Opacity { get; set; } = 1.0;
+        public bool ShowMarkers { get; set; } = true;
+        public int MarkerSize { get; set; } = 6;
+        public bool Visible { get; set; } = true;
+        public string YAxisName { get; set; } = "primary";
+        public bool IsExpanded { get; set; } = false;
         public List<TimeSeriesPoint> Data { get; set; } = new();
     }
     
