@@ -335,15 +335,29 @@ public class CSharpScriptExecutor : NodeExecutorBase
         try
         {
             // Create globals object with access to input, tags, and flow context
+            var inputsObj = new ScriptInputs();
+            if (node.Config != null)
+            {
+                foreach (var kvp in node.Config)
+                {
+                    if (kvp.Key.StartsWith("input_"))
+                    {
+                        var inputName = kvp.Key.Substring(6); // Remove "input_" prefix
+                        var value = GetInput(node, context, inputName);
+                        inputsObj.Set(inputName, value);
+                    }
+                }
+            }
+
             var globals = new ScriptGlobals
             {
-                input = CreateInputObject(node, context),
+                input = inputsObj,
                 tags = context.Parameters ?? new Dictionary<string, object?>(),
-                flow = new
+                flow = new ScriptFlowContext
                 {
                     id = context.FlowId,
                     executionId = context.ExecutionId,
-                    parameters = context.Parameters
+                    parameters = context.Parameters ?? new Dictionary<string, object?>()
                 }
             };
 
@@ -369,31 +383,6 @@ public class CSharpScriptExecutor : NodeExecutorBase
             return NodeExecutionResult.Fail($"C# script execution error: {ex.Message}");
         }
     }
-
-    /// <summary>
-    /// Create a dynamic input object from connected nodes.
-    /// </summary>
-    private dynamic CreateInputObject(FlowNode node, FlowExecutionContext context)
-    {
-        var inputDict = new Dictionary<string, object?>();
-        
-        // Collect all inputs from connected nodes
-        if (node.Config != null)
-        {
-            foreach (var kvp in node.Config)
-            {
-                if (kvp.Key.StartsWith("input_"))
-                {
-                    var inputName = kvp.Key.Substring(6); // Remove "input_" prefix
-                    var value = GetInput(node, context, inputName);
-                    inputDict[inputName] = value;
-                }
-            }
-        }
-        
-        // Convert to expandoobject for dynamic access
-        return new System.Dynamic.ExpandoObject();
-    }
 }
 
 /// <summary>
@@ -404,7 +393,7 @@ public class ScriptGlobals
     /// <summary>
     /// Input values from connected nodes.
     /// </summary>
-    public dynamic input { get; set; } = new System.Dynamic.ExpandoObject();
+    public ScriptInputs input { get; set; } = new();
 
     /// <summary>
     /// Access to tag values and parameters.
@@ -414,5 +403,72 @@ public class ScriptGlobals
     /// <summary>
     /// Flow execution context information.
     /// </summary>
-    public dynamic flow { get; set; } = new { };
+    public ScriptFlowContext flow { get; set; } = new();
+}
+
+/// <summary>
+/// Input wrapper that allows property-style access to values.
+/// </summary>
+public class ScriptInputs
+{
+    private readonly Dictionary<string, object?> _values = new();
+
+    public void Set(string key, object? value)
+    {
+        _values[key] = value;
+    }
+
+    public object? Get(string key)
+    {
+        return _values.TryGetValue(key, out var value) ? value : null;
+    }
+
+    public T? GetValue<T>(string key)
+    {
+        return _values.TryGetValue(key, out var value) && value is T typedValue ? typedValue : default;
+    }
+
+    public double GetDouble(string key, double defaultValue = 0)
+    {
+        if (_values.TryGetValue(key, out var value))
+        {
+            return Convert.ToDouble(value ?? defaultValue);
+        }
+        return defaultValue;
+    }
+
+    public bool GetBool(string key, bool defaultValue = false)
+    {
+        if (_values.TryGetValue(key, out var value))
+        {
+            return Convert.ToBoolean(value ?? defaultValue);
+        }
+        return defaultValue;
+    }
+
+    public string GetString(string key, string defaultValue = "")
+    {
+        if (_values.TryGetValue(key, out var value))
+        {
+            return value?.ToString() ?? defaultValue;
+        }
+        return defaultValue;
+    }
+
+    // Allow dictionary-style access
+    public object? this[string key]
+    {
+        get => Get(key);
+        set => Set(key, value);
+    }
+}
+
+/// <summary>
+/// Flow context information.
+/// </summary>
+public class ScriptFlowContext
+{
+    public Guid id { get; set; }
+    public Guid executionId { get; set; }
+    public Dictionary<string, object?> parameters { get; set; } = new();
 }
