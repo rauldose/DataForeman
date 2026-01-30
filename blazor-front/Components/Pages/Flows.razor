@@ -865,9 +865,31 @@
                 {
                     foreach (var nodeDef in nodesElement.EnumerateArray())
                     {
-                        var id = nodeDef.GetProperty("id").GetString() ?? "";
-                        var x = nodeDef.GetProperty("x").GetDouble();
-                        var y = nodeDef.GetProperty("y").GetDouble();
+                        // Safe ID extraction
+                        var id = nodeDef.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        
+                        // Try direct x/y first, then fall back to position object
+                        double x = 0, y = 0;
+                        if (nodeDef.TryGetProperty("x", out var xProp))
+                        {
+                            x = xProp.GetDouble();
+                        }
+                        else if (nodeDef.TryGetProperty("position", out var posProp))
+                        {
+                            if (posProp.TryGetProperty("x", out var posX))
+                                x = posX.GetDouble();
+                        }
+                        
+                        if (nodeDef.TryGetProperty("y", out var yProp))
+                        {
+                            y = yProp.GetDouble();
+                        }
+                        else if (nodeDef.TryGetProperty("position", out var posPropy))
+                        {
+                            if (posPropy.TryGetProperty("y", out var posY))
+                                y = posY.GetDouble();
+                        }
+                        
                         var label = nodeDef.TryGetProperty("label", out var labelProp) ? labelProp.GetString() : id;
                         var nodeType = nodeDef.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : "";
                         
@@ -883,15 +905,32 @@
                 }
                 
                 // Load connectors - add to pending list to avoid 0,0 positioning
-                if (root.TryGetProperty("connectors", out var connectorsElement))
+                // Try both "connectors" and "edges" names
+                System.Text.Json.JsonElement connectorsElement;
+                bool hasConnectors = root.TryGetProperty("connectors", out connectorsElement);
+                if (!hasConnectors)
+                {
+                    hasConnectors = root.TryGetProperty("edges", out connectorsElement);
+                }
+                
+                if (hasConnectors)
                 {
                     foreach (var connDef in connectorsElement.EnumerateArray())
                     {
-                        var id = connDef.GetProperty("id").GetString() ?? "";
-                        var sourceId = connDef.GetProperty("sourceId").GetString() ?? "";
-                        var sourcePort = connDef.TryGetProperty("sourcePort", out var srcPort) ? srcPort.GetString() : null;
-                        var targetId = connDef.GetProperty("targetId").GetString() ?? "";
-                        var targetPort = connDef.TryGetProperty("targetPort", out var tgtPort) ? tgtPort.GetString() : null;
+                        // Safe property extraction with fallbacks for different naming conventions
+                        var id = connDef.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        
+                        var sourceId = connDef.TryGetProperty("sourceId", out var srcId) ? srcId.GetString() ?? "" :
+                                      connDef.TryGetProperty("source", out var src) ? src.GetString() ?? "" : "";
+                        
+                        var targetId = connDef.TryGetProperty("targetId", out var tgtId) ? tgtId.GetString() ?? "" :
+                                      connDef.TryGetProperty("target", out var tgt) ? tgt.GetString() ?? "" : "";
+                        
+                        var sourcePort = connDef.TryGetProperty("sourcePort", out var srcPort) ? srcPort.GetString() : 
+                                        connDef.TryGetProperty("sourceHandle", out var srcHandle) ? srcHandle.GetString() : null;
+                        
+                        var targetPort = connDef.TryGetProperty("targetPort", out var tgtPort) ? tgtPort.GetString() :
+                                        connDef.TryGetProperty("targetHandle", out var tgtHandle) ? tgtHandle.GetString() : null;
                         
                         var connector = CreateFlowConnector(id, sourceId, sourcePort, targetId, targetPort);
                         _pendingConnectors.Add(connector);
@@ -901,9 +940,21 @@
                 // Reset the connectors added flag so OnAfterRenderAsync will add the pending connectors
                 _connectorsAdded = false;
             }
+            catch (System.Text.Json.JsonException ex)
+            {
+                Console.WriteLine($"JSON parsing error in flow definition: {ex.Message}");
+                // Fall back to hardcoded sample for demo purposes
+                LoadSampleFlowDefinition(flow);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                Console.WriteLine($"Missing required property in flow definition: {ex.Message}");
+                LoadSampleFlowDefinition(flow);
+            }
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to load flow definition: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 // Fall back to hardcoded sample for demo purposes
                 LoadSampleFlowDefinition(flow);
             }
