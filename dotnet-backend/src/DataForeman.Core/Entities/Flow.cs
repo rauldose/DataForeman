@@ -27,6 +27,8 @@ public class Flow
     public Guid? TemplateFlowId { get; set; } // Reference to template if instantiated from one
     public string TemplateInputs { get; set; } = "[]"; // JSON array of input parameter names
     public string TemplateOutputs { get; set; } = "[]"; // JSON array of output parameter names
+    public string? DeployedDefinition { get; set; } // JSON snapshot of definition when deployed
+    public DateTime? DeployedAt { get; set; } // Timestamp when last deployed
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -57,7 +57,13 @@ public class FlowsController : ControllerBase
                 f.CreatedAt,
                 f.UpdatedAt,
                 IsOwner = f.OwnerUserId == userId,
-                f.FolderId
+                f.FolderId,
+                f.IsTemplate,
+                f.TemplateFlowId,
+                DeploymentStatus = !f.Deployed ? "not-deployed" :
+                    (f.DeployedDefinition == null ? "up-to-date" :
+                    (f.DeployedDefinition != f.Definition ? "modified" : "up-to-date")),
+                HasChanges = f.Deployed && f.DeployedDefinition != null && f.DeployedDefinition != f.Definition
             })
             .ToListAsync();
 
@@ -161,6 +167,10 @@ public class FlowsController : ControllerBase
 
         if (request.Deploy)
         {
+            // Store snapshot of definition when deploying
+            flow.DeployedDefinition = flow.Definition;
+            flow.DeployedAt = DateTime.UtcNow;
+            
             // Create a new session when deploying
             var session = new FlowSession
             {
@@ -264,7 +274,8 @@ public class FlowsController : ControllerBase
                 f.TemplateOutputs,
                 f.CreatedAt,
                 f.UpdatedAt,
-                IsOwner = f.OwnerUserId == userId
+                IsOwner = f.OwnerUserId == userId,
+                UsedByCount = _context.Flows.Count(flow => flow.TemplateFlowId == f.Id)
             })
             .ToListAsync();
 
@@ -329,6 +340,163 @@ public class FlowsController : ControllerBase
         _logger.LogInformation("Flow {Id} created from template {TemplateId} by user {UserId}", flow.Id, template.Id, userId);
 
         return Ok(new { id = flow.Id, templateId = template.Id });
+    }
+
+    [HttpGet("templates/{id}/usage")]
+    public async Task<IActionResult> GetTemplateUsage(Guid id)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var template = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && f.IsTemplate && (f.OwnerUserId == userId || f.Shared));
+
+        if (template == null)
+        {
+            return NotFound(new { error = "template_not_found" });
+        }
+
+        var usedByFlows = await _context.Flows
+            .Where(f => f.TemplateFlowId == id)
+            .Include(f => f.Owner)
+            .OrderByDescending(f => f.UpdatedAt)
+            .Select(f => new
+            {
+                f.Id,
+                f.Name,
+                f.Description,
+                Owner = f.Owner != null ? f.Owner.Email : "Unknown",
+                f.Deployed,
+                DeploymentStatus = f.Deployed
+                    ? (f.DeployedDefinition != null && f.DeployedDefinition != f.Definition ? "modified" : "up-to-date")
+                    : "not-deployed",
+                HasChanges = f.Deployed && f.DeployedDefinition != null && f.DeployedDefinition != f.Definition,
+                f.DeployedAt,
+                f.UpdatedAt,
+                f.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            template = new { id = template.Id, name = template.Name },
+            usedBy = usedByFlows,
+            count = usedByFlows.Count
+        });
+    }
+
+    [HttpPut("templates/{id}")]
+    public async Task<IActionResult> UpdateTemplate(Guid id, [FromBody] UpdateTemplateRequest request)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var template = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && f.IsTemplate && f.OwnerUserId == userId);
+
+        if (template == null)
+        {
+            return NotFound(new { error = "template_not_found" });
+        }
+
+        if (request.Name != null) template.Name = request.Name;
+        if (request.Description != null) template.Description = request.Description;
+        if (request.Definition != null) template.Definition = request.Definition;
+        if (request.TemplateInputs != null) template.TemplateInputs = request.TemplateInputs;
+        if (request.TemplateOutputs != null) template.TemplateOutputs = request.TemplateOutputs;
+        if (request.ExposedParameters != null) template.ExposedParameters = request.ExposedParameters;
+        if (request.Shared.HasValue) template.Shared = request.Shared.Value;
+
+        template.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Template {Id} updated by user {UserId}", id, userId);
+
+        return Ok(new { ok = true });
+    }
+
+    [HttpGet("{id}/deployment-status")]
+    public async Task<IActionResult> GetDeploymentStatus(Guid id)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var flow = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && (f.OwnerUserId == userId || f.Shared));
+
+        if (flow == null)
+        {
+            return NotFound(new { error = "flow_not_found" });
+        }
+
+        string deploymentStatus;
+        bool hasChanges = false;
+        int changeCount = 0;
+
+        if (!flow.Deployed)
+        {
+            deploymentStatus = "not-deployed";
+        }
+        else if (flow.DeployedDefinition == null)
+        {
+            deploymentStatus = "up-to-date"; // Backward compatibility
+        }
+        else if (flow.DeployedDefinition != flow.Definition)
+        {
+            deploymentStatus = "modified";
+            hasChanges = true;
+            // Simple change detection: compare string lengths as proxy
+            changeCount = Math.Abs(flow.Definition.Length - flow.DeployedDefinition.Length);
+        }
+        else
+        {
+            deploymentStatus = "up-to-date";
+        }
+
+        return Ok(new
+        {
+            flowId = flow.Id,
+            name = flow.Name,
+            deployed = flow.Deployed,
+            deploymentStatus,
+            hasChanges,
+            deployedAt = flow.DeployedAt,
+            lastModified = flow.UpdatedAt,
+            changeCount,
+            isTemplate = flow.IsTemplate,
+            templateFlowId = flow.TemplateFlowId
+        });
+    }
+
+    [HttpGet("{id}/deployment-diff")]
+    public async Task<IActionResult> GetDeploymentDiff(Guid id)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var flow = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && (f.OwnerUserId == userId || f.Shared));
+
+        if (flow == null)
+        {
+            return NotFound(new { error = "flow_not_found" });
+        }
+
+        if (!flow.Deployed || flow.DeployedDefinition == null)
+        {
+            return Ok(new
+            {
+                hasDiff = false,
+                message = flow.Deployed ? "No deployed definition snapshot available" : "Flow is not deployed"
+            });
+        }
+
+        var hasDiff = flow.DeployedDefinition != flow.Definition;
+
+        return Ok(new
+        {
+            hasDiff,
+            deployedDefinition = flow.DeployedDefinition,
+            currentDefinition = flow.Definition,
+            deployedAt = flow.DeployedAt,
+            lastModified = flow.UpdatedAt
+        });
     }
 
     [HttpGet("node-types")]
@@ -460,6 +628,16 @@ public record CreateFromTemplateRequest(
     string? Description,
     string? Parameters,
     Guid? FolderId
+);
+
+public record UpdateTemplateRequest(
+    string? Name,
+    string? Description,
+    string? Definition,
+    string? TemplateInputs,
+    string? TemplateOutputs,
+    string? ExposedParameters,
+    bool? Shared
 );
 
 public class NodeTypeInfo
