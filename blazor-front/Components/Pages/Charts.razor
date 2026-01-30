@@ -86,7 +86,12 @@
                         <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" @bind-Value="SelectedTimeRange" Placeholder="Time Range">
                             <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                         </SfDropDownList>
-                        <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh"></SfButton>
+                        @if (SelectedTimeRange == "custom")
+                        {
+                            <SfDateTimePicker TValue="DateTime?" @bind-value="CustomStartDate" Placeholder="Start Date" CssClass="custom-date-picker"></SfDateTimePicker>
+                            <SfDateTimePicker TValue="DateTime?" @bind-value="CustomEndDate" Placeholder="End Date" CssClass="custom-date-picker"></SfDateTimePicker>
+                        }
+                        <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh" OnClick="@RefreshChartData"></SfButton>
                         <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
                     </div>
                     
@@ -354,6 +359,10 @@
         width: 200px;
     }
     
+    .custom-date-picker {
+        width: 180px;
+    }
+    
     .toolbar-spacer {
         flex: 1;
     }
@@ -411,6 +420,8 @@
     private ChartListItem? SelectedChart;
     private string TagSearchQuery = "";
     private string SelectedTimeRange = "1h";
+    private DateTime? CustomStartDate;
+    private DateTime? CustomEndDate;
     
     private List<string> ChartTypes = new() { "Line", "Bar", "Area", "Scatter" };
     
@@ -562,6 +573,33 @@
     private void RemoveSeries(ChartSeriesData series)
     {
         ChartSeries.Remove(series);
+        StateHasChanged();
+    }
+    
+    private async Task RefreshChartData()
+    {
+        // Refresh chart data based on selected time range
+        if (SelectedChart == null || ChartSeries.Count == 0)
+            return;
+            
+        // If custom range is selected, validate dates
+        if (SelectedTimeRange == "custom")
+        {
+            if (!CustomStartDate.HasValue || !CustomEndDate.HasValue)
+            {
+                Console.WriteLine("Please select both start and end dates");
+                return;
+            }
+            
+            if (CustomStartDate.Value >= CustomEndDate.Value)
+            {
+                Console.WriteLine("Start date must be before end date");
+                return;
+            }
+        }
+        
+        // TODO: Reload chart data with new time range
+        Console.WriteLine($"Refreshing chart data for time range: {SelectedTimeRange}");
         StateHasChanged();
     }
     
