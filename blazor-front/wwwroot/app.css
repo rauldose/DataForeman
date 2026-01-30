@@ -579,100 +579,100 @@ html, body {
 
 /* Tab Component */
 .e-tab .e-tab-header {
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 }
 
 .e-tab .e-tab-header .e-toolbar-items {
-    background: transparent;
+    background: transparent !important;
 }
 
 .e-tab .e-tab-header .e-toolbar-item {
-    background: transparent;
+    background: transparent !important;
 }
 
 .e-tab .e-content {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
-    border-top: none;
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-top: none !important;
 }
 
 /* Dialog */
 .e-dialog .e-dlg-content {
-    background: var(--bg-panel);
-    color: var(--text-primary);
-    font-size: 11px;
-    padding: 12px;
+    background: var(--bg-panel) !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+    padding: 12px !important;
 }
 
 .e-dialog .e-footer-content {
-    background: var(--bg-surface);
-    border-top: 1px solid var(--border-subtle);
-    padding: 8px 12px;
+    background: var(--bg-surface) !important;
+    border-top: 1px solid var(--border-subtle) !important;
+    padding: 8px 12px !important;
 }
 
 /* ListView */
 .e-listview {
-    background: var(--bg-dark);
-    border: 1px solid var(--border-subtle);
-    border-radius: 3px;
+    background: var(--bg-dark) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 3px !important;
 }
 
 .e-listview .e-list-item {
-    background: transparent;
-    color: var(--text-primary);
-    font-size: 11px;
-    border-bottom: 1px solid var(--border-subtle);
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    font-size: 11px !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 }
 
 .e-listview .e-list-item:hover {
-    background: var(--bg-hover);
+    background: var(--bg-hover) !important;
 }
 
 .e-listview .e-list-item.e-active {
-    background: var(--bg-surface);
-    color: var(--accent-primary);
+    background: var(--bg-surface) !important;
+    color: var(--accent-primary) !important;
 }
 
 /* Symbol Palette (Flow Editor) */
 .e-symbolpalette {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-subtle);
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-subtle) !important;
 }
 
 .e-symbolpalette .e-palette-header {
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 600;
-    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-surface) !important;
+    color: var(--text-secondary) !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
 }
 
 .e-symbolpalette .e-symbol {
-    background: var(--bg-dark);
-    border: 1px solid var(--border-subtle);
+    background: var(--bg-dark) !important;
+    border: 1px solid var(--border-subtle) !important;
 }
 
 .e-symbolpalette .e-symbol:hover {
-    border-color: var(--accent-primary);
+    border-color: var(--accent-primary) !important;
 }
 
 /* Diagram Canvas */
 .e-diagram {
-    background: var(--bg-dark);
+    background: var(--bg-dark) !important;
 }
 
 .e-diagram .e-diagram-canvas {
-    background: var(--bg-dark);
+    background: var(--bg-dark) !important;
 }
 
 /* Chart - Ensure consistent dark theme */
 .e-chart {
-    background: transparent;
+    background: transparent !important;
 }
 
 .e-chart .e-chart-border {
-    stroke: var(--border-subtle);
+    stroke: var(--border-subtle) !important;
 }
 
 /* Pager */
@@ -748,12 +748,12 @@ html, body {
 
 /* DatePicker */
 .e-datepicker.e-input-group {
-    background: var(--bg-input);
+    background: var(--bg-input) !important;
 }
 
 .e-datepicker.e-popup-wrapper {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-medium);
+    background: var(--bg-panel) !important;
+    border: 1px solid var(--border-medium) !important;
 }
 
 /* Page-specific common classes */
