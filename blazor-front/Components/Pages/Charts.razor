@@ -1,6 +1,7 @@
 @page "/charts"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
+@using Syncfusion.Blazor.Calendars
 @inject DataService DataService
 
 <PageTitle>Chart Composer - DataForeman</PageTitle>
@@ -86,6 +87,12 @@
                         <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" @bind-Value="SelectedTimeRange" Placeholder="Time Range">
                             <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                         </SfDropDownList>
+                        @if (SelectedTimeRange == "custom")
+                        {
+                            <SfDateTimePicker @bind-Value="@CustomStartDate" Placeholder="Start Date" Format="yyyy-MM-dd HH:mm" CssClass="custom-date-picker"></SfDateTimePicker>
+                            <span class="date-separator">to</span>
+                            <SfDateTimePicker @bind-Value="@CustomEndDate" Placeholder="End Date" Format="yyyy-MM-dd HH:mm" CssClass="custom-date-picker"></SfDateTimePicker>
+                        }
                         <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh"></SfButton>
                         <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
                     </div>
@@ -358,6 +365,16 @@
         flex: 1;
     }
     
+    .custom-date-picker {
+        width: 180px;
+    }
+    
+    .date-separator {
+        padding: 0 8px;
+        color: #9d9d9d;
+        font-size: 13px;
+    }
+    
     .chart-preview {
         flex: 1;
         padding: 16px;
@@ -411,6 +428,8 @@
     private ChartListItem? SelectedChart;
     private string TagSearchQuery = "";
     private string SelectedTimeRange = "1h";
+    private DateTime? CustomStartDate = DateTime.Now.AddDays(-7);
+    private DateTime? CustomEndDate = DateTime.Now;
     
     private List<string> ChartTypes = new() { "Line", "Bar", "Area", "Scatter" };
     
