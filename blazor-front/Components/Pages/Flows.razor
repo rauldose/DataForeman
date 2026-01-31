@@ -2,8 +2,10 @@
 @page "/flows/{FlowId:guid}"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
+@using Microsoft.JSInterop
 @inject DataService DataService
 @inject NodePluginRegistry NodeRegistry
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Flow Studio - DataForeman</PageTitle>
 
@@ -712,8 +714,17 @@
         
         try
         {
-            // Add node at a default position (center of diagram)
-            await AddNodeFromPalette(_draggingPlugin);
+            // Get the diagram container element's position
+            var diagramRect = await JSRuntime.InvokeAsync<Dictionary<string, double>>(
+                "eval", 
+                "(() => { const rect = document.getElementById('diagram-space').getBoundingClientRect(); return { left: rect.left, top: rect.top }; })()");
+            
+            // Transform client coordinates to diagram coordinates
+            double diagramX = e.ClientX - diagramRect["left"];
+            double diagramY = e.ClientY - diagramRect["top"];
+            
+            // Add node at the drop position
+            await AddNodeFromPalette(_draggingPlugin, diagramX, diagramY);
         }
         finally
         {
@@ -722,13 +733,13 @@
     }
     
     // Add node from palette (called by both click and drop)
-    private async Task AddNodeFromPalette(NodePluginDefinition plugin)
+    private async Task AddNodeFromPalette(NodePluginDefinition plugin, double? x = null, double? y = null)
     {
         if (Diagram == null) return;
         
-        // Calculate position for new node (offset from last node or center)
-        double offsetX = 400 + (Nodes.Count % 4) * 220;
-        double offsetY = 150 + (Nodes.Count / 4) * 120;
+        // Use provided coordinates or calculate default position for new node (offset from last node or center)
+        double offsetX = x ?? (400 + (Nodes.Count % 4) * 220);
+        double offsetY = y ?? (150 + (Nodes.Count / 4) * 120);
         
         var node = CreateFlowNode(
             $"{plugin.Id}-instance-{Guid.NewGuid():N}",
