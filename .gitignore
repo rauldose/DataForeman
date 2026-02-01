@@ -48,3 +48,9 @@ project.lock.json
 *.sqlite
 *.sqlite3
 dataforeman.db
+
+# Playwright
+/screenshots/
+/test-results/
+/playwright-report/
+/playwright/.cache/
