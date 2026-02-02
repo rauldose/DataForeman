@@ -537,7 +537,7 @@ const FlowEditor = () => {
         // Restore edges with markerEnd to ensure arrow display
         const restoredEdges = (data.flow.definition.edges || []).map(edge => ({
           ...edge,
-          markerEnd: { type: MarkerType.ArrowClosed }
+          markerEnd: edge.markerEnd || { type: MarkerType.ArrowClosed }
         }));
         setEdges(restoredEdges);
         // Load pinned data if exists
