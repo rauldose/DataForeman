@@ -82,7 +82,7 @@
                 @* Custom HTML5 Palette - more reliable than Syncfusion SymbolPalette *@
                 <div class="custom-palette">
                     <div class="palette-header">NODE PALETTE</div>
-                    @foreach (var category in NodePluginRegistry.Categories)
+                    @foreach (var category in NodeRegistry.Categories)
                     {
                         var plugins = NodeRegistry.GetByCategory(category);
                         if (plugins.Count == 0) continue;
@@ -600,6 +600,23 @@
         font-size: 10px;
         color: #6b7280;
         font-style: normal;
+    }
+    
+    /* Code editor styling for script nodes */
+    .code-editor {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        background: #1e1e1e !important;
+        color: #d4d4d4 !important;
+        border: 1px solid #3a4049 !important;
+        border-radius: 4px !important;
+    }
+    
+    .code-editor textarea {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+        min-height: 150px !important;
+        tab-size: 2 !important;
     }
 
     /* Syncfusion Symbol Palette styling - Industrial Dark Theme */
@@ -1573,6 +1590,17 @@
                 builder.AddAttribute(1, "class", "property-value");
                 builder.AddContent(2, value);
                 builder.CloseElement();
+                break;
+            
+            case PropertyType.Code:
+                // Code editor - use a multiline text box with monospace font styling
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", value);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.AddAttribute(4, "Multiline", true);
+                builder.AddAttribute(5, "CssClass", "code-editor");
+                builder.CloseComponent();
                 break;
                 
             default:

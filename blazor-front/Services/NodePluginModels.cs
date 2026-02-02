@@ -186,5 +186,7 @@ public enum PropertyType
     /// <summary>JSON editor</summary>
     Json,
     /// <summary>Read-only display value</summary>
-    ReadOnly
+    ReadOnly,
+    /// <summary>Code editor for scripts</summary>
+    Code
 }
