@@ -31,13 +31,11 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.37.0",
+    "@playwright/test": "^1.58.1",
     "concurrently": "^9.1.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.37.5",
     "prettier": "^3.3.3"
-  },
-  "dependencies": {
-    "@playwright/test": "^1.56.0"
   }
 }

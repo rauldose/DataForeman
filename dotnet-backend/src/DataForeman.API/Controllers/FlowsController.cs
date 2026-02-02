@@ -57,7 +57,13 @@ public class FlowsController : ControllerBase
                 f.CreatedAt,
                 f.UpdatedAt,
                 IsOwner = f.OwnerUserId == userId,
-                f.FolderId
+                f.FolderId,
+                f.IsTemplate,
+                f.TemplateFlowId,
+                DeploymentStatus = !f.Deployed ? "not-deployed" :
+                    (f.DeployedDefinition == null ? "up-to-date" :
+                    (f.DeployedDefinition != f.Definition ? "modified" : "up-to-date")),
+                HasChanges = f.Deployed && f.DeployedDefinition != null && f.DeployedDefinition != f.Definition
             })
             .ToListAsync();
 
@@ -161,6 +167,10 @@ public class FlowsController : ControllerBase
 
         if (request.Deploy)
         {
+            // Store snapshot of definition when deploying
+            flow.DeployedDefinition = flow.Definition;
+            flow.DeployedAt = DateTime.UtcNow;
+            
             // Create a new session when deploying
             var session = new FlowSession
             {
@@ -245,28 +255,295 @@ public class FlowsController : ControllerBase
         return Ok(new { executions });
     }
 
-    [HttpGet("node-types")]
-    public IActionResult GetNodeTypes()
+    [HttpGet("templates")]
+    public async Task<IActionResult> GetTemplates([FromQuery] int limit = 50)
     {
-        // Return the available node types for the Flow Studio
-        var nodeTypes = new[]
+        var userId = GetUserIdFromClaims();
+
+        var templates = await _context.Flows
+            .Where(f => f.IsTemplate && (f.OwnerUserId == userId || f.Shared))
+            .OrderByDescending(f => f.UpdatedAt)
+            .Take(Math.Min(limit, 100))
+            .Select(f => new
+            {
+                f.Id,
+                f.Name,
+                f.Description,
+                f.ExposedParameters,
+                f.TemplateInputs,
+                f.TemplateOutputs,
+                f.CreatedAt,
+                f.UpdatedAt,
+                IsOwner = f.OwnerUserId == userId,
+                UsedByCount = _context.Flows.Count(flow => flow.TemplateFlowId == f.Id)
+            })
+            .ToListAsync();
+
+        return Ok(new { templates, count = templates.Count });
+    }
+
+    [HttpPost("{id}/mark-template")]
+    public async Task<IActionResult> MarkAsTemplate(Guid id, [FromBody] MarkTemplateRequest request)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var flow = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && f.OwnerUserId == userId);
+
+        if (flow == null)
         {
-            new { type = "trigger-manual", displayName = "Manual Trigger", category = "TRIGGERS", section = "BASIC", icon = "▶️", color = "#4caf50" },
-            new { type = "trigger-schedule", displayName = "Schedule Trigger", category = "TRIGGERS", section = "BASIC", icon = "⏰", color = "#4caf50" },
-            new { type = "tag-input", displayName = "Tag Input", category = "TAG_OPERATIONS", section = "INPUT", icon = "📥", color = "#2196f3" },
-            new { type = "tag-output", displayName = "Tag Output", category = "TAG_OPERATIONS", section = "OUTPUT", icon = "📤", color = "#ff9800" },
-            new { type = "math-add", displayName = "Add", category = "DATA_PROCESSING", section = "MATH", icon = "➕", color = "#9c27b0" },
-            new { type = "math-subtract", displayName = "Subtract", category = "DATA_PROCESSING", section = "MATH", icon = "➖", color = "#9c27b0" },
-            new { type = "math-multiply", displayName = "Multiply", category = "DATA_PROCESSING", section = "MATH", icon = "✖️", color = "#9c27b0" },
-            new { type = "math-divide", displayName = "Divide", category = "DATA_PROCESSING", section = "MATH", icon = "➗", color = "#9c27b0" },
-            new { type = "compare-equal", displayName = "Equal", category = "LOGIC", section = "COMPARISON", icon = "=", color = "#607d8b" },
-            new { type = "compare-greater", displayName = "Greater Than", category = "LOGIC", section = "COMPARISON", icon = ">", color = "#607d8b" },
-            new { type = "compare-less", displayName = "Less Than", category = "LOGIC", section = "COMPARISON", icon = "<", color = "#607d8b" },
-            new { type = "logic-if", displayName = "If", category = "LOGIC", section = "CONTROL", icon = "🔀", color = "#795548" },
-            new { type = "debug-log", displayName = "Debug Log", category = "OUTPUT", section = "BASIC", icon = "📝", color = "#f44336" }
+            return NotFound(new { error = "flow_not_found" });
+        }
+
+        flow.IsTemplate = request.IsTemplate;
+        if (request.TemplateInputs != null) flow.TemplateInputs = request.TemplateInputs;
+        if (request.TemplateOutputs != null) flow.TemplateOutputs = request.TemplateOutputs;
+        if (request.ExposedParameters != null) flow.ExposedParameters = request.ExposedParameters;
+        flow.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Flow {Id} marked as template: {IsTemplate}", id, request.IsTemplate);
+
+        return Ok(new { ok = true, isTemplate = flow.IsTemplate });
+    }
+
+    [HttpPost("from-template")]
+    public async Task<IActionResult> CreateFromTemplate([FromBody] CreateFromTemplateRequest request)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var template = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == request.TemplateFlowId && f.IsTemplate && (f.OwnerUserId == userId || f.Shared));
+
+        if (template == null)
+        {
+            return NotFound(new { error = "template_not_found" });
+        }
+
+        var flow = new Flow
+        {
+            OwnerUserId = userId,
+            Name = request.Name ?? $"{template.Name} (Copy)",
+            Description = request.Description ?? template.Description,
+            ExecutionMode = template.ExecutionMode,
+            ScanRateMs = template.ScanRateMs,
+            Definition = template.Definition, // Copy the template definition
+            TemplateFlowId = template.Id,
+            ExposedParameters = request.Parameters ?? template.ExposedParameters,
+            FolderId = request.FolderId
         };
 
-        return Ok(new { nodeTypes, count = nodeTypes.Length });
+        _context.Flows.Add(flow);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Flow {Id} created from template {TemplateId} by user {UserId}", flow.Id, template.Id, userId);
+
+        return Ok(new { id = flow.Id, templateId = template.Id });
+    }
+
+    [HttpGet("templates/{id}/usage")]
+    public async Task<IActionResult> GetTemplateUsage(Guid id)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var template = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && f.IsTemplate && (f.OwnerUserId == userId || f.Shared));
+
+        if (template == null)
+        {
+            return NotFound(new { error = "template_not_found" });
+        }
+
+        var usedByFlows = await _context.Flows
+            .Where(f => f.TemplateFlowId == id)
+            .Include(f => f.Owner)
+            .OrderByDescending(f => f.UpdatedAt)
+            .Select(f => new
+            {
+                f.Id,
+                f.Name,
+                f.Description,
+                Owner = f.Owner != null ? f.Owner.Email : "Unknown",
+                f.Deployed,
+                DeploymentStatus = f.Deployed
+                    ? (f.DeployedDefinition != null && f.DeployedDefinition != f.Definition ? "modified" : "up-to-date")
+                    : "not-deployed",
+                HasChanges = f.Deployed && f.DeployedDefinition != null && f.DeployedDefinition != f.Definition,
+                f.DeployedAt,
+                f.UpdatedAt,
+                f.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            template = new { id = template.Id, name = template.Name },
+            usedBy = usedByFlows,
+            count = usedByFlows.Count
+        });
+    }
+
+    [HttpPut("templates/{id}")]
+    public async Task<IActionResult> UpdateTemplate(Guid id, [FromBody] UpdateTemplateRequest request)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var template = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && f.IsTemplate && f.OwnerUserId == userId);
+
+        if (template == null)
+        {
+            return NotFound(new { error = "template_not_found" });
+        }
+
+        if (request.Name != null) template.Name = request.Name;
+        if (request.Description != null) template.Description = request.Description;
+        if (request.Definition != null) template.Definition = request.Definition;
+        if (request.TemplateInputs != null) template.TemplateInputs = request.TemplateInputs;
+        if (request.TemplateOutputs != null) template.TemplateOutputs = request.TemplateOutputs;
+        if (request.ExposedParameters != null) template.ExposedParameters = request.ExposedParameters;
+        if (request.Shared.HasValue) template.Shared = request.Shared.Value;
+
+        template.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Template {Id} updated by user {UserId}", id, userId);
+
+        return Ok(new { ok = true });
+    }
+
+    [HttpGet("{id}/deployment-status")]
+    public async Task<IActionResult> GetDeploymentStatus(Guid id)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var flow = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && (f.OwnerUserId == userId || f.Shared));
+
+        if (flow == null)
+        {
+            return NotFound(new { error = "flow_not_found" });
+        }
+
+        string deploymentStatus;
+        bool hasChanges = false;
+        int changeCount = 0;
+
+        if (!flow.Deployed)
+        {
+            deploymentStatus = "not-deployed";
+        }
+        else if (flow.DeployedDefinition == null)
+        {
+            deploymentStatus = "up-to-date"; // Backward compatibility
+        }
+        else if (flow.DeployedDefinition != flow.Definition)
+        {
+            deploymentStatus = "modified";
+            hasChanges = true;
+            // Simple change detection: compare string lengths as proxy
+            changeCount = Math.Abs(flow.Definition.Length - flow.DeployedDefinition.Length);
+        }
+        else
+        {
+            deploymentStatus = "up-to-date";
+        }
+
+        return Ok(new
+        {
+            flowId = flow.Id,
+            name = flow.Name,
+            deployed = flow.Deployed,
+            deploymentStatus,
+            hasChanges,
+            deployedAt = flow.DeployedAt,
+            lastModified = flow.UpdatedAt,
+            changeCount,
+            isTemplate = flow.IsTemplate,
+            templateFlowId = flow.TemplateFlowId
+        });
+    }
+
+    [HttpGet("{id}/deployment-diff")]
+    public async Task<IActionResult> GetDeploymentDiff(Guid id)
+    {
+        var userId = GetUserIdFromClaims();
+
+        var flow = await _context.Flows
+            .FirstOrDefaultAsync(f => f.Id == id && (f.OwnerUserId == userId || f.Shared));
+
+        if (flow == null)
+        {
+            return NotFound(new { error = "flow_not_found" });
+        }
+
+        if (!flow.Deployed || flow.DeployedDefinition == null)
+        {
+            return Ok(new
+            {
+                hasDiff = false,
+                message = flow.Deployed ? "No deployed definition snapshot available" : "Flow is not deployed"
+            });
+        }
+
+        var hasDiff = flow.DeployedDefinition != flow.Definition;
+
+        return Ok(new
+        {
+            hasDiff,
+            deployedDefinition = flow.DeployedDefinition,
+            currentDefinition = flow.Definition,
+            deployedAt = flow.DeployedAt,
+            lastModified = flow.UpdatedAt
+        });
+    }
+
+    [HttpGet("node-types")]
+    public async Task<IActionResult> GetNodeTypes()
+    {
+        // Get template flows to add them as node types
+        var userId = GetUserIdFromClaims();
+        var templates = await _context.Flows
+            .Where(f => f.IsTemplate && (f.OwnerUserId == userId || f.Shared))
+            .Select(f => new NodeTypeInfo
+            {
+                Type = $"template-{f.Id}",
+                DisplayName = f.Name,
+                Category = "TEMPLATES",
+                Section = "CUSTOM",
+                Icon = "📦",
+                Color = "#00bcd4",
+                TemplateId = f.Id,
+                Description = f.Description,
+                Inputs = f.TemplateInputs,
+                Outputs = f.TemplateOutputs,
+                Parameters = f.ExposedParameters
+            })
+            .ToListAsync();
+
+        // Return the available node types for the Flow Studio
+        var baseNodeTypes = new List<NodeTypeInfo>
+        {
+            new() { Type = "trigger-manual", DisplayName = "Manual Trigger", Category = "TRIGGERS", Section = "BASIC", Icon = "▶️", Color = "#4caf50" },
+            new() { Type = "trigger-schedule", DisplayName = "Schedule Trigger", Category = "TRIGGERS", Section = "BASIC", Icon = "⏰", Color = "#4caf50" },
+            new() { Type = "tag-input", DisplayName = "Tag Input", Category = "TAG_OPERATIONS", Section = "INPUT", Icon = "📥", Color = "#2196f3" },
+            new() { Type = "tag-output", DisplayName = "Tag Output", Category = "TAG_OPERATIONS", Section = "OUTPUT", Icon = "📤", Color = "#ff9800" },
+            new() { Type = "math-add", DisplayName = "Add", Category = "DATA_PROCESSING", Section = "MATH", Icon = "➕", Color = "#9c27b0" },
+            new() { Type = "math-subtract", DisplayName = "Subtract", Category = "DATA_PROCESSING", Section = "MATH", Icon = "➖", Color = "#9c27b0" },
+            new() { Type = "math-multiply", DisplayName = "Multiply", Category = "DATA_PROCESSING", Section = "MATH", Icon = "✖️", Color = "#9c27b0" },
+            new() { Type = "math-divide", DisplayName = "Divide", Category = "DATA_PROCESSING", Section = "MATH", Icon = "➗", Color = "#9c27b0" },
+            new() { Type = "compare-equal", DisplayName = "Equal", Category = "LOGIC", Section = "COMPARISON", Icon = "=", Color = "#607d8b" },
+            new() { Type = "compare-greater", DisplayName = "Greater Than", Category = "LOGIC", Section = "COMPARISON", Icon = ">", Color = "#607d8b" },
+            new() { Type = "compare-less", DisplayName = "Less Than", Category = "LOGIC", Section = "COMPARISON", Icon = "<", Color = "#607d8b" },
+            new() { Type = "logic-if", DisplayName = "If", Category = "LOGIC", Section = "CONTROL", Icon = "🔀", Color = "#795548" },
+            new() { Type = "csharp", DisplayName = "C# Script", Category = "DATA_PROCESSING", Section = "SCRIPTING", Icon = "💻", Color = "#673ab7" },
+            new() { Type = "debug-log", DisplayName = "Debug Log", Category = "OUTPUT", Section = "BASIC", Icon = "📝", Color = "#f44336" }
+        };
+
+        var allNodeTypes = baseNodeTypes.Concat(templates).ToList();
+
+        return Ok(new { nodeTypes = allNodeTypes, count = allNodeTypes.Count });
     }
 
     [HttpGet("categories")]
@@ -337,3 +614,43 @@ public record UpdateFlowRequest(
 );
 
 public record DeployRequest(bool Deploy);
+
+public record MarkTemplateRequest(
+    bool IsTemplate,
+    string? TemplateInputs,
+    string? TemplateOutputs,
+    string? ExposedParameters
+);
+
+public record CreateFromTemplateRequest(
+    Guid TemplateFlowId,
+    string? Name,
+    string? Description,
+    string? Parameters,
+    Guid? FolderId
+);
+
+public record UpdateTemplateRequest(
+    string? Name,
+    string? Description,
+    string? Definition,
+    string? TemplateInputs,
+    string? TemplateOutputs,
+    string? ExposedParameters,
+    bool? Shared
+);
+
+public class NodeTypeInfo
+{
+    public string Type { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string Section { get; set; } = string.Empty;
+    public string Icon { get; set; } = string.Empty;
+    public string Color { get; set; } = string.Empty;
+    public Guid? TemplateId { get; set; }
+    public string? Description { get; set; }
+    public string? Inputs { get; set; }
+    public string? Outputs { get; set; }
+    public string? Parameters { get; set; }
+}

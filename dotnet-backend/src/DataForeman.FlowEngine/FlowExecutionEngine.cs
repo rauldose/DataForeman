@@ -104,6 +104,11 @@ public class FlowExecutionEngine : IFlowExecutionEngine
         RegisterExecutor(new CompareLessExecutor());
         RegisterExecutor(new LogicIfExecutor());
         RegisterExecutor(new DebugLogExecutor());
+        RegisterExecutor(new CSharpScriptExecutor());
+        
+        // Note: TemplateFlowExecutor requires FlowExecutionEngine reference and should be
+        // registered after construction via dependency injection or a factory pattern
+        // Example: engine.RegisterExecutor(new TemplateFlowExecutor(engine, loggerFactory.CreateLogger<TemplateFlowExecutor>()));
     }
 
     /// <summary>

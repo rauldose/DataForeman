@@ -42,7 +42,7 @@ Flows can run in two modes:
 **Data Processing**
 - `Math`: Operations (add, subtract, multiply, divide, average, min, max, custom formula)
 - `Comparison`: Compare values (>, <, ≥, ≤, =, ≠)
-- `JavaScript`: Custom code with `$input`, `$tags`, `$flow` access
+- `C# Script`: Custom C# code with Roslyn, access to `input`, `tags`, `flow` objects
 
 ## Building a Flow
 
@@ -125,9 +125,11 @@ Execution order is determined by the **dependency graph** (connections between n
 - Compare two values (>, <, ≥, ≤, =, ≠)
 - Returns boolean result
 
-### JavaScript Node
-- Access: `$input`, `$tags`, `$flow`
+### C# Script Node
+- Write custom C# code using Roslyn compiler
+- Access: `input`, `tags`, `flow` objects
 - Timeout: 5 seconds
+- Full .NET library support
 
 ## Testing Workflows
 

@@ -2,8 +2,10 @@
 @page "/flows/{FlowId:guid}"
 @rendermode InteractiveServer
 @using DataForeman.BlazorUI.Services
+@using Microsoft.JSInterop
 @inject DataService DataService
 @inject NodePluginRegistry NodeRegistry
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Flow Studio - DataForeman</PageTitle>
 
@@ -712,8 +714,17 @@
         
         try
         {
-            // Add node at a default position (center of diagram)
-            await AddNodeFromPalette(_draggingPlugin);
+            // Get the diagram container element's position
+            var diagramRect = await JSRuntime.InvokeAsync<Dictionary<string, double>>(
+                "eval", 
+                "(() => { const rect = document.getElementById('diagram-space').getBoundingClientRect(); return { left: rect.left, top: rect.top }; })()");
+            
+            // Transform client coordinates to diagram coordinates
+            double diagramX = e.ClientX - diagramRect["left"];
+            double diagramY = e.ClientY - diagramRect["top"];
+            
+            // Add node at the drop position
+            await AddNodeFromPalette(_draggingPlugin, diagramX, diagramY);
         }
         finally
         {
@@ -722,13 +733,13 @@
     }
     
     // Add node from palette (called by both click and drop)
-    private async Task AddNodeFromPalette(NodePluginDefinition plugin)
+    private async Task AddNodeFromPalette(NodePluginDefinition plugin, double? x = null, double? y = null)
     {
         if (Diagram == null) return;
         
-        // Calculate position for new node (offset from last node or center)
-        double offsetX = 400 + (Nodes.Count % 4) * 220;
-        double offsetY = 150 + (Nodes.Count / 4) * 120;
+        // Use provided coordinates or calculate default position for new node (offset from last node or center)
+        double offsetX = x ?? (400 + (Nodes.Count % 4) * 220);
+        double offsetY = y ?? (150 + (Nodes.Count / 4) * 120);
         
         var node = CreateFlowNode(
             $"{plugin.Id}-instance-{Guid.NewGuid():N}",
@@ -779,58 +790,30 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Add connectors after the diagram and nodes are fully rendered
-        if (_firstRender && FlowId != Guid.Empty && Diagram != null && !_connectorsAdded)
+        // Reset condition to check _connectorsAdded instead of _firstRender to allow multiple loads
+        if (!_connectorsAdded && FlowId != Guid.Empty && Diagram != null && _pendingConnectors.Count > 0)
         {
-            _firstRender = false;
             _connectorsAdded = true;
             
             // Wait for nodes to be fully rendered in the diagram
-            await Task.Delay(300);
+            await Task.Delay(500);
             
             // Add connectors programmatically after nodes are rendered
-            if (_pendingConnectors.Count > 0)
+            try
             {
                 foreach (var connector in _pendingConnectors)
                 {
-                    // Find source and target nodes to calculate proper connection points
-                    var sourceNode = Nodes.FirstOrDefault(n => n.ID == connector.SourceID);
-                    var targetNode = Nodes.FirstOrDefault(n => n.ID == connector.TargetID);
-                    
-                    if (sourceNode != null && targetNode != null)
-                    {
-                        // Get port offsets to calculate exact connection points
-                        var sourcePort = sourceNode.Ports?.FirstOrDefault(p => p.ID == connector.SourcePortID);
-                        var targetPort = targetNode.Ports?.FirstOrDefault(p => p.ID == connector.TargetPortID);
-                        
-                        // Calculate source point from port offset
-                        double sourceX = sourceNode.OffsetX + (sourceNode.Width ?? 180) / 2;
-                        double sourceY = sourceNode.OffsetY;
-                        if (sourcePort?.Offset != null)
-                        {
-                            sourceX = sourceNode.OffsetX + ((sourceNode.Width ?? 180) / 2) * (sourcePort.Offset.X * 2 - 1);
-                            sourceY = sourceNode.OffsetY + ((sourceNode.Height ?? 70) / 2) * (sourcePort.Offset.Y * 2 - 1);
-                        }
-                        
-                        // Calculate target point from port offset
-                        double targetX = targetNode.OffsetX - (targetNode.Width ?? 180) / 2;
-                        double targetY = targetNode.OffsetY;
-                        if (targetPort?.Offset != null)
-                        {
-                            targetX = targetNode.OffsetX + ((targetNode.Width ?? 180) / 2) * (targetPort.Offset.X * 2 - 1);
-                            targetY = targetNode.OffsetY + ((targetNode.Height ?? 70) / 2) * (targetPort.Offset.Y * 2 - 1);
-                        }
-                        
-                        connector.SourcePoint = new DiagramPoint { X = sourceX, Y = sourceY };
-                        connector.TargetPoint = new DiagramPoint { X = targetX, Y = targetY };
-                    }
-                    
-                    // Add connector to the collection
+                    // Add connector directly to Connectors collection after nodes are rendered
                     Connectors.Add(connector);
                 }
-                _pendingConnectors.Clear();
                 
-                // Refresh the diagram to show the new connectors
+                // Clear pending connectors after they're added
+                _pendingConnectors.Clear();
                 StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to add connectors: {ex.Message}");
             }
         }
     }
@@ -874,32 +857,152 @@
     private void LoadFlowDefinition(FlowListItem flow)
     {
         // Load existing nodes from flow definition
-        // This would parse the JSON definition and create nodes/connectors
+        // Parse the JSON definition and create nodes/connectors
         if (!string.IsNullOrEmpty(flow.Definition) && flow.Definition != "{}")
         {
-            // For demo, add some sample nodes for the Temperature Monitor flow
-            if (flow.Name == "Temperature Monitor")
+            try
             {
-                Nodes = new DiagramObjectCollection<Node>
-                {
-                    CreateFlowNode("trigger-manual-1", "Manual Trigger", "#4caf50", 150, 150, 0, 1),
-                    CreateFlowNode("tag-input-1", "Tag Input", "#2196f3", 350, 150, 1, 1),
-                    CreateFlowNode("compare-greater-1", "Greater Than", "#607d8b", 550, 150, 2, 1),
-                    CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
-                };
+                // Deserialize flow definition
+                using var doc = System.Text.Json.JsonDocument.Parse(flow.Definition);
+                var root = doc.RootElement;
                 
-                // Store connectors to be added after diagram renders
-                // This avoids the issue where connectors appear at (0,0) before nodes are rendered
-                _pendingConnectors = new DiagramObjectCollection<Connector>
-                {
-                    CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
-                    CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
-                    CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
-                };
-                
-                // Clear the main Connectors collection - we'll add them programmatically after render
+                // Clear existing nodes and connectors
+                Nodes = new DiagramObjectCollection<Node>();
                 Connectors = new DiagramObjectCollection<Connector>();
+                _pendingConnectors = new DiagramObjectCollection<Connector>();
+                
+                // Load nodes
+                if (root.TryGetProperty("nodes", out var nodesElement))
+                {
+                    foreach (var nodeDef in nodesElement.EnumerateArray())
+                    {
+                        // Safe ID extraction
+                        var id = nodeDef.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        
+                        // Try direct x/y first, then fall back to position object
+                        double x = 0, y = 0;
+                        if (nodeDef.TryGetProperty("x", out var xProp))
+                        {
+                            x = xProp.GetDouble();
+                        }
+                        else if (nodeDef.TryGetProperty("position", out var posProp))
+                        {
+                            if (posProp.TryGetProperty("x", out var posX))
+                                x = posX.GetDouble();
+                        }
+                        
+                        if (nodeDef.TryGetProperty("y", out var yProp))
+                        {
+                            y = yProp.GetDouble();
+                        }
+                        else if (nodeDef.TryGetProperty("position", out var posPropy))
+                        {
+                            if (posPropy.TryGetProperty("y", out var posY))
+                                y = posY.GetDouble();
+                        }
+                        
+                        var label = nodeDef.TryGetProperty("label", out var labelProp) ? labelProp.GetString() : id;
+                        var nodeType = nodeDef.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : "";
+                        
+                        // Get plugin for this node type to determine color and port counts
+                        var plugin = NodeRegistry.Get(nodeType ?? "unknown");
+                        var color = plugin?.Color ?? "#9ca3af";
+                        var inputCount = plugin?.InputCount ?? 1;
+                        var outputCount = plugin?.OutputCount ?? 1;
+                        
+                        var node = CreateFlowNode(id, label ?? id, color, x, y, inputCount, outputCount);
+                        Nodes.Add(node);
+                    }
+                }
+                
+                // Load connectors - add to pending list to avoid 0,0 positioning
+                // Try both "connectors" and "edges" names
+                System.Text.Json.JsonElement connectorsElement;
+                bool hasConnectors = root.TryGetProperty("connectors", out connectorsElement);
+                if (!hasConnectors)
+                {
+                    hasConnectors = root.TryGetProperty("edges", out connectorsElement);
+                }
+                
+                if (hasConnectors)
+                {
+                    foreach (var connDef in connectorsElement.EnumerateArray())
+                    {
+                        // Safe property extraction with fallbacks for different naming conventions
+                        var id = connDef.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        
+                        var sourceId = connDef.TryGetProperty("sourceId", out var srcId) ? srcId.GetString() ?? "" :
+                                      connDef.TryGetProperty("source", out var src) ? src.GetString() ?? "" : "";
+                        
+                        var targetId = connDef.TryGetProperty("targetId", out var tgtId) ? tgtId.GetString() ?? "" :
+                                      connDef.TryGetProperty("target", out var tgt) ? tgt.GetString() ?? "" : "";
+                        
+                        var sourcePort = connDef.TryGetProperty("sourcePort", out var srcPort) ? srcPort.GetString() : 
+                                        connDef.TryGetProperty("sourceHandle", out var srcHandle) ? srcHandle.GetString() : null;
+                        
+                        var targetPort = connDef.TryGetProperty("targetPort", out var tgtPort) ? tgtPort.GetString() :
+                                        connDef.TryGetProperty("targetHandle", out var tgtHandle) ? tgtHandle.GetString() : null;
+                        
+                        var connector = CreateFlowConnector(id, sourceId, sourcePort, targetId, targetPort);
+                        _pendingConnectors.Add(connector);
+                    }
+                }
+                
+                // Reset the connectors added flag so OnAfterRenderAsync will add the pending connectors
+                _connectorsAdded = false;
             }
+            catch (System.Text.Json.JsonException ex)
+            {
+                Console.WriteLine($"JSON parsing error in flow definition: {ex.Message}");
+                // Fall back to hardcoded sample for demo purposes
+                LoadSampleFlowDefinition(flow);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                Console.WriteLine($"Missing required property in flow definition: {ex.Message}");
+                LoadSampleFlowDefinition(flow);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to load flow definition: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                // Fall back to hardcoded sample for demo purposes
+                LoadSampleFlowDefinition(flow);
+            }
+        }
+        else
+        {
+            // No definition or empty - start with empty canvas
+            Nodes = new DiagramObjectCollection<Node>();
+            Connectors = new DiagramObjectCollection<Connector>();
+            _pendingConnectors = new DiagramObjectCollection<Connector>();
+        }
+    }
+    
+    private void LoadSampleFlowDefinition(FlowListItem flow)
+    {
+        // For demo, add some sample nodes for the Temperature Monitor flow
+        if (flow.Name == "Temperature Monitor")
+        {
+            Nodes = new DiagramObjectCollection<Node>
+            {
+                CreateFlowNode("trigger-manual-1", "Manual Trigger", "#4caf50", 150, 150, 0, 1),
+                CreateFlowNode("tag-input-1", "Tag Input", "#2196f3", 350, 150, 1, 1),
+                CreateFlowNode("compare-greater-1", "Greater Than", "#607d8b", 550, 150, 2, 1),
+                CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
+            };
+            
+            // Store connectors to be added after diagram renders
+            // This avoids the issue where connectors appear at (0,0) before nodes are rendered
+            _pendingConnectors = new DiagramObjectCollection<Connector>
+            {
+                CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
+                CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
+                CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
+            };
+            
+            // Clear the main Connectors collection - we'll add them programmatically after render
+            Connectors = new DiagramObjectCollection<Connector>();
         }
     }
     

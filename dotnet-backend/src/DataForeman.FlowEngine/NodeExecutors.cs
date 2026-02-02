@@ -1,3 +1,10 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using DataForeman.RedisStreams;
+using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+
 namespace DataForeman.FlowEngine;
 
 /// <summary>
@@ -290,5 +297,256 @@ public class DebugLogExecutor : NodeExecutorBase
         Console.WriteLine($"[{label}] {value}");
         
         return Task.FromResult(NodeExecutionResult.Ok(new { logged = true, label, value, timestamp = DateTime.UtcNow }));
+    }
+}
+
+/// <summary>
+/// C# Script executor using Roslyn.
+/// </summary>
+public class CSharpScriptExecutor : NodeExecutorBase
+{
+    private static readonly ScriptOptions DefaultScriptOptions = ScriptOptions.Default
+        .WithReferences(
+            typeof(object).Assembly,
+            typeof(System.Linq.Enumerable).Assembly,
+            typeof(System.Collections.Generic.List<>).Assembly,
+            typeof(System.Math).Assembly,
+            typeof(System.DateTime).Assembly
+        )
+        .WithImports(
+            "System",
+            "System.Linq",
+            "System.Collections.Generic",
+            "System.Math"
+        );
+
+    /// <inheritdoc />
+    public override string NodeType => "csharp";
+
+    /// <inheritdoc />
+    public override async Task<NodeExecutionResult> ExecuteAsync(FlowNode node, FlowExecutionContext context)
+    {
+        var code = GetConfig<string>(node, "code");
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return NodeExecutionResult.Fail("No C# code provided");
+        }
+
+        try
+        {
+            // Create globals object with access to input, tags, and flow context
+            var inputsObj = new ScriptInputs();
+            if (node.Config != null)
+            {
+                foreach (var kvp in node.Config)
+                {
+                    if (kvp.Key.StartsWith("input_"))
+                    {
+                        var inputName = kvp.Key.Substring(6); // Remove "input_" prefix
+                        var value = GetInput(node, context, inputName);
+                        inputsObj.Set(inputName, value);
+                    }
+                }
+            }
+
+            var globals = new ScriptGlobals
+            {
+                input = inputsObj,
+                tags = context.Parameters ?? new Dictionary<string, object?>(),
+                flow = new ScriptFlowContext
+                {
+                    id = context.FlowId,
+                    executionId = context.ExecutionId,
+                    parameters = context.Parameters ?? new Dictionary<string, object?>()
+                }
+            };
+
+            // Create and run the script with a timeout
+            var script = CSharpScript.Create<object>(code, DefaultScriptOptions, typeof(ScriptGlobals));
+            
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var result = await script.RunAsync(globals, cts.Token);
+            
+            return NodeExecutionResult.Ok(result.ReturnValue);
+        }
+        catch (CompilationErrorException ex)
+        {
+            var errors = string.Join("; ", ex.Diagnostics.Select(d => d.GetMessage()));
+            return NodeExecutionResult.Fail($"C# compilation error: {errors}");
+        }
+        catch (OperationCanceledException)
+        {
+            return NodeExecutionResult.Fail("C# script execution timed out (5 seconds)");
+        }
+        catch (Exception ex)
+        {
+            return NodeExecutionResult.Fail($"C# script execution error: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>
+/// Global variables available in C# scripts.
+/// </summary>
+public class ScriptGlobals
+{
+    /// <summary>
+    /// Input values from connected nodes.
+    /// </summary>
+    public ScriptInputs input { get; set; } = new();
+
+    /// <summary>
+    /// Access to tag values and parameters.
+    /// </summary>
+    public Dictionary<string, object?> tags { get; set; } = new();
+
+    /// <summary>
+    /// Flow execution context information.
+    /// </summary>
+    public ScriptFlowContext flow { get; set; } = new();
+}
+
+/// <summary>
+/// Input wrapper that allows property-style access to values.
+/// </summary>
+public class ScriptInputs
+{
+    private readonly Dictionary<string, object?> _values = new();
+
+    public void Set(string key, object? value)
+    {
+        _values[key] = value;
+    }
+
+    public object? Get(string key)
+    {
+        return _values.TryGetValue(key, out var value) ? value : null;
+    }
+
+    public T? GetValue<T>(string key)
+    {
+        return _values.TryGetValue(key, out var value) && value is T typedValue ? typedValue : default;
+    }
+
+    public double GetDouble(string key, double defaultValue = 0)
+    {
+        if (_values.TryGetValue(key, out var value))
+        {
+            return Convert.ToDouble(value ?? defaultValue);
+        }
+        return defaultValue;
+    }
+
+    public bool GetBool(string key, bool defaultValue = false)
+    {
+        if (_values.TryGetValue(key, out var value))
+        {
+            return Convert.ToBoolean(value ?? defaultValue);
+        }
+        return defaultValue;
+    }
+
+    public string GetString(string key, string defaultValue = "")
+    {
+        if (_values.TryGetValue(key, out var value))
+        {
+            return value?.ToString() ?? defaultValue;
+        }
+        return defaultValue;
+    }
+
+    // Allow dictionary-style access
+    public object? this[string key]
+    {
+        get => Get(key);
+        set => Set(key, value);
+    }
+}
+
+/// <summary>
+/// Flow context information.
+/// </summary>
+public class ScriptFlowContext
+{
+    public Guid id { get; set; }
+    public Guid executionId { get; set; }
+    public Dictionary<string, object?> parameters { get; set; } = new();
+}
+
+/// <summary>
+/// Executes template flows as reusable nodes.
+/// Template flows are pre-configured flows that can be instantiated with custom parameters.
+/// </summary>
+public class TemplateFlowExecutor : NodeExecutorBase
+{
+    private readonly FlowExecutionEngine _flowEngine;
+    private readonly ILogger<TemplateFlowExecutor> _logger;
+
+    public TemplateFlowExecutor(FlowExecutionEngine flowEngine, ILogger<TemplateFlowExecutor> logger)
+    {
+        _flowEngine = flowEngine;
+        _logger = logger;
+    }
+
+    /// <inheritdoc />
+    public override string NodeType => "template-flow";
+
+    /// <inheritdoc />
+    public override async Task<NodeExecutionResult> ExecuteAsync(FlowNode node, FlowExecutionContext context)
+    {
+        var sw = Stopwatch.StartNew();
+
+        try
+        {
+            // Get template flow ID from config
+            var templateFlowIdStr = GetConfig<string>(node, "templateFlowId");
+            if (string.IsNullOrEmpty(templateFlowIdStr) || !Guid.TryParse(templateFlowIdStr, out var templateFlowId))
+            {
+                return NodeExecutionResult.Fail("Template flow ID not configured or invalid");
+            }
+
+            // Get parameters override from node config
+            var parameters = GetConfig<Dictionary<string, object?>>(node, "parameters") ?? new Dictionary<string, object?>();
+
+            // Note: In a real implementation, we would:
+            // 1. Load the template flow definition from database
+            // 2. Create a sub-execution context with the template's nodes
+            // 3. Map input values from this node to the template's input nodes
+            // 4. Execute the template flow
+            // 5. Extract output values from the template's output nodes
+            // 6. Return the combined outputs
+
+            // For now, return a placeholder that shows the concept
+            var result = new
+            {
+                templateId = templateFlowId,
+                parameters = parameters,
+                message = "Template flow execution (implementation pending - requires flow engine sub-execution support)",
+                timestamp = DateTime.UtcNow
+            };
+
+            sw.Stop();
+            _logger.LogInformation("Template flow node {NodeId} executed template {TemplateId} in {Ms}ms",
+                node.Id, templateFlowId, sw.ElapsedMilliseconds);
+
+            return new NodeExecutionResult
+            {
+                Success = true,
+                Output = result,
+                ExecutionTimeMs = (int)sw.ElapsedMilliseconds
+            };
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            _logger.LogError(ex, "Error executing template flow node {NodeId}", node.Id);
+
+            return new NodeExecutionResult
+            {
+                Success = false,
+                Error = $"Template flow execution error: {ex.Message}",
+                ExecutionTimeMs = (int)sw.ElapsedMilliseconds
+            };
+        }
     }
 }
