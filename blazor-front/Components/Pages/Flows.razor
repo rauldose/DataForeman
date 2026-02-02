@@ -783,7 +783,6 @@
         }
     }
     
-    private bool _firstRender = true;
     private bool _connectorsAdded = false;
     private DiagramObjectCollection<Connector> _pendingConnectors = new();
     
@@ -1129,15 +1128,15 @@
     /// <summary>
     /// Creates a connector between two ports
     /// </summary>
-    private Connector CreateFlowConnector(string id, string sourceId, string sourcePort, string targetId, string targetPort)
+    private Connector CreateFlowConnector(string id, string sourceId, string? sourcePort, string targetId, string? targetPort)
     {
         return new Connector
         {
             ID = id,
             SourceID = sourceId,
-            SourcePortID = sourcePort,
+            SourcePortID = sourcePort ?? "output-0",
             TargetID = targetId,
-            TargetPortID = targetPort,
+            TargetPortID = targetPort ?? "input-0",
             Type = ConnectorSegmentType.Orthogonal,
             Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
             TargetDecorator = new DecoratorSettings 
@@ -1481,7 +1480,6 @@
     
     // Node property storage for node-specific settings
     private Dictionary<string, Dictionary<string, string>> _nodeProperties = new();
-    private bool _triggerOnDeploy = true;
     private bool _showAdvanced = false;
     
     // Dropdown options for node properties (kept for backward compatibility)
