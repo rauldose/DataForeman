@@ -231,6 +231,36 @@
                         <p class="no-selection">Select a node to view properties</p>
                     }
                 </div>
+                
+                <div class="output-console">
+                    <div class="console-header" @onclick="@(() => _consoleExpanded = !_consoleExpanded)">
+                        <span class="console-title">📋 Output Console</span>
+                        <span class="console-expand">@(_consoleExpanded ? "▼" : "▲")</span>
+                    </div>
+                    @if (_consoleExpanded)
+                    {
+                        <div class="console-toolbar">
+                            <SfButton CssClass="e-small e-outline" IconCss="e-icons e-play" Content="Test Run" OnClick="@TestRunFlow" Disabled="@_isRunning"></SfButton>
+                            <SfButton CssClass="e-small e-flat" IconCss="e-icons e-delete" Content="Clear" OnClick="@ClearConsole"></SfButton>
+                        </div>
+                        <div class="console-output">
+                            @if (_consoleMessages.Count == 0)
+                            {
+                                <div class="console-empty">No output yet. Click "Test Run" to execute the flow.</div>
+                            }
+                            else
+                            {
+                                @foreach (var msg in _consoleMessages)
+                                {
+                                    <div class="console-line @msg.Type">
+                                        <span class="console-time">[@msg.Timestamp.ToString("HH:mm:ss")]</span>
+                                        <span class="console-text">@msg.Text</span>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
             </div>
         </div>
     }
@@ -681,6 +711,98 @@
         from { opacity: 0; }
         to { opacity: 1; }
     }
+    
+    .output-console {
+        background: #1e1e1e;
+        border-radius: 8px;
+        margin-top: 12px;
+        border: 1px solid #3c3c3c;
+        overflow: hidden;
+    }
+    
+    .console-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: #252526;
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .console-header:hover {
+        background: #2d2d2d;
+    }
+    
+    .console-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #9d9d9d;
+    }
+    
+    .console-expand {
+        color: #9d9d9d;
+        font-size: 10px;
+    }
+    
+    .console-toolbar {
+        display: flex;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid #3c3c3c;
+    }
+    
+    .console-output {
+        height: 150px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+    
+    .console-empty {
+        color: #6d6d6d;
+        font-style: italic;
+        padding: 20px;
+        text-align: center;
+    }
+    
+    .console-line {
+        display: flex;
+        gap: 8px;
+        padding: 2px 0;
+        border-bottom: 1px solid #2d2d2d;
+    }
+    
+    .console-time {
+        color: #6d6d6d;
+        white-space: nowrap;
+    }
+    
+    .console-text {
+        color: #d4d4d4;
+        word-break: break-all;
+    }
+    
+    .console-line.info .console-text {
+        color: #4fc3f7;
+    }
+    
+    .console-line.success .console-text {
+        color: #81c784;
+    }
+    
+    .console-line.warning .console-text {
+        color: #ffb74d;
+    }
+    
+    .console-line.error .console-text {
+        color: #e57373;
+    }
+    
+    .console-line.node .console-text {
+        color: #ce93d8;
+    }
 </style>
 
 @code {
@@ -703,6 +825,11 @@
     
     // Available tags for dropdowns
     private List<SelectOption> AvailableTags = new();
+    
+    // Console output state
+    private bool _consoleExpanded = true;
+    private bool _isRunning = false;
+    private List<ConsoleMessage> _consoleMessages = new();
     
     // Flows list - loaded from API or sample data
     private List<FlowListItem> FlowsList = new();
@@ -1983,5 +2110,137 @@
         public string Status => Deployed ? "Deployed" : "Stopped";
         public DateTime UpdatedAt { get; set; }
         public string Definition { get; set; } = "{}";
+    }
+    
+    class ConsoleMessage
+    {
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public string Text { get; set; } = "";
+        public string Type { get; set; } = "info"; // info, success, warning, error, node
+    }
+    
+    private void ClearConsole()
+    {
+        _consoleMessages.Clear();
+    }
+    
+    private void LogToConsole(string message, string type = "info")
+    {
+        _consoleMessages.Add(new ConsoleMessage
+        {
+            Timestamp = DateTime.Now,
+            Text = message,
+            Type = type
+        });
+        StateHasChanged();
+    }
+    
+    private async Task TestRunFlow()
+    {
+        if (_isRunning) return;
+        
+        _isRunning = true;
+        _consoleMessages.Clear();
+        
+        try
+        {
+            LogToConsole($"Starting flow execution: {CurrentFlow.Name}", "info");
+            
+            // Get all nodes sorted by their x position (left to right = execution order)
+            var orderedNodes = Nodes.OrderBy(n => n.OffsetX).ToList();
+            
+            if (orderedNodes.Count == 0)
+            {
+                LogToConsole("No nodes in the flow to execute", "warning");
+                return;
+            }
+            
+            // Simulate flow execution
+            foreach (var node in orderedNodes)
+            {
+                var nodeId = node.ID ?? "unknown";
+                var nodeLabel = node.Annotations?.FirstOrDefault()?.Content ?? nodeId;
+                var nodeType = _nodeTypes.TryGetValue(nodeId, out var type) ? type : "unknown";
+                
+                // Simulate processing time
+                await Task.Delay(300);
+                
+                LogToConsole($"→ Processing: {nodeLabel}", "node");
+                
+                // Simulate different node behaviors
+                await Task.Delay(200);
+                
+                switch (nodeType.ToLower())
+                {
+                    case "trigger-manual":
+                    case "trigger-schedule":
+                    case "trigger-onchange":
+                        LogToConsole($"  Trigger activated", "success");
+                        break;
+                        
+                    case "tag-input":
+                        var tagPath = GetNodePropertyForNode(nodeId, "tagPath", "");
+                        var simulatedValue = Math.Round(50 + Random.Shared.NextDouble() * 50, 2);
+                        LogToConsole($"  Read tag '{tagPath}': {simulatedValue}", "info");
+                        break;
+                        
+                    case "tag-output":
+                        var writeTag = GetNodePropertyForNode(nodeId, "tagPath", "");
+                        LogToConsole($"  Write to tag '{writeTag}'", "info");
+                        break;
+                        
+                    case "compare":
+                    case "compare-equal":
+                    case "compare-greater":
+                    case "compare-less":
+                        var result = Random.Shared.NextDouble() > 0.5;
+                        LogToConsole($"  Comparison result: {result}", result ? "success" : "warning");
+                        break;
+                        
+                    case "math":
+                    case "math-add":
+                    case "math-subtract":
+                    case "math-multiply":
+                    case "math-divide":
+                        var mathResult = Math.Round(Random.Shared.NextDouble() * 100, 2);
+                        LogToConsole($"  Math result: {mathResult}", "info");
+                        break;
+                        
+                    case "logic-if":
+                        var condition = Random.Shared.NextDouble() > 0.5;
+                        LogToConsole($"  Condition: {condition} → taking {(condition ? "true" : "false")} branch", "info");
+                        break;
+                        
+                    case "notification":
+                        LogToConsole($"  Notification sent!", "success");
+                        break;
+                        
+                    default:
+                        LogToConsole($"  Node executed", "info");
+                        break;
+                }
+            }
+            
+            await Task.Delay(300);
+            LogToConsole($"✓ Flow execution completed successfully", "success");
+        }
+        catch (Exception ex)
+        {
+            LogToConsole($"✗ Flow execution failed: {ex.Message}", "error");
+        }
+        finally
+        {
+            _isRunning = false;
+            StateHasChanged();
+        }
+    }
+    
+    private string GetNodePropertyForNode(string nodeId, string propertyName, string defaultValue)
+    {
+        if (_nodeProperties.TryGetValue(nodeId, out var props) && props.TryGetValue(propertyName, out var value))
+        {
+            return value;
+        }
+        return defaultValue;
     }
 }

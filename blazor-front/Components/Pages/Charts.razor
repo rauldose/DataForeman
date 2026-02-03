@@ -101,9 +101,9 @@
                     </div>
                     
                     <div class="chart-preview">
-                        @if (ChartSeries.Count > 0)
+                        @if (ChartSeries.Count > 0 && ChartSeries.Any(s => s.Visible && s.Data?.Count > 0))
                         {
-                            @if (SelectedChart.ChartType == "Line")
+                            @if (SelectedChart.ChartType.Equals("Line", StringComparison.OrdinalIgnoreCase))
                             {
                                 <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
                                     <ChartArea>
@@ -134,7 +134,7 @@
                                         <ChartCrosshairSettings Enable="true"></ChartCrosshairSettings>
                                     }
                                     <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries.Where(s => s.Visible))
+                                        @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
                                         {
                                             <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" 
                                                          Type="@GetChartSeriesType(series.LineType)" 
@@ -149,7 +149,7 @@
                                     </ChartSeriesCollection>
                                 </SfChart>
                             }
-                            else if (SelectedChart.ChartType == "Bar")
+                            else if (SelectedChart.ChartType.Equals("Bar", StringComparison.OrdinalIgnoreCase))
                             {
                                 <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
                                     <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
@@ -159,12 +159,12 @@
                                     </ChartSeriesCollection>
                                 </SfChart>
                             }
-                            else if (SelectedChart.ChartType == "Area")
+                            else if (SelectedChart.ChartType.Equals("Area", StringComparison.OrdinalIgnoreCase))
                             {
                                 <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
                                     <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
                                     <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries.Where(s => s.Visible))
+                                        @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
                                         {
                                             <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.SplineArea" Opacity="@series.Opacity" Fill="@series.Color">
                                             </ChartSeries>
@@ -799,7 +799,8 @@
                 {
                     Id = c.Id.ToString(),
                     Name = c.Name,
-                    ChartType = c.ChartType
+                    // Normalize ChartType to Pascal case (Line, Bar, Area) to match dropdown
+                    ChartType = NormalizeChartType(c.ChartType)
                 }).ToList();
             }
             
@@ -842,6 +843,18 @@
         // Generate sample data for demonstration
         // In production, this would load from the backend
         var now = DateTime.Now;
+        
+        // Create data list explicitly to avoid lazy evaluation issues
+        var dataPoints = new List<TimeSeriesPoint>();
+        for (int i = 0; i < 50; i++)
+        {
+            dataPoints.Add(new TimeSeriesPoint
+            {
+                Timestamp = now.AddMinutes(-50 + i),
+                Value = Math.Round(50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5, 2)
+            });
+        }
+        
         ChartSeries = new List<ChartSeriesData>
         {
             new ChartSeriesData
@@ -858,11 +871,7 @@
                 Visible = true,
                 YAxisName = "primary",
                 IsExpanded = false,
-                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
-                {
-                    Timestamp = now.AddMinutes(-50 + i),
-                    Value = 50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5
-                }).ToList()
+                Data = dataPoints
             }
         };
     }
@@ -981,6 +990,19 @@
             "Left" => Syncfusion.Blazor.Charts.LegendPosition.Left,
             "Right" => Syncfusion.Blazor.Charts.LegendPosition.Right,
             _ => Syncfusion.Blazor.Charts.LegendPosition.Bottom
+        };
+    }
+    
+    private static string NormalizeChartType(string chartType)
+    {
+        // Normalize to Pascal case to match dropdown options
+        return chartType?.ToLowerInvariant() switch
+        {
+            "line" => "Line",
+            "bar" => "Bar",
+            "area" => "Area",
+            "scatter" => "Scatter",
+            _ => "Line"
         };
     }
     
