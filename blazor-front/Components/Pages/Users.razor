@@ -201,127 +201,19 @@
 </SfDialog>
 
 <style>
-    .users-page {
-        height: 100%;
-    }
-
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-    }
-
-    .page-header h1 {
-        margin: 0;
-    }
-
-    .loading-indicator {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        padding: 48px;
-        color: #9d9d9d;
-    }
-
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-    }
-
     .status-badge.active {
-        background: rgba(76, 175, 80, 0.2);
-        color: #4caf50;
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--status-ok);
     }
 
     .status-badge.inactive {
-        background: rgba(158, 158, 158, 0.2);
-        color: #9e9e9e;
-    }
-
-    .action-buttons {
-        display: flex;
-        gap: 4px;
-    }
-
-    .dialog-form {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .form-group label {
-        font-size: 13px;
-        color: #9d9d9d;
+        background: rgba(107, 114, 128, 0.2);
+        color: var(--text-muted);
     }
 
     .permissions-form {
         max-height: 400px;
         overflow-y: auto;
-    }
-
-    .toast-notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        border-radius: 6px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        z-index: 10000;
-        animation: slideIn 0.3s ease-out;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    .toast-notification.success {
-        background: #2e7d32;
-        color: white;
-    }
-
-    .toast-notification.error {
-        background: #c62828;
-        color: white;
-    }
-
-    @@keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-
-    .validation-error {
-        background: rgba(198, 40, 40, 0.2);
-        border: 1px solid #c62828;
-        color: #ff5252;
-        padding: 10px 14px;
-        border-radius: 4px;
-        font-size: 13px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
-    }
-
-    .required {
-        color: #ff5252;
-    }
-
-    .field-hint {
-        font-size: 11px;
-        color: #9d9d9d;
-        margin-top: 4px;
-        display: block;
     }
 </style>
 

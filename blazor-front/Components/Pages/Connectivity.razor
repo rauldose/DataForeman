@@ -350,148 +350,103 @@
     .connectivity-page {
         height: 100%;
     }
-    
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-    }
-    
-    .page-header h1 {
-        margin: 0;
-    }
-    
-    .loading-indicator {
-        text-align: center;
-        padding: 40px;
-        color: #9d9d9d;
-    }
-    
-    .no-data {
-        text-align: center;
-        padding: 40px;
-        color: #9d9d9d;
-        font-style: italic;
-    }
-    
+
+    /* Uses .page-header, .loading-indicator, .no-data, .action-buttons, .dialog-form, .form-group from app.css */
+
     .tab-content {
-        padding: 16px 0;
+        padding: 12px 0;
     }
-    
+
     .tags-toolbar {
         display: flex;
-        gap: 12px;
+        gap: 8px;
         align-items: center;
-        margin-bottom: 16px;
-        padding: 12px;
-        background: var(--df-surface, #2d323b);
-        border-radius: 4px;
+        margin-bottom: 12px;
+        padding: 10px;
+        background: var(--bg-surface);
+        border-radius: 3px;
+        border: 1px solid var(--border-subtle);
     }
-    
-    .toolbar-spacer {
-        flex: 1;
-    }
-    
+
     .status-indicator {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 12px;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 10px;
         font-weight: 500;
     }
-    
+
     .status-indicator::before {
         content: '';
-        width: 6px;
-        height: 6px;
+        width: 5px;
+        height: 5px;
         border-radius: 50%;
     }
-    
+
     .status-indicator.connected {
-        background: rgba(76, 175, 80, 0.2);
-        color: #4caf50;
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--status-ok);
     }
-    
+
     .status-indicator.connected::before {
-        background: #4caf50;
+        background: var(--status-ok);
     }
-    
+
     .status-indicator.disconnected {
-        background: rgba(158, 158, 158, 0.2);
-        color: #9e9e9e;
+        background: rgba(107, 114, 128, 0.2);
+        color: var(--text-muted);
     }
-    
+
     .status-indicator.disconnected::before {
-        background: #9e9e9e;
+        background: var(--text-muted);
     }
-    
-    .action-buttons {
-        display: flex;
-        gap: 4px;
-    }
-    
-    .dialog-form {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-    
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-    
-    .form-group label {
-        font-size: 13px;
-        color: #9d9d9d;
-    }
-    
+
     .tag-value {
-        font-family: monospace;
-        padding: 2px 6px;
-        border-radius: 3px;
+        font-family: Consolas, monospace;
+        padding: 2px 4px;
+        border-radius: 2px;
+        font-size: 10px;
     }
-    
+
     .tag-value.good {
-        background: rgba(76, 175, 80, 0.1);
-        color: #81c784;
+        background: rgba(34, 197, 94, 0.1);
+        color: var(--status-ok);
     }
-    
+
     .tag-value.bad {
-        background: rgba(244, 67, 54, 0.1);
-        color: #e57373;
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--status-error);
     }
-    
+
     .status-toast {
         position: fixed;
-        bottom: 80px;
-        right: 24px;
-        padding: 12px 24px;
+        bottom: 60px;
+        right: 16px;
+        padding: 10px 16px;
         border-radius: 4px;
-        font-size: 14px;
+        font-size: 11px;
         z-index: 1000;
         animation: fadeInOut 3s ease-in-out;
+        box-shadow: var(--shadow-lg);
     }
-    
+
     .status-toast.success {
-        background: #4caf50;
-        color: white;
+        background: var(--status-ok);
+        color: #fff;
     }
-    
+
     .status-toast.error {
-        background: #f44336;
-        color: white;
+        background: var(--status-error);
+        color: #fff;
     }
-    
+
     .status-toast.info {
-        background: #2196f3;
-        color: white;
+        background: var(--status-info);
+        color: #fff;
     }
-    
+
     @@keyframes fadeInOut {
         0% { opacity: 0; transform: translateY(20px); }
         10% { opacity: 1; transform: translateY(0); }

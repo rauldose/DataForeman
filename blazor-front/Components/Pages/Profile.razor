@@ -112,115 +112,51 @@
         max-width: 800px;
     }
 
-    .page-header {
-        margin-bottom: 24px;
-    }
-
-    .page-header h1 {
-        margin: 0;
-    }
-
     .profile-content {
         display: flex;
         flex-direction: column;
-        gap: 24px;
+        gap: 16px;
     }
 
     .profile-section {
-        background: #252526;
-        border-radius: 8px;
-        padding: 24px;
+        background: var(--bg-surface);
+        border-radius: 4px;
+        padding: 16px;
+        border: 1px solid var(--border-subtle);
     }
 
     .profile-section h3 {
-        margin: 0 0 16px;
-        font-size: 16px;
-        font-weight: 600;
-    }
-
-    .section-description {
-        color: #9d9d9d;
-        font-size: 14px;
-        margin: 0 0 16px;
-    }
-
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-
-    .info-item {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .info-label {
-        font-size: 12px;
-        color: #9d9d9d;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .info-value {
-        font-size: 15px;
-        color: #fff;
-    }
-
-    .danger-zone {
-        border: 1px solid rgba(244, 67, 54, 0.3);
-    }
-
-    .danger-zone h3 {
-        color: #f44336;
-    }
-
-    .dialog-form {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .form-group label {
+        margin: 0 0 10px;
         font-size: 13px;
-        color: #9d9d9d;
+    }
+
+    .profile-section .info-grid {
+        margin-bottom: 12px;
     }
 
     .error-message {
-        padding: 12px;
-        background: rgba(244, 67, 54, 0.1);
-        border: 1px solid rgba(244, 67, 54, 0.3);
-        border-radius: 4px;
-        color: #f44336;
-        font-size: 13px;
+        padding: 10px 12px;
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid var(--status-error);
+        border-radius: 3px;
+        color: var(--status-error);
+        font-size: 11px;
     }
 
     .success-toast {
         position: fixed;
-        bottom: 24px;
-        right: 24px;
+        bottom: 16px;
+        right: 16px;
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 12px 20px;
-        background: #4caf50;
-        color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        animation: slideIn 0.3s ease;
-    }
-
-    @@keyframes slideIn {
-        from { transform: translateY(100px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
+        padding: 10px 16px;
+        background: var(--status-ok);
+        color: #fff;
+        border-radius: 4px;
+        box-shadow: var(--shadow-lg);
+        animation: slideInBottom 0.3s ease;
+        font-size: 11px;
     }
 </style>
 

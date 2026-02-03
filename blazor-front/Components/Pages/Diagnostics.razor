@@ -283,218 +283,106 @@
     .diagnostics-page {
         height: 100%;
     }
-    
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-    }
-    
-    .page-header h1 {
-        margin: 0;
-    }
-    
+
+    /* Uses .page-header, .no-data, .toolbar-spacer, .metrics-grid, .metric-card, .info-grid, .info-item from app.css */
+
     .tab-content {
-        padding: 16px 0;
+        padding: 12px 0;
     }
-    
-    .no-data {
-        text-align: center;
-        padding: 40px;
-        color: #9d9d9d;
-        font-style: italic;
-    }
-    
+
     .no-logs {
         text-align: center;
-        padding: 20px;
-        color: #9d9d9d;
+        padding: 16px;
+        color: var(--text-muted);
+        font-size: 11px;
     }
-    
-    .metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-    
-    .metric-card {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 20px;
-        background: #252526;
-        border-radius: 8px;
-        border: 1px solid #3c3c3c;
-    }
-    
-    .metric-icon {
-        font-size: 32px;
-        color: #4caf50;
-    }
-    
-    .metric-info {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .metric-label {
-        font-size: 13px;
-        color: #9d9d9d;
-    }
-    
-    .metric-value {
-        font-size: 24px;
-        font-weight: 600;
-    }
-    
+
     .system-info {
-        background: #252526;
-        border-radius: 8px;
-        padding: 20px;
-        border: 1px solid #3c3c3c;
+        background: var(--bg-surface);
+        border-radius: 4px;
+        padding: 12px;
+        border: 1px solid var(--border-subtle);
     }
-    
+
     .system-info h3 {
-        margin: 0 0 16px 0;
-        font-size: 16px;
-    }
-    
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-    }
-    
-    .info-item {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .info-label {
+        margin: 0 0 10px 0;
         font-size: 12px;
-        color: #9d9d9d;
     }
-    
-    .info-value {
-        font-size: 14px;
-        font-weight: 500;
-    }
-    
+
     .logs-toolbar {
         display: flex;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 8px;
+        margin-bottom: 10px;
     }
-    
-    .toolbar-spacer {
-        flex: 1;
-    }
-    
+
     .logs-container {
-        background: #1e1e1e;
-        border-radius: 4px;
-        padding: 12px;
-        max-height: 500px;
+        background: var(--bg-dark);
+        border-radius: 3px;
+        padding: 8px;
+        max-height: 400px;
         overflow-y: auto;
-        font-family: 'Consolas', 'Monaco', monospace;
-        font-size: 12px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 10px;
     }
-    
+
     .log-entry {
         display: flex;
-        gap: 12px;
-        padding: 4px 0;
-        border-bottom: 1px solid #2d2d2d;
+        gap: 8px;
+        padding: 3px 0;
+        border-bottom: 1px solid var(--bg-surface);
     }
-    
+
     .log-timestamp {
-        color: #6a9955;
-        min-width: 100px;
+        color: var(--status-ok);
+        min-width: 80px;
     }
-    
+
     .log-level {
-        min-width: 50px;
+        min-width: 40px;
         font-weight: 600;
     }
-    
-    .log-entry.info .log-level { color: #3794ff; }
-    .log-entry.warn .log-level { color: #cca700; }
-    .log-entry.error .log-level { color: #f14c4c; }
-    .log-entry.debug .log-level { color: #9d9d9d; }
-    
+
+    .log-entry.info .log-level { color: var(--status-info); }
+    .log-entry.warn .log-level { color: var(--status-warn); }
+    .log-entry.error .log-level { color: var(--status-error); }
+    .log-entry.debug .log-level { color: var(--text-muted); }
+
     .log-source {
         color: #ce9178;
-        min-width: 120px;
+        min-width: 100px;
     }
-    
+
     .log-message {
         flex: 1;
-        color: #cccccc;
+        color: var(--text-primary);
     }
-    
-    .status-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-    }
-    
-    .status-indicator::before {
-        content: '';
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-    }
-    
-    .status-indicator.connected {
-        background: rgba(76, 175, 80, 0.2);
-        color: #4caf50;
-    }
-    
-    .status-indicator.connected::before {
-        background: #4caf50;
-    }
-    
-    .status-indicator.disconnected {
-        background: rgba(244, 67, 54, 0.2);
-        color: #f44336;
-    }
-    
-    .status-indicator.disconnected::before {
-        background: #f44336;
-    }
-    
+
     .job-status {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
+        padding: 3px 6px;
+        border-radius: 3px;
+        font-size: 10px;
         font-weight: 500;
     }
-    
+
     .job-status.running {
-        background: rgba(33, 150, 243, 0.2);
-        color: #2196f3;
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--status-info);
     }
-    
+
     .job-status.completed {
-        background: rgba(76, 175, 80, 0.2);
-        color: #4caf50;
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--status-ok);
     }
-    
+
     .job-status.failed {
-        background: rgba(244, 67, 54, 0.2);
-        color: #f44336;
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--status-error);
     }
-    
+
     .job-status.queued {
-        background: rgba(158, 158, 158, 0.2);
-        color: #9e9e9e;
+        background: rgba(107, 114, 128, 0.2);
+        color: var(--text-muted);
     }
 </style>
 
