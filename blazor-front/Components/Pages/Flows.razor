@@ -701,6 +701,9 @@
     private FlowListItem CurrentFlow = new() { Name = "New Flow" };
     private bool IsLoading = true;
     
+    // Available tags for dropdowns
+    private List<SelectOption> AvailableTags = new();
+    
     // Flows list - loaded from API or sample data
     private List<FlowListItem> FlowsList = new();
     
@@ -773,6 +776,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadFlows();
+        await LoadAvailableTags();
         
         // Load flow definition after flows are loaded
         if (FlowId != Guid.Empty)
@@ -783,6 +787,24 @@
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
             }
+        }
+    }
+    
+    private async Task LoadAvailableTags()
+    {
+        try
+        {
+            var tags = await DataService.GetTagsAsync();
+            AvailableTags = tags.Select(t => new SelectOption 
+            { 
+                Value = t.TagPath, 
+                Label = string.IsNullOrEmpty(t.TagName) ? t.TagPath : $"{t.TagName} ({t.TagPath})"
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load tags: {ex.Message}");
+            AvailableTags = new List<SelectOption>();
         }
     }
     
@@ -1628,12 +1650,26 @@
         switch (prop.Type)
         {
             case PropertyType.Text:
-            case PropertyType.TagPath:
             case PropertyType.Cron:
                 builder.OpenComponent<SfTextBox>(0);
                 builder.AddAttribute(1, "Value", value);
                 builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
                 builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.CloseComponent();
+                break;
+            
+            case PropertyType.TagPath:
+                // Tag path dropdown - show available tags from database
+                builder.OpenComponent<SfDropDownList<string, SelectOption>>(0);
+                builder.AddAttribute(1, "DataSource", AvailableTags);
+                builder.AddAttribute(2, "Value", value);
+                builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(4, "TValue", typeof(string));
+                builder.AddAttribute(5, "TItem", typeof(SelectOption));
+                builder.AddAttribute(6, "TextField", "Label");
+                builder.AddAttribute(7, "ValueField", "Value");
+                builder.AddAttribute(8, "AllowFiltering", true);
+                builder.AddAttribute(9, "Placeholder", prop.Placeholder ?? "Select a tag");
                 builder.CloseComponent();
                 break;
                 
