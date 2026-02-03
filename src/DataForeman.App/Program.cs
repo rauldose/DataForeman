@@ -1,5 +1,6 @@
 using DataForeman.App.Components;
 using DataForeman.App.Services;
+using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,11 +8,21 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Add Syncfusion Blazor services
+builder.Services.AddSyncfusionBlazor();
+
 builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<MqttService>();
 builder.Services.AddSingleton<RealtimeDataService>();
 
 var app = builder.Build();
+
+// Register Syncfusion license (optional - for licensed use)
+var syncfusionKey = builder.Configuration["SyncfusionLicenseKey"];
+if (!string.IsNullOrEmpty(syncfusionKey))
+{
+    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(syncfusionKey);
+}
 
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())

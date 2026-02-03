@@ -1,36 +1,34 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@implements IDisposable
 
-<div class="page">
-    <nav class="sidebar">
-        <div class="sidebar-header">
-            <span class="logo">⚙️</span>
-            <span class="brand">DataForeman</span>
+<div class="app-container">
+    <!-- Top Menu Bar using Syncfusion Menu -->
+    <div class="top-header">
+        <div class="brand-section">
+            <span class="brand-icon">⚙️</span>
+            <span class="brand-name">DataForeman</span>
         </div>
-        <div class="nav-menu">
-            <NavLink class="nav-item" href="" Match="NavLinkMatch.All">
-                <span class="nav-icon">🏠</span>
-                <span class="nav-text">Home</span>
-            </NavLink>
-            <NavLink class="nav-item" href="connectivity">
-                <span class="nav-icon">🔌</span>
-                <span class="nav-text">Connectivity</span>
-            </NavLink>
-            <NavLink class="nav-item" href="charts">
-                <span class="nav-icon">📊</span>
-                <span class="nav-text">Charts</span>
-            </NavLink>
-            <NavLink class="nav-item" href="flows">
-                <span class="nav-icon">🔀</span>
-                <span class="nav-text">Flows</span>
-            </NavLink>
-        </div>
-        <div class="sidebar-footer">
+        
+        <SfMenu TValue="MenuItem" CssClass="top-menu">
+            <MenuItems>
+                <MenuItem Text="Home" IconCss="e-icons e-home" Url="/"></MenuItem>
+                <MenuItem Text="Connectivity" IconCss="e-icons e-link" Url="/connectivity"></MenuItem>
+                <MenuItem Text="Charts" IconCss="e-icons e-chart" Url="/charts"></MenuItem>
+                <MenuItem Text="Flows" IconCss="e-icons e-flow-chart" Url="/flows"></MenuItem>
+            </MenuItems>
+            <MenuEvents TValue="MenuItem" ItemSelected="OnMenuItemSelected"></MenuEvents>
+        </SfMenu>
+        
+        <div class="header-right">
             <div class="engine-status">
-                <span class="status-dot @(EngineConnected ? "connected" : "disconnected")"></span>
-                <span>Engine: @(EngineConnected ? "Connected" : "Disconnected")</span>
+                <span class="status-indicator @(EngineConnected ? "connected" : "disconnected")"></span>
+                <span class="status-text">Engine: @(EngineConnected ? "Connected" : "Disconnected")</span>
             </div>
         </div>
-    </nav>
+    </div>
+    
+    <!-- Main Content Area -->
     <main class="main-content">
         @Body
     </main>
@@ -45,7 +43,35 @@
     {
         if (RealtimeData != null)
         {
-            RealtimeData.OnEngineStatusChanged += StateHasChanged;
+            RealtimeData.OnEngineStatusChanged += HandleStatusChanged;
         }
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+    
+    private void HandleStatusChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        StateHasChanged();
+    }
+    
+    private void OnMenuItemSelected(MenuEventArgs<MenuItem> args)
+    {
+        if (!string.IsNullOrEmpty(args.Item.Url))
+        {
+            Navigation.NavigateTo(args.Item.Url);
+        }
+    }
+    
+    public void Dispose()
+    {
+        if (RealtimeData != null)
+        {
+            RealtimeData.OnEngineStatusChanged -= HandleStatusChanged;
+        }
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }

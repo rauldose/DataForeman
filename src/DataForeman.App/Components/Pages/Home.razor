@@ -9,117 +9,144 @@
 <div class="home-page">
     <h1>DataForeman Dashboard</h1>
     
+    <!-- Stats Cards using Syncfusion Card -->
     <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon">🔌</div>
-            <div class="stat-content">
-                <div class="stat-value">@ConfigService.Connections.Count</div>
-                <div class="stat-label">Connections</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">🏷️</div>
-            <div class="stat-content">
-                <div class="stat-value">@TotalTags</div>
-                <div class="stat-label">Tags</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">📊</div>
-            <div class="stat-content">
-                <div class="stat-value">@ConfigService.Charts.Count</div>
-                <div class="stat-label">Charts</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon">🔀</div>
-            <div class="stat-content">
-                <div class="stat-value">@ConfigService.Flows.Count</div>
-                <div class="stat-label">Flows</div>
-            </div>
-        </div>
+        <SfCard CssClass="stat-card">
+            <CardContent>
+                <div class="stat-content">
+                    <div class="stat-icon">🔌</div>
+                    <div class="stat-info">
+                        <div class="stat-value">@ConfigService.Connections.Count</div>
+                        <div class="stat-label">Connections</div>
+                    </div>
+                </div>
+            </CardContent>
+        </SfCard>
+        <SfCard CssClass="stat-card">
+            <CardContent>
+                <div class="stat-content">
+                    <div class="stat-icon">🏷️</div>
+                    <div class="stat-info">
+                        <div class="stat-value">@TotalTags</div>
+                        <div class="stat-label">Tags</div>
+                    </div>
+                </div>
+            </CardContent>
+        </SfCard>
+        <SfCard CssClass="stat-card">
+            <CardContent>
+                <div class="stat-content">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-info">
+                        <div class="stat-value">@ConfigService.Charts.Count</div>
+                        <div class="stat-label">Charts</div>
+                    </div>
+                </div>
+            </CardContent>
+        </SfCard>
+        <SfCard CssClass="stat-card">
+            <CardContent>
+                <div class="stat-content">
+                    <div class="stat-icon">🔀</div>
+                    <div class="stat-info">
+                        <div class="stat-value">@ConfigService.Flows.Count</div>
+                        <div class="stat-label">Flows</div>
+                    </div>
+                </div>
+            </CardContent>
+        </SfCard>
     </div>
 
-    <div class="engine-status-panel">
-        <h2>Engine Status</h2>
-        @if (EngineStatus != null)
-        {
-            <div class="status-details">
-                <div class="status-item">
-                    <span class="label">Status:</span>
-                    <span class="value @(EngineStatus.IsRunning ? "running" : "stopped")">
-                        @(EngineStatus.IsRunning ? "Running" : "Stopped")
-                    </span>
+    <!-- Engine Status Panel -->
+    <SfCard CssClass="status-panel">
+        <CardHeader Title="Engine Status" />
+        <CardContent>
+            @if (EngineStatus != null)
+            {
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="label">Status:</span>
+                        <span class="value @(EngineStatus.IsRunning ? "running" : "stopped")">
+                            @(EngineStatus.IsRunning ? "Running" : "Stopped")
+                        </span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Active Connections:</span>
+                        <span class="value">@EngineStatus.ActiveConnections</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Active Tags:</span>
+                        <span class="value">@EngineStatus.ActiveTags</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Total Polls:</span>
+                        <span class="value">@EngineStatus.TotalPolls.ToString("N0")</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Avg Poll Time:</span>
+                        <span class="value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="label">Started:</span>
+                        <span class="value">@EngineStatus.StartTime.ToLocalTime().ToString("g")</span>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <span class="label">Active Connections:</span>
-                    <span class="value">@EngineStatus.ActiveConnections</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Active Tags:</span>
-                    <span class="value">@EngineStatus.ActiveTags</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Total Polls:</span>
-                    <span class="value">@EngineStatus.TotalPolls.ToString("N0")</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Avg Poll Time:</span>
-                    <span class="value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
-                </div>
-                <div class="status-item">
-                    <span class="label">Started:</span>
-                    <span class="value">@EngineStatus.StartTime.ToLocalTime().ToString("g")</span>
-                </div>
-            </div>
-        }
-        else
-        {
-            <p class="no-data">Engine status not available. Make sure the DataForeman.Engine is running.</p>
-        }
-    </div>
+            }
+            else
+            {
+                <p class="no-data">Engine status not available. Make sure the DataForeman.Engine is running.</p>
+            }
+        </CardContent>
+    </SfCard>
 
-    <div class="recent-values-panel">
-        <h2>Recent Tag Values</h2>
-        @if (RecentValues.Any())
-        {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Tag</th>
-                        <th>Value</th>
-                        <th>Quality</th>
-                        <th>Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var tag in RecentValues.Take(10))
-                    {
-                        <tr>
-                            <td>@tag.TagName</td>
-                            <td class="value-cell">@tag.FormattedValue</td>
-                            <td>
-                                <span class="quality-badge @(tag.IsGoodQuality ? "good" : "bad")">
-                                    @tag.QualityText
-                                </span>
-                            </td>
-                            <td>@tag.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-        else
-        {
-            <p class="no-data">No tag values received yet. Make sure the DataForeman.Engine is running and polling tags.</p>
-        }
-    </div>
+    <!-- Recent Tag Values using Syncfusion Grid -->
+    <SfCard CssClass="values-panel">
+        <CardHeader Title="Recent Tag Values" />
+        <CardContent>
+            @if (RecentValuesList.Any())
+            {
+                <SfGrid DataSource="@RecentValuesList" AllowPaging="false" CssClass="dark-grid">
+                    <GridColumns>
+                        <GridColumn Field="@nameof(TagValueDisplay.TagName)" HeaderText="Tag" Width="200"></GridColumn>
+                        <GridColumn Field="@nameof(TagValueDisplay.FormattedValue)" HeaderText="Value" Width="150"></GridColumn>
+                        <GridColumn Field="@nameof(TagValueDisplay.QualityText)" HeaderText="Quality" Width="100">
+                            <Template>
+                                @{
+                                    var item = (context as TagValueDisplay);
+                                    <span class="quality-badge @(item?.IsGoodQuality == true ? "good" : "bad")">
+                                        @item?.QualityText
+                                    </span>
+                                }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn Field="@nameof(TagValueDisplay.TimestampDisplay)" HeaderText="Timestamp" Width="150"></GridColumn>
+                    </GridColumns>
+                </SfGrid>
+            }
+            else
+            {
+                <p class="no-data">No tag values received yet. Make sure the DataForeman.Engine is running and polling tags.</p>
+            }
+        </CardContent>
+    </SfCard>
 </div>
 
 @code {
     private DataForeman.Shared.Mqtt.EngineStatusMessage? EngineStatus => RealtimeData.GetEngineStatus();
     private int TotalTags => ConfigService.Connections.Sum(c => c.Tags.Count);
-    private IEnumerable<TagValueCache> RecentValues => RealtimeData.GetAllTagValues().Values.OrderByDescending(v => v.Timestamp);
+    
+    private List<TagValueDisplay> RecentValuesList => RealtimeData.GetAllTagValues().Values
+        .OrderByDescending(v => v.Timestamp)
+        .Take(10)
+        .Select(v => new TagValueDisplay
+        {
+            TagName = v.TagName,
+            FormattedValue = v.FormattedValue,
+            QualityText = v.QualityText,
+            IsGoodQuality = v.IsGoodQuality,
+            TimestampDisplay = v.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+        })
+        .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -135,5 +162,14 @@
     public void Dispose()
     {
         RealtimeData.OnDataChanged -= HandleDataChanged;
+    }
+    
+    public class TagValueDisplay
+    {
+        public string TagName { get; set; } = "";
+        public string FormattedValue { get; set; } = "";
+        public string QualityText { get; set; } = "";
+        public bool IsGoodQuality { get; set; }
+        public string TimestampDisplay { get; set; } = "";
     }
 }

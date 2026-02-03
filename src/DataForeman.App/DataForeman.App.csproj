@@ -10,6 +10,15 @@
     <PackageReference Include="MQTTnet" Version="4.3.7.1207" />
     <PackageReference Include="MQTTnet.Extensions.ManagedClient" Version="4.3.7.1207" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Syncfusion.Blazor.Buttons" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Charts" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Diagram" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Grid" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Inputs" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Layouts" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Navigations" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Popups" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Themes" Version="28.*" />
   </ItemGroup>
 
   <ItemGroup>
