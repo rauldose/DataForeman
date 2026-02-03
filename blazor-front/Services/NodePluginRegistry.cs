@@ -286,6 +286,25 @@ public class NodePluginRegistry
             }
         });
         
+        // Generic math node for legacy compatibility (used in seed data)
+        Register(new NodePluginDefinition
+        {
+            Id = "math",
+            Name = "Math",
+            ShortLabel = "Math",
+            Category = "Math",
+            Description = "Generic math operation node (legacy)",
+            Icon = "[±]",
+            Color = "#a855f7",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new List<NodePropertyDefinition>
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = "add", Options = new() { new() { Value = "add", Label = "Add" }, new() { Value = "subtract", Label = "Subtract" }, new() { Value = "multiply", Label = "Multiply" }, new() { Value = "divide", Label = "Divide" }, new() { Value = "average", Label = "Average" } }, Group = "Operation" },
+                new() { Key = "operand", Label = "Operand B (if no input)", Type = PropertyType.Decimal, DefaultValue = "0", Step = 1, Group = "Operation" }
+            }
+        });
+        
         // === LOGIC NODES ===
         Register(new NodePluginDefinition
         {
@@ -359,6 +378,25 @@ public class NodePluginRegistry
                 new() { Key = "operation", Label = "Comparison", Type = PropertyType.ReadOnly, DefaultValue = "A < B", Group = "Operation" },
                 new() { Key = "threshold", Label = "Threshold (if no input B)", Type = PropertyType.Decimal, DefaultValue = "0", Step = 1, Group = "Operation" },
                 new() { Key = "hysteresis", Label = "Hysteresis", Type = PropertyType.Decimal, DefaultValue = "0", Min = 0, Step = 0.1, Group = "Operation", Advanced = true }
+            }
+        });
+        
+        // Generic compare node for legacy compatibility (used in seed data)
+        Register(new NodePluginDefinition
+        {
+            Id = "compare",
+            Name = "Compare",
+            ShortLabel = "Compare",
+            Category = "Logic",
+            Description = "Generic comparison node (legacy)",
+            Icon = "[?]",
+            Color = "#6b7280",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new List<NodePropertyDefinition>
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = ">", Options = new() { new() { Value = ">", Label = "Greater Than" }, new() { Value = "<", Label = "Less Than" }, new() { Value = "==", Label = "Equal" }, new() { Value = ">=", Label = "Greater Or Equal" }, new() { Value = "<=", Label = "Less Or Equal" } }, Group = "Operation" },
+                new() { Key = "threshold", Label = "Threshold", Type = PropertyType.Decimal, DefaultValue = "0", Step = 1, Group = "Operation" }
             }
         });
         
