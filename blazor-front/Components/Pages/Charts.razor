@@ -1090,7 +1090,14 @@
     private void StartLiveUpdates()
     {
         _liveUpdateTimer?.Dispose();
-        _liveUpdateTimer = new Timer(async _ => await UpdateLiveData(), null, 0, LiveUpdateIntervalSeconds * 1000);
+        _liveUpdateTimer = new Timer(_ => 
+        {
+            try 
+            {
+                _ = UpdateLiveData();
+            }
+            catch { /* Timer callbacks should not throw */ }
+        }, null, 0, LiveUpdateIntervalSeconds * 1000);
     }
     
     private void StopLiveUpdates()
@@ -1106,14 +1113,16 @@
             var now = DateTime.Now;
             foreach (var series in ChartSeries)
             {
-                if (series.Data.Count > 0)
+                if (series.Data.Count > 1)
                 {
+                    // Store last value before modifying collection
+                    var lastValue = series.Data[series.Data.Count - 1].Value;
                     // Remove oldest point and add new one
                     series.Data.RemoveAt(0);
                     series.Data.Add(new TimeSeriesPoint
                     {
                         Timestamp = now,
-                        Value = series.Data.Last().Value + (Random.Shared.NextDouble() - 0.5) * 10
+                        Value = lastValue + (Random.Shared.NextDouble() - 0.5) * 10
                     });
                 }
             }
