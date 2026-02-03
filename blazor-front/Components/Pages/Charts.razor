@@ -100,87 +100,55 @@
                         <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
                     </div>
                     
-                    <div class="chart-preview">
-                        @if (ChartSeries.Count > 0 && ChartSeries.Any(s => s.Visible && s.Data?.Count > 0))
-                        {
-                            @if (SelectedChart.ChartType.Equals("Line", StringComparison.OrdinalIgnoreCase))
+                    <div class="chart-content-area">
+                        <div class="chart-preview">
+                            @if (ChartSeries.Count > 0 && ChartSeries.Any(s => s.Visible && s.Data?.Count > 0))
                             {
-                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                    <ChartArea>
-                                        <ChartAreaBorder Width="0"></ChartAreaBorder>
-                                    </ChartArea>
-                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
-                                        <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                                    </ChartPrimaryXAxis>
-                                    <ChartPrimaryYAxis Title="@PrimaryAxisLabel" Minimum="@(PrimaryAxisAutoScale ? null : PrimaryAxisMin)" Maximum="@(PrimaryAxisAutoScale ? null : PrimaryAxisMax)">
-                                        <ChartAxisMajorGridLines Width="@(PrimaryAxisShowGrid ? 0.5 : 0)" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                                    </ChartPrimaryYAxis>
-                                    @if (EnableSecondaryAxis)
-                                    {
-                                        <ChartAxes>
-                                            <ChartAxis Name="secondary" OpposedPosition="true" Title="@SecondaryAxisLabel" Minimum="@(SecondaryAxisAutoScale ? null : SecondaryAxisMin)" Maximum="@(SecondaryAxisAutoScale ? null : SecondaryAxisMax)">
-                                                <ChartAxisMajorGridLines Width="@(SecondaryAxisShowGrid ? 0.5 : 0)" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                                            </ChartAxis>
-                                        </ChartAxes>
-                                    }
-                                    <ChartTooltipSettings Enable="@ShowTooltip"></ChartTooltipSettings>
-                                    <ChartLegendSettings Visible="@ShowLegend" Position="@GetLegendPosition()"></ChartLegendSettings>
-                                    @if (EnableZoom)
-                                    {
-                                        <ChartZoomSettings EnableSelectionZooming="true" EnablePinchZooming="true" EnableMouseWheelZooming="true"></ChartZoomSettings>
-                                    }
-                                    @if (EnableCrosshair)
-                                    {
-                                        <ChartCrosshairSettings Enable="true"></ChartCrosshairSettings>
-                                    }
-                                    <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
-                                        {
-                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" 
-                                                         Type="@GetChartSeriesType(series.LineType)" 
-                                                         Width="@series.LineWidth" 
-                                                         Opacity="@series.Opacity" 
-                                                         Fill="@series.Color"
-                                                         DashArray="@GetDashArray(series.DashStyle)"
-                                                         YAxisName="@series.YAxisName">
-                                                <ChartMarker Visible="@series.ShowMarkers" Height="@series.MarkerSize" Width="@series.MarkerSize"></ChartMarker>
+                                @if (SelectedChart.ChartType.Equals("Line", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
+                                        <ChartSeriesCollection>
+                                            @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
+                                            {
+                                                <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.Spline" Opacity="@series.Opacity" Fill="@series.Color">
+                                                </ChartSeries>
+                                            }
+                                        </ChartSeriesCollection>
+                                    </SfChart>
+                                }
+                                else if (SelectedChart.ChartType.Equals("Bar", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
+                                        <ChartSeriesCollection>
+                                            <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
                                             </ChartSeries>
-                                        }
-                                    </ChartSeriesCollection>
-                                </SfChart>
+                                        </ChartSeriesCollection>
+                                    </SfChart>
+                                }
+                                else if (SelectedChart.ChartType.Equals("Area", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
+                                        <ChartSeriesCollection>
+                                            @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
+                                            {
+                                                <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.SplineArea" Opacity="@series.Opacity" Fill="@series.Color">
+                                                </ChartSeries>
+                                            }
+                                        </ChartSeriesCollection>
+                                    </SfChart>
+                                }
                             }
-                            else if (SelectedChart.ChartType.Equals("Bar", StringComparison.OrdinalIgnoreCase))
+                            else
                             {
-                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
-                                    <ChartSeriesCollection>
-                                        <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
-                                        </ChartSeries>
-                                    </ChartSeriesCollection>
-                                </SfChart>
+                                <div class="no-data">Add tags from the sidebar to display chart data</div>
                             }
-                            else if (SelectedChart.ChartType.Equals("Area", StringComparison.OrdinalIgnoreCase))
-                            {
-                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
-                                    <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
-                                        {
-                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.SplineArea" Opacity="@series.Opacity" Fill="@series.Color">
-                                            </ChartSeries>
-                                        }
-                                    </ChartSeriesCollection>
-                                </SfChart>
-                            }
-                        }
-                        else
-                        {
-                            <div class="no-data">Add tags from the sidebar to display chart data</div>
-                        }
-                    </div>
+                        </div>
                     
-                    <div class="configuration-panel">
-                        <SfTab CssClass="config-tabs">
+                        <div class="configuration-panel">
+                            <SfTab CssClass="config-tabs">
                             <TabItems>
                                 <TabItem>
                                     <ChildContent>
@@ -379,12 +347,13 @@
                                         </div>
                                     </ContentTemplate>
                                 </TabItem>
-                            </TabItems>
-                        </SfTab>
-                    </div>
-                }
-                else
-                {
+                                            </TabItems>
+                                        </SfTab>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
                     <div class="no-chart-selected">
                         <span class="e-icons e-line-chart" style="font-size: 64px; margin-bottom: 16px;"></span>
                         <p>Select a chart to edit or create a new one</p>
@@ -607,6 +576,14 @@
         font-size: 13px;
     }
     
+    .chart-content-area {
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 16px;
+        overflow: hidden;
+    }
+    
     .chart-preview {
         flex: 1;
         padding: 16px;
@@ -614,10 +591,10 @@
     }
     
     .configuration-panel {
-        height: 280px;
-        min-height: 200px;
-        max-height: 350px;
-        border-top: 1px solid #3c3c3c;
+        width: 320px;
+        min-width: 280px;
+        max-width: 400px;
+        border-left: 1px solid #3c3c3c;
         overflow: hidden;
         display: flex;
         flex-direction: column;
