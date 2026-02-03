@@ -1660,16 +1660,20 @@
             
             case PropertyType.TagPath:
                 // Tag path dropdown - show available tags from database
+                // Use ChildContent to add FieldSettings for proper text/value binding
                 builder.OpenComponent<SfDropDownList<string, SelectOption>>(0);
                 builder.AddAttribute(1, "DataSource", AvailableTags);
                 builder.AddAttribute(2, "Value", value);
                 builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
-                builder.AddAttribute(4, "TValue", typeof(string));
-                builder.AddAttribute(5, "TItem", typeof(SelectOption));
-                builder.AddAttribute(6, "TextField", "Label");
-                builder.AddAttribute(7, "ValueField", "Value");
-                builder.AddAttribute(8, "AllowFiltering", true);
-                builder.AddAttribute(9, "Placeholder", prop.Placeholder ?? "Select a tag");
+                builder.AddAttribute(4, "AllowFiltering", true);
+                builder.AddAttribute(5, "Placeholder", prop.Placeholder ?? "Select a tag");
+                builder.AddAttribute(6, "ChildContent", (RenderFragment)(fieldBuilder =>
+                {
+                    fieldBuilder.OpenComponent<DropDownListFieldSettings>(0);
+                    fieldBuilder.AddAttribute(1, "Text", "Label");
+                    fieldBuilder.AddAttribute(2, "Value", "Value");
+                    fieldBuilder.CloseComponent();
+                }));
                 builder.CloseComponent();
                 break;
                 
@@ -1717,10 +1721,13 @@
                 builder.AddAttribute(1, "DataSource", prop.Options);
                 builder.AddAttribute(2, "Value", string.IsNullOrEmpty(value) ? prop.DefaultValue : value);
                 builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
-                builder.AddAttribute(4, "TValue", typeof(string));
-                builder.AddAttribute(5, "TItem", typeof(SelectOption));
-                builder.AddAttribute(6, "TextField", "Label");
-                builder.AddAttribute(7, "ValueField", "Value");
+                builder.AddAttribute(4, "ChildContent", (RenderFragment)(fieldBuilder =>
+                {
+                    fieldBuilder.OpenComponent<DropDownListFieldSettings>(0);
+                    fieldBuilder.AddAttribute(1, "Text", "Label");
+                    fieldBuilder.AddAttribute(2, "Value", "Value");
+                    fieldBuilder.CloseComponent();
+                }));
                 builder.CloseComponent();
                 break;
                 
