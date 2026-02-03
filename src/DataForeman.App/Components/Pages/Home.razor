@@ -1,0 +1,267 @@
+@page "/"
+@rendermode InteractiveServer
+@inject RealtimeDataService DataService
+@inject ConfigService ConfigService
+@implements IDisposable
+
+<PageTitle>Dashboard - DataForeman</PageTitle>
+
+<div class="dashboard">
+    <h1>Dashboard</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-value">@ConfigService.Connections.Count</span>
+            <span class="stat-label">Connections</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@ConfigService.Connections.Sum(c => c.Tags.Count)</span>
+            <span class="stat-label">Tags</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@ConfigService.Charts.Count</span>
+            <span class="stat-label">Charts</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@ConfigService.Flows.Count</span>
+            <span class="stat-label">Flows</span>
+        </div>
+    </div>
+
+    @if (DataService.EngineStatus is { } status)
+    {
+        <div class="engine-panel">
+            <h2>Engine Status</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Status</span>
+                    <span class="info-value @(status.Running ? "ok" : "error")">
+                        @(status.Running ? "Running" : "Stopped")
+                    </span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Active Connections</span>
+                    <span class="info-value">@status.ActiveConnections</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Active Tags</span>
+                    <span class="info-value">@status.ActiveTags</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Scan Count</span>
+                    <span class="info-value">@status.ScanCount.ToString("N0")</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Avg Scan Time</span>
+                    <span class="info-value">@status.AverageScanTimeMs.ToString("F2") ms</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Memory</span>
+                    <span class="info-value">@((status.MemoryUsedBytes / 1024.0 / 1024.0).ToString("F1")) MB</span>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="engine-panel offline">
+            <h2>Engine Status</h2>
+            <p>Engine is not connected. Start the DataForeman.Engine service.</p>
+        </div>
+    }
+
+    <div class="recent-tags">
+        <h2>Recent Tag Values</h2>
+        @if (RecentTags.Any())
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Connection</th>
+                        <th>Tag</th>
+                        <th>Value</th>
+                        <th>Quality</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tag in RecentTags.Take(10))
+                    {
+                        <tr>
+                            <td>@tag.ConnectionId</td>
+                            <td>@tag.TagId</td>
+                            <td class="value">@FormatValue(tag.Value)</td>
+                            <td class="quality @tag.Quality.ToString().ToLower()">@tag.Quality</td>
+                            <td>@tag.GetDateTime().ToString("HH:mm:ss.fff")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="no-data">No tag data available. Configure connections and start the engine.</p>
+        }
+    </div>
+</div>
+
+<style>
+    .dashboard h1 {
+        margin: 0 0 16px 0;
+        font-size: 18px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .stat-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 16px;
+        text-align: center;
+    }
+
+    .stat-value {
+        display: block;
+        font-size: 28px;
+        font-weight: 600;
+        color: var(--accent-primary);
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .engine-panel {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .engine-panel.offline {
+        border-color: var(--status-error);
+    }
+
+    .engine-panel h2 {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .info-label {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .info-value {
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .info-value.ok { color: var(--status-ok); }
+    .info-value.error { color: var(--status-error); }
+
+    .recent-tags {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 16px;
+    }
+
+    .recent-tags h2 {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+    }
+
+    .data-table th, .data-table td {
+        padding: 6px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .data-table th {
+        color: var(--text-muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 10px;
+    }
+
+    .data-table .value {
+        font-family: Consolas, monospace;
+    }
+
+    .data-table .quality.good { color: var(--status-ok); }
+    .data-table .quality.bad { color: var(--status-error); }
+    .data-table .quality.uncertain { color: var(--status-warn); }
+
+    .no-data {
+        color: var(--text-muted);
+        font-size: 12px;
+        font-style: italic;
+    }
+</style>
+
+@code {
+    private IEnumerable<TagValueMessage> RecentTags =>
+        DataService.GetAllTagValues().OrderByDescending(t => t.Timestamp);
+
+    protected override void OnInitialized()
+    {
+        DataService.OnDataChanged += HandleDataChanged;
+        DataService.OnEngineStatusChanged += HandleStatusChanged;
+    }
+
+    private void HandleDataChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleStatusChanged(EngineStatusMessage status)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatValue(object? value)
+    {
+        return value switch
+        {
+            double d => d.ToString("F3"),
+            float f => f.ToString("F3"),
+            null => "-",
+            _ => value.ToString() ?? "-"
+        };
+    }
+
+    public void Dispose()
+    {
+        DataService.OnDataChanged -= HandleDataChanged;
+        DataService.OnEngineStatusChanged -= HandleStatusChanged;
+    }
+}

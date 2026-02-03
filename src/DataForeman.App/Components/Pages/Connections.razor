@@ -1,0 +1,667 @@
+@page "/connections"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject MqttService MqttService
+
+<PageTitle>Connections - DataForeman</PageTitle>
+
+<div class="connections-page">
+    <div class="page-header">
+        <h1>Connections</h1>
+        <button class="btn btn-primary" @onclick="NewConnection">+ New Connection</button>
+    </div>
+
+    <div class="connections-list">
+        @if (ConfigService.Connections.Count == 0)
+        {
+            <div class="empty-state">
+                <p>No connections configured.</p>
+                <p>Click "New Connection" to add your first device.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var conn in ConfigService.Connections)
+            {
+                <div class="connection-card @(conn.Enabled ? "enabled" : "disabled")">
+                    <div class="connection-header">
+                        <span class="connection-name">@conn.Name</span>
+                        <span class="connection-type">@conn.Type</span>
+                    </div>
+                    <div class="connection-details">
+                        @if (conn.Type != ConnectionType.Simulator)
+                        {
+                            <span>@conn.Host:@conn.Port</span>
+                        }
+                        <span>@conn.Tags.Count tags</span>
+                    </div>
+                    <div class="connection-actions">
+                        <button class="btn btn-sm" @onclick="() => EditConnection(conn)">Edit</button>
+                        <button class="btn btn-sm" @onclick="() => EditTags(conn)">Tags</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteConnection(conn)">Delete</button>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (ShowEditor)
+{
+    <div class="modal-overlay" @onclick="CloseEditor">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>@(IsNewConnection ? "New Connection" : "Edit Connection")</h2>
+                <button class="btn-close" @onclick="CloseEditor">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" @bind="EditingConnection.Name" placeholder="Connection name" />
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select @bind="EditingConnection.Type">
+                        @foreach (var type in Enum.GetValues<ConnectionType>())
+                        {
+                            <option value="@type">@type</option>
+                        }
+                    </select>
+                </div>
+                @if (EditingConnection.Type != ConnectionType.Simulator)
+                {
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Host</label>
+                            <input type="text" @bind="EditingConnection.Host" placeholder="192.168.1.100" />
+                        </div>
+                        <div class="form-group" style="width: 100px;">
+                            <label>Port</label>
+                            <input type="number" @bind="EditingConnection.Port" />
+                        </div>
+                    </div>
+                }
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="EditingConnection.Enabled" />
+                        <span>Enabled</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" @onclick="CloseEditor">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveConnection">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowTagEditor)
+{
+    <div class="modal-overlay" @onclick="CloseTagEditor">
+        <div class="modal modal-wide" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>Tags - @SelectedConnection?.Name</h2>
+                <button class="btn-close" @onclick="CloseTagEditor">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="tag-toolbar">
+                    <button class="btn btn-primary btn-sm" @onclick="AddTag">+ Add Tag</button>
+                    @if (SelectedConnection?.Type == ConnectionType.Simulator)
+                    {
+                        <button class="btn btn-sm" @onclick="GenerateSimulatorTags">Generate Sample Tags</button>
+                    }
+                </div>
+
+                @if (SelectedConnection?.Tags.Count == 0)
+                {
+                    <p class="no-data">No tags configured.</p>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Address</th>
+                                <th>Type</th>
+                                <th>Poll Rate</th>
+                                <th>Enabled</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tag in SelectedConnection?.Tags ?? new())
+                            {
+                                <tr>
+                                    <td>@tag.Name</td>
+                                    <td class="mono">@tag.Address</td>
+                                    <td>@tag.DataType</td>
+                                    <td>@tag.PollRateMs ms</td>
+                                    <td>
+                                        <input type="checkbox" checked="@tag.Enabled"
+                                               @onchange="e => ToggleTagEnabled(tag, (bool)(e.Value ?? false))" />
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm" @onclick="() => EditTag(tag)">Edit</button>
+                                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteTag(tag)">×</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="SaveTagsAndClose">Save & Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowTagDetail)
+{
+    <div class="modal-overlay" @onclick="CloseTagDetail">
+        <div class="modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>@(IsNewTag ? "New Tag" : "Edit Tag")</h2>
+                <button class="btn-close" @onclick="CloseTagDetail">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" @bind="EditingTag.Name" placeholder="Tag name" />
+                </div>
+                <div class="form-group">
+                    <label>Address</label>
+                    <input type="text" @bind="EditingTag.Address" placeholder="DB1.DBD0 or ns=2;s=Temperature" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Data Type</label>
+                        <select @bind="EditingTag.DataType">
+                            @foreach (var type in Enum.GetValues<DataType>())
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Poll Rate (ms)</label>
+                        <input type="number" @bind="EditingTag.PollRateMs" min="10" step="10" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Unit</label>
+                        <input type="text" @bind="EditingTag.Unit" placeholder="°C, bar, etc." />
+                    </div>
+                    <div class="form-group">
+                        <label>Scale Factor</label>
+                        <input type="number" @bind="EditingTag.ScaleFactor" step="0.001" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" @bind="EditingTag.Description" />
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="EditingTag.Enabled" />
+                        <span>Enabled</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="EditingTag.LogHistory" />
+                        <span>Log History</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" @onclick="CloseTagDetail">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveTag">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .connections-page { max-width: 900px; }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .page-header h1 {
+        margin: 0;
+        font-size: 18px;
+    }
+
+    .connections-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .connection-card {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .connection-card.disabled {
+        opacity: 0.6;
+    }
+
+    .connection-header {
+        flex: 1;
+    }
+
+    .connection-name {
+        font-weight: 500;
+        display: block;
+    }
+
+    .connection-type {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .connection-details {
+        display: flex;
+        gap: 16px;
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .connection-actions {
+        display: flex;
+        gap: 4px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-muted);
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+
+    .modal {
+        background: var(--bg-panel);
+        border: 1px solid var(--border-medium);
+        border-radius: 6px;
+        width: 400px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-wide {
+        width: 700px;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 14px;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .modal-body {
+        padding: 16px;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 12px 16px;
+        border-top: 1px solid var(--border-subtle);
+    }
+
+    /* Form styles */
+    .form-group {
+        margin-bottom: 12px;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group select {
+        width: 100%;
+        padding: 6px 10px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-medium);
+        border-radius: 3px;
+        color: var(--text-primary);
+        font-size: 12px;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: var(--accent-primary);
+    }
+
+    .form-row {
+        display: flex;
+        gap: 12px;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+
+    .checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        margin-right: 16px;
+    }
+
+    .tag-toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+    }
+
+    .data-table th, .data-table td {
+        padding: 6px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .data-table th {
+        color: var(--text-muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        font-size: 10px;
+    }
+
+    .data-table .mono {
+        font-family: Consolas, monospace;
+    }
+
+    .no-data {
+        color: var(--text-muted);
+        font-size: 12px;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
+    }
+
+    /* Button styles */
+    .btn {
+        padding: 6px 12px;
+        border-radius: 3px;
+        border: 1px solid var(--border-medium);
+        background: var(--bg-surface);
+        color: var(--text-primary);
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .btn:hover {
+        background: var(--bg-hover);
+    }
+
+    .btn-sm {
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+
+    .btn-primary {
+        background: var(--accent-primary);
+        border-color: var(--accent-primary);
+        color: #000;
+    }
+
+    .btn-primary:hover {
+        background: var(--accent-primary-hover);
+    }
+
+    .btn-danger {
+        color: var(--status-error);
+    }
+
+    .btn-danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+    }
+</style>
+
+@code {
+    private bool ShowEditor = false;
+    private bool IsNewConnection = false;
+    private ConnectionConfig EditingConnection = new();
+
+    private bool ShowTagEditor = false;
+    private ConnectionConfig? SelectedConnection;
+
+    private bool ShowTagDetail = false;
+    private bool IsNewTag = false;
+    private TagConfig EditingTag = new();
+
+    private void NewConnection()
+    {
+        EditingConnection = new ConnectionConfig
+        {
+            Type = ConnectionType.Simulator,
+            Port = GetDefaultPort(ConnectionType.Simulator)
+        };
+        IsNewConnection = true;
+        ShowEditor = true;
+    }
+
+    private void EditConnection(ConnectionConfig conn)
+    {
+        EditingConnection = new ConnectionConfig
+        {
+            Id = conn.Id,
+            Name = conn.Name,
+            Type = conn.Type,
+            Host = conn.Host,
+            Port = conn.Port,
+            Enabled = conn.Enabled,
+            Tags = conn.Tags
+        };
+        IsNewConnection = false;
+        ShowEditor = true;
+    }
+
+    private async Task SaveConnection()
+    {
+        if (string.IsNullOrWhiteSpace(EditingConnection.Name))
+            return;
+
+        await ConfigService.SaveConnectionAsync(EditingConnection);
+        await MqttService.ReloadConfigAsync();
+        ShowEditor = false;
+    }
+
+    private async Task DeleteConnection(ConnectionConfig conn)
+    {
+        await ConfigService.DeleteConnectionAsync(conn.Id);
+        await MqttService.ReloadConfigAsync();
+    }
+
+    private void CloseEditor()
+    {
+        ShowEditor = false;
+    }
+
+    private void EditTags(ConnectionConfig conn)
+    {
+        SelectedConnection = conn;
+        ShowTagEditor = true;
+    }
+
+    private void CloseTagEditor()
+    {
+        ShowTagEditor = false;
+        SelectedConnection = null;
+    }
+
+    private async Task SaveTagsAndClose()
+    {
+        if (SelectedConnection != null)
+        {
+            await ConfigService.SaveConnectionAsync(SelectedConnection);
+            await MqttService.ReloadConfigAsync();
+        }
+        ShowTagEditor = false;
+        SelectedConnection = null;
+    }
+
+    private void AddTag()
+    {
+        EditingTag = new TagConfig
+        {
+            PollRateMs = 1000,
+            DataType = DataType.Float,
+            Enabled = true,
+            LogHistory = true
+        };
+        IsNewTag = true;
+        ShowTagDetail = true;
+    }
+
+    private void EditTag(TagConfig tag)
+    {
+        EditingTag = new TagConfig
+        {
+            Id = tag.Id,
+            Name = tag.Name,
+            Address = tag.Address,
+            DataType = tag.DataType,
+            PollRateMs = tag.PollRateMs,
+            Enabled = tag.Enabled,
+            LogHistory = tag.LogHistory,
+            ScaleFactor = tag.ScaleFactor,
+            Offset = tag.Offset,
+            Unit = tag.Unit,
+            Description = tag.Description
+        };
+        IsNewTag = false;
+        ShowTagDetail = true;
+    }
+
+    private void SaveTag()
+    {
+        if (string.IsNullOrWhiteSpace(EditingTag.Name) || SelectedConnection == null)
+            return;
+
+        if (IsNewTag)
+        {
+            SelectedConnection.Tags.Add(EditingTag);
+        }
+        else
+        {
+            var idx = SelectedConnection.Tags.FindIndex(t => t.Id == EditingTag.Id);
+            if (idx >= 0)
+                SelectedConnection.Tags[idx] = EditingTag;
+        }
+
+        ShowTagDetail = false;
+    }
+
+    private void DeleteTag(TagConfig tag)
+    {
+        SelectedConnection?.Tags.Remove(tag);
+    }
+
+    private void CloseTagDetail()
+    {
+        ShowTagDetail = false;
+    }
+
+    private void ToggleTagEnabled(TagConfig tag, bool enabled)
+    {
+        tag.Enabled = enabled;
+    }
+
+    private void GenerateSimulatorTags()
+    {
+        if (SelectedConnection == null) return;
+
+        var tagTypes = new[] {
+            ("Temperature", "sim/temp_{0}", DataType.Float, "°C"),
+            ("Pressure", "sim/pressure_{0}", DataType.Float, "bar"),
+            ("Level", "sim/level_{0}", DataType.Float, "%"),
+            ("Flow", "sim/flow_{0}", DataType.Float, "L/min"),
+            ("Status", "sim/status_{0}", DataType.Bool, null)
+        };
+
+        var nextNum = SelectedConnection.Tags.Count + 1;
+        foreach (var (name, addr, dataType, unit) in tagTypes)
+        {
+            SelectedConnection.Tags.Add(new TagConfig
+            {
+                Name = $"{name}_{nextNum}",
+                Address = string.Format(addr, nextNum),
+                DataType = dataType,
+                Unit = unit,
+                PollRateMs = 500,
+                Enabled = true,
+                LogHistory = true
+            });
+        }
+    }
+
+    private int GetDefaultPort(ConnectionType type) => type switch
+    {
+        ConnectionType.OpcUa => 4840,
+        ConnectionType.EtherNetIP => 44818,
+        ConnectionType.S7 => 102,
+        ConnectionType.ModbusTcp => 502,
+        ConnectionType.Mqtt => 1883,
+        _ => 0
+    };
+}

@@ -1,0 +1,146 @@
+@inherits LayoutComponentBase
+@inject RealtimeDataService DataService
+
+<div class="app-container">
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <span class="logo">⚙</span>
+            <span class="app-name">DataForeman</span>
+        </div>
+
+        <div class="nav-section">
+            <NavLink href="/" Match="NavLinkMatch.All">
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
+            </NavLink>
+            <NavLink href="/connections">
+                <span class="nav-icon">🔌</span>
+                <span>Connections</span>
+            </NavLink>
+            <NavLink href="/charts">
+                <span class="nav-icon">📈</span>
+                <span>Charts</span>
+            </NavLink>
+            <NavLink href="/flows">
+                <span class="nav-icon">🔀</span>
+                <span>Flows</span>
+            </NavLink>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="engine-status @(DataService.IsEngineRunning ? "running" : "stopped")">
+                <span class="status-dot"></span>
+                <span>Engine @(DataService.IsEngineRunning ? "Running" : "Stopped")</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+<style>
+    .app-container {
+        display: flex;
+        height: 100vh;
+        background: var(--bg-dark);
+    }
+
+    .sidebar {
+        width: 200px;
+        background: var(--bg-panel);
+        border-right: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .logo {
+        font-size: 20px;
+    }
+
+    .app-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--accent-primary);
+    }
+
+    .nav-section {
+        flex: 1;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .nav-section a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 4px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 12px;
+        transition: all 0.15s;
+    }
+
+    .nav-section a:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+    }
+
+    .nav-section a.active {
+        background: var(--bg-surface);
+        color: var(--accent-primary);
+    }
+
+    .nav-icon {
+        font-size: 14px;
+        width: 20px;
+        text-align: center;
+    }
+
+    .sidebar-footer {
+        padding: 12px;
+        border-top: 1px solid var(--border-subtle);
+    }
+
+    .engine-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        color: var(--text-muted);
+    }
+
+    .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--text-muted);
+    }
+
+    .engine-status.running .status-dot {
+        background: var(--status-ok);
+        box-shadow: 0 0 4px var(--status-ok);
+    }
+
+    .engine-status.stopped .status-dot {
+        background: var(--status-error);
+    }
+
+    .main-content {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+    }
+</style>
