@@ -8,6 +8,7 @@ public class NodePluginRegistry
 {
     private readonly Dictionary<string, NodePluginDefinition> _plugins = new();
     private readonly Dictionary<string, List<NodePluginDefinition>> _byCategory = new();
+    private readonly List<string> _categoryOrder = new(); // Tracks order categories were added
     private readonly object _lock = new();
     
     /// <summary>
@@ -25,9 +26,18 @@ public class NodePluginRegistry
     }
     
     /// <summary>
-    /// Gets all category names in display order
+    /// Gets all category names in the order they were registered (automatically derived from plugins)
     /// </summary>
-    public static IReadOnlyList<string> Categories { get; } = new[] { "Triggers", "Tags", "Math", "Logic", "Output" };
+    public IReadOnlyList<string> Categories
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _categoryOrder.AsReadOnly();
+            }
+        }
+    }
     
     public NodePluginRegistry()
     {
@@ -44,7 +54,10 @@ public class NodePluginRegistry
             _plugins[plugin.Id] = plugin;
             
             if (!_byCategory.ContainsKey(plugin.Category))
+            {
                 _byCategory[plugin.Category] = new List<NodePluginDefinition>();
+                _categoryOrder.Add(plugin.Category); // Track category order
+            }
             
             var existing = _byCategory[plugin.Category].FindIndex(p => p.Id == plugin.Id);
             if (existing >= 0)
@@ -273,6 +286,25 @@ public class NodePluginRegistry
             }
         });
         
+        // Generic math node for legacy compatibility (used in seed data)
+        Register(new NodePluginDefinition
+        {
+            Id = "math",
+            Name = "Math",
+            ShortLabel = "Math",
+            Category = "Math",
+            Description = "Generic math operation node (legacy)",
+            Icon = "[±]",
+            Color = "#a855f7",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new List<NodePropertyDefinition>
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = "add", Options = new() { new() { Value = "add", Label = "Add" }, new() { Value = "subtract", Label = "Subtract" }, new() { Value = "multiply", Label = "Multiply" }, new() { Value = "divide", Label = "Divide" }, new() { Value = "average", Label = "Average" } }, Group = "Operation" },
+                new() { Key = "operand", Label = "Operand B (if no input)", Type = PropertyType.Decimal, DefaultValue = "0", Step = 1, Group = "Operation" }
+            }
+        });
+        
         // === LOGIC NODES ===
         Register(new NodePluginDefinition
         {
@@ -346,6 +378,62 @@ public class NodePluginRegistry
                 new() { Key = "operation", Label = "Comparison", Type = PropertyType.ReadOnly, DefaultValue = "A < B", Group = "Operation" },
                 new() { Key = "threshold", Label = "Threshold (if no input B)", Type = PropertyType.Decimal, DefaultValue = "0", Step = 1, Group = "Operation" },
                 new() { Key = "hysteresis", Label = "Hysteresis", Type = PropertyType.Decimal, DefaultValue = "0", Min = 0, Step = 0.1, Group = "Operation", Advanced = true }
+            }
+        });
+        
+        // Generic compare node for legacy compatibility (used in seed data)
+        Register(new NodePluginDefinition
+        {
+            Id = "compare",
+            Name = "Compare",
+            ShortLabel = "Compare",
+            Category = "Logic",
+            Description = "Generic comparison node (legacy)",
+            Icon = "[?]",
+            Color = "#6b7280",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new List<NodePropertyDefinition>
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = ">", Options = new() { new() { Value = ">", Label = "Greater Than" }, new() { Value = "<", Label = "Less Than" }, new() { Value = "==", Label = "Equal" }, new() { Value = ">=", Label = "Greater Or Equal" }, new() { Value = "<=", Label = "Less Or Equal" } }, Group = "Operation" },
+                new() { Key = "threshold", Label = "Threshold", Type = PropertyType.Decimal, DefaultValue = "0", Step = 1, Group = "Operation" }
+            }
+        });
+        
+        // === SCRIPT NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "function",
+            Name = "Function",
+            ShortLabel = "Function",
+            Category = "Script",
+            Description = "Execute custom JavaScript code to transform data",
+            Icon = "[ƒ]",
+            Color = "#f59e0b",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new List<NodePropertyDefinition>
+            {
+                new() { Key = "code", Label = "JavaScript Code", Type = PropertyType.Code, DefaultValue = "// Transform input data\nreturn input;", Placeholder = "// Your code here\nreturn input;", HelpText = "Write JavaScript to transform the input. Use 'input' to access incoming data.", Group = "Code" },
+                new() { Key = "timeout", Label = "Timeout (ms)", Type = PropertyType.Integer, DefaultValue = "5000", Min = 100, Max = 30000, HelpText = "Maximum execution time", Group = "Execution", Advanced = true }
+            }
+        });
+        
+        Register(new NodePluginDefinition
+        {
+            Id = "csharp",
+            Name = "C# Script",
+            ShortLabel = "C# Script",
+            Category = "Script",
+            Description = "Execute custom C# code to transform data",
+            Icon = "[C#]",
+            Color = "#9b4dca",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new List<NodePropertyDefinition>
+            {
+                new() { Key = "code", Label = "C# Code", Type = PropertyType.Code, DefaultValue = "// Transform input data\nreturn input;", Placeholder = "// Your code here\nreturn input;", HelpText = "Write C# to transform the input. Use 'input' to access incoming data.", Group = "Code" },
+                new() { Key = "timeout", Label = "Timeout (ms)", Type = PropertyType.Integer, DefaultValue = "5000", Min = 100, Max = 30000, HelpText = "Maximum execution time", Group = "Execution", Advanced = true }
             }
         });
         

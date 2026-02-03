@@ -534,7 +534,12 @@ const FlowEditor = () => {
           };
         });
         setNodes(loadedNodes);
-        setEdges(data.flow.definition.edges || []);
+        // Restore edges with markerEnd to ensure arrow display
+        const restoredEdges = (data.flow.definition.edges || []).map(edge => ({
+          ...edge,
+          markerEnd: edge.markerEnd || { type: MarkerType.ArrowClosed }
+        }));
+        setEdges(restoredEdges);
         // Load pinned data if exists
         if (data.flow.definition.pinData) {
           setPinnedData(data.flow.definition.pinData);

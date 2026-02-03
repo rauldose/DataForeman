@@ -82,7 +82,7 @@
                 @* Custom HTML5 Palette - more reliable than Syncfusion SymbolPalette *@
                 <div class="custom-palette">
                     <div class="palette-header">NODE PALETTE</div>
-                    @foreach (var category in NodePluginRegistry.Categories)
+                    @foreach (var category in NodeRegistry.Categories)
                     {
                         var plugins = NodeRegistry.GetByCategory(category);
                         if (plugins.Count == 0) continue;
@@ -229,6 +229,36 @@
                     else
                     {
                         <p class="no-selection">Select a node to view properties</p>
+                    }
+                </div>
+                
+                <div class="output-console">
+                    <div class="console-header" @onclick="@(() => _consoleExpanded = !_consoleExpanded)">
+                        <span class="console-title">📋 Output Console</span>
+                        <span class="console-expand">@(_consoleExpanded ? "▼" : "▲")</span>
+                    </div>
+                    @if (_consoleExpanded)
+                    {
+                        <div class="console-toolbar">
+                            <SfButton CssClass="e-small e-outline" IconCss="e-icons e-play" Content="Test Run" OnClick="@TestRunFlow" Disabled="@_isRunning"></SfButton>
+                            <SfButton CssClass="e-small e-flat" IconCss="e-icons e-delete" Content="Clear" OnClick="@ClearConsole"></SfButton>
+                        </div>
+                        <div class="console-output">
+                            @if (_consoleMessages.Count == 0)
+                            {
+                                <div class="console-empty">No output yet. Click "Test Run" to execute the flow.</div>
+                            }
+                            else
+                            {
+                                @foreach (var msg in _consoleMessages)
+                                {
+                                    <div class="console-line @msg.Type">
+                                        <span class="console-time">[@msg.Timestamp.ToString("HH:mm:ss")]</span>
+                                        <span class="console-text">@msg.Text</span>
+                                    </div>
+                                }
+                            }
+                        </div>
                     }
                 </div>
             </div>
@@ -601,6 +631,23 @@
         color: #6b7280;
         font-style: normal;
     }
+    
+    /* Code editor styling for script nodes */
+    .code-editor {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+        background: #1e1e1e !important;
+        color: #d4d4d4 !important;
+        border: 1px solid #3a4049 !important;
+        border-radius: 4px !important;
+    }
+    
+    .code-editor textarea {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+        min-height: 150px !important;
+        tab-size: 2 !important;
+    }
 
     /* Syncfusion Symbol Palette styling - Industrial Dark Theme */
     .e-symbol-palette {
@@ -664,6 +711,98 @@
         from { opacity: 0; }
         to { opacity: 1; }
     }
+    
+    .output-console {
+        background: #1e1e1e;
+        border-radius: 8px;
+        margin-top: 12px;
+        border: 1px solid #3c3c3c;
+        overflow: hidden;
+    }
+    
+    .console-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: #252526;
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .console-header:hover {
+        background: #2d2d2d;
+    }
+    
+    .console-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #9d9d9d;
+    }
+    
+    .console-expand {
+        color: #9d9d9d;
+        font-size: 10px;
+    }
+    
+    .console-toolbar {
+        display: flex;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid #3c3c3c;
+    }
+    
+    .console-output {
+        height: 150px;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+    
+    .console-empty {
+        color: #6d6d6d;
+        font-style: italic;
+        padding: 20px;
+        text-align: center;
+    }
+    
+    .console-line {
+        display: flex;
+        gap: 8px;
+        padding: 2px 0;
+        border-bottom: 1px solid #2d2d2d;
+    }
+    
+    .console-time {
+        color: #6d6d6d;
+        white-space: nowrap;
+    }
+    
+    .console-text {
+        color: #d4d4d4;
+        word-break: break-all;
+    }
+    
+    .console-line.info .console-text {
+        color: #4fc3f7;
+    }
+    
+    .console-line.success .console-text {
+        color: #81c784;
+    }
+    
+    .console-line.warning .console-text {
+        color: #ffb74d;
+    }
+    
+    .console-line.error .console-text {
+        color: #e57373;
+    }
+    
+    .console-line.node .console-text {
+        color: #ce93d8;
+    }
 </style>
 
 @code {
@@ -683,6 +822,14 @@
     
     private FlowListItem CurrentFlow = new() { Name = "New Flow" };
     private bool IsLoading = true;
+    
+    // Available tags for dropdowns
+    private List<SelectOption> AvailableTags = new();
+    
+    // Console output state
+    private bool _consoleExpanded = true;
+    private bool _isRunning = false;
+    private List<ConsoleMessage> _consoleMessages = new();
     
     // Flows list - loaded from API or sample data
     private List<FlowListItem> FlowsList = new();
@@ -756,6 +903,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadFlows();
+        await LoadAvailableTags();
         
         // Load flow definition after flows are loaded
         if (FlowId != Guid.Empty)
@@ -766,6 +914,24 @@
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
             }
+        }
+    }
+    
+    private async Task LoadAvailableTags()
+    {
+        try
+        {
+            var tags = await DataService.GetTagsAsync();
+            AvailableTags = tags.Select(t => new SelectOption 
+            { 
+                Value = t.TagPath, 
+                Label = string.IsNullOrEmpty(t.TagName) ? t.TagPath : $"{t.TagName} ({t.TagPath})"
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load tags: {ex.Message}");
+            AvailableTags = new List<SelectOption>();
         }
     }
     
@@ -783,9 +949,10 @@
         }
     }
     
-    private bool _firstRender = true;
     private bool _connectorsAdded = false;
+    private bool _isLoadingFlowDefinition = false; // Flag to prevent ID regeneration during flow loading
     private DiagramObjectCollection<Connector> _pendingConnectors = new();
+    private Dictionary<string, string> _nodeTypes = new(); // Maps node IDs to their type (e.g., "node_1" -> "tag-input")
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -798,18 +965,21 @@
             // Wait for nodes to be fully rendered in the diagram
             await Task.Delay(500);
             
-            // Add connectors programmatically after nodes are rendered
+            // NOW clear the loading flag - after nodes have been processed by OnNodeCreating
+            // This ensures node IDs are preserved during the async rendering process
+            _isLoadingFlowDefinition = false;
+            
+            // Add connectors programmatically after nodes are rendered using Diagram API
             try
             {
-                foreach (var connector in _pendingConnectors)
-                {
-                    // Add connector directly to Connectors collection after nodes are rendered
-                    Connectors.Add(connector);
-                }
+                // Convert pending connectors to list for AddDiagramElements
+                var connectorsToAdd = _pendingConnectors.ToList();
+                
+                // Use AddDiagramElementsAsync to properly add connectors to the rendered diagram
+                await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
                 
                 // Clear pending connectors after they're added
                 _pendingConnectors.Clear();
-                StateHasChanged();
             }
             catch (Exception ex)
             {
@@ -862,6 +1032,10 @@
         {
             try
             {
+                // Set flag to prevent OnNodeCreating from regenerating IDs
+                // This flag will be cleared in OnAfterRenderAsync after connectors are added
+                _isLoadingFlowDefinition = true;
+                
                 // Deserialize flow definition
                 using var doc = System.Text.Json.JsonDocument.Parse(flow.Definition);
                 var root = doc.RootElement;
@@ -870,6 +1044,8 @@
                 Nodes = new DiagramObjectCollection<Node>();
                 Connectors = new DiagramObjectCollection<Connector>();
                 _pendingConnectors = new DiagramObjectCollection<Connector>();
+                _nodeTypes = new Dictionary<string, string>(); // Clear node type mappings
+                _nodeProperties = new Dictionary<string, Dictionary<string, string>>(); // Clear node properties
                 
                 // Load nodes
                 if (root.TryGetProperty("nodes", out var nodesElement))
@@ -912,6 +1088,37 @@
                         
                         var node = CreateFlowNode(id, label ?? id, color, x, y, inputCount, outputCount);
                         Nodes.Add(node);
+                        
+                        // Store the node type mapping for property panel lookup
+                        if (!string.IsNullOrEmpty(nodeType))
+                        {
+                            _nodeTypes[id] = nodeType;
+                        }
+                        
+                        // Load node config into _nodeProperties for editing
+                        if (nodeDef.TryGetProperty("config", out var configElement))
+                        {
+                            if (!_nodeProperties.ContainsKey(id))
+                            {
+                                _nodeProperties[id] = new Dictionary<string, string>();
+                            }
+                            
+                            // Iterate through config properties and store them
+                            foreach (var configProp in configElement.EnumerateObject())
+                            {
+                                var propValue = configProp.Value.ValueKind switch
+                                {
+                                    System.Text.Json.JsonValueKind.String => configProp.Value.GetString() ?? "",
+                                    System.Text.Json.JsonValueKind.Number => configProp.Value.GetRawText(),
+                                    System.Text.Json.JsonValueKind.True => "true",
+                                    System.Text.Json.JsonValueKind.False => "false",
+                                    System.Text.Json.JsonValueKind.Array => System.Text.Json.JsonSerializer.Serialize(configProp.Value),
+                                    System.Text.Json.JsonValueKind.Object => System.Text.Json.JsonSerializer.Serialize(configProp.Value),
+                                    _ => configProp.Value.GetRawText()
+                                };
+                                _nodeProperties[id][configProp.Name] = propValue;
+                            }
+                        }
                     }
                 }
                 
@@ -943,7 +1150,13 @@
                         var targetPort = connDef.TryGetProperty("targetPort", out var tgtPort) ? tgtPort.GetString() :
                                         connDef.TryGetProperty("targetHandle", out var tgtHandle) ? tgtHandle.GetString() : null;
                         
-                        var connector = CreateFlowConnector(id, sourceId, sourcePort, targetId, targetPort);
+                        // Map semantic port names to indexed port names
+                        // The database uses names like "input1", "value", "numerator" but 
+                        // Syncfusion Diagram uses "input-0", "input-1", "output-0"
+                        var mappedSourcePort = MapPortName(sourcePort, "output");
+                        var mappedTargetPort = MapPortName(targetPort, "input");
+                        
+                        var connector = CreateFlowConnector(id, sourceId, mappedSourcePort, targetId, mappedTargetPort);
                         _pendingConnectors.Add(connector);
                     }
                 }
@@ -969,6 +1182,8 @@
                 // Fall back to hardcoded sample for demo purposes
                 LoadSampleFlowDefinition(flow);
             }
+            // Note: DO NOT clear _isLoadingFlowDefinition here - it will be cleared in OnAfterRenderAsync
+            // after connectors are added, because OnNodeCreating events fire asynchronously during render
         }
         else
         {
@@ -981,29 +1196,46 @@
     
     private void LoadSampleFlowDefinition(FlowListItem flow)
     {
-        // For demo, add some sample nodes for the Temperature Monitor flow
-        if (flow.Name == "Temperature Monitor")
+        // Set flag to prevent OnNodeCreating from regenerating IDs
+        _isLoadingFlowDefinition = true;
+        
+        try
         {
-            Nodes = new DiagramObjectCollection<Node>
+            // For demo, add some sample nodes for the Temperature Monitor flow
+            if (flow.Name == "Temperature Monitor")
             {
-                CreateFlowNode("trigger-manual-1", "Manual Trigger", "#4caf50", 150, 150, 0, 1),
-                CreateFlowNode("tag-input-1", "Tag Input", "#2196f3", 350, 150, 1, 1),
-                CreateFlowNode("compare-greater-1", "Greater Than", "#607d8b", 550, 150, 2, 1),
-                CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
-            };
-            
-            // Store connectors to be added after diagram renders
-            // This avoids the issue where connectors appear at (0,0) before nodes are rendered
-            _pendingConnectors = new DiagramObjectCollection<Connector>
-            {
-                CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
-                CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
-                CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
-            };
-            
-            // Clear the main Connectors collection - we'll add them programmatically after render
-            Connectors = new DiagramObjectCollection<Connector>();
+                Nodes = new DiagramObjectCollection<Node>
+                {
+                    CreateFlowNode("trigger-manual-1", "Manual Trigger", "#4caf50", 150, 150, 0, 1),
+                    CreateFlowNode("tag-input-1", "Tag Input", "#2196f3", 350, 150, 1, 1),
+                    CreateFlowNode("compare-greater-1", "Greater Than", "#607d8b", 550, 150, 2, 1),
+                    CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
+                };
+                
+                // Store node types for property panel
+                _nodeTypes["trigger-manual-1"] = "trigger-manual";
+                _nodeTypes["tag-input-1"] = "tag-input";
+                _nodeTypes["compare-greater-1"] = "compare-greater";
+                _nodeTypes["notification-1"] = "notification";
+                
+                // Store connectors to be added after diagram renders
+                // This avoids the issue where connectors appear at (0,0) before nodes are rendered
+                _pendingConnectors = new DiagramObjectCollection<Connector>
+                {
+                    CreateFlowConnector("conn-1", "trigger-manual-1", "output-0", "tag-input-1", "input-0"),
+                    CreateFlowConnector("conn-2", "tag-input-1", "output-0", "compare-greater-1", "input-0"),
+                    CreateFlowConnector("conn-3", "compare-greater-1", "output-0", "notification-1", "input-0")
+                };
+                
+                // Clear the main Connectors collection - we'll add them programmatically after render
+                Connectors = new DiagramObjectCollection<Connector>();
+            }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in LoadSampleFlowDefinition: {ex.Message}");
+        }
+        // Note: DO NOT clear _isLoadingFlowDefinition here - it will be cleared in OnAfterRenderAsync
     }
     
     /// <summary>
@@ -1127,17 +1359,53 @@
     }
     
     /// <summary>
+    /// Maps semantic port names from flow definitions to actual port IDs
+    /// Database uses names like "input1", "value", "numerator" but Syncfusion uses "input-0", "output-0"
+    /// </summary>
+    private string MapPortName(string? portName, string portType)
+    {
+        if (string.IsNullOrEmpty(portName))
+        {
+            return $"{portType}-0";
+        }
+        
+        // If it's already in the correct format (input-0, output-0), return as-is
+        if (portName.StartsWith("input-") || portName.StartsWith("output-"))
+        {
+            return portName;
+        }
+        
+        // Map semantic names to indexed names
+        // Common patterns: input1, input2, value, numerator, denominator, etc.
+        if (portName.StartsWith("input") && portName.Length > 5 && int.TryParse(portName[5..], out var inputNum))
+        {
+            // "input1" -> "input-0", "input2" -> "input-1"
+            return $"input-{inputNum - 1}";
+        }
+        
+        if (portName.StartsWith("output") && portName.Length > 6 && int.TryParse(portName[6..], out var outputNum))
+        {
+            // "output1" -> "output-0", "output2" -> "output-1"
+            return $"output-{outputNum - 1}";
+        }
+        
+        // For other semantic names, map to first port of appropriate type
+        // This handles names like "value", "numerator", "highAlert", etc.
+        return $"{portType}-0";
+    }
+    
+    /// <summary>
     /// Creates a connector between two ports
     /// </summary>
-    private Connector CreateFlowConnector(string id, string sourceId, string sourcePort, string targetId, string targetPort)
+    private Connector CreateFlowConnector(string id, string sourceId, string? sourcePort, string targetId, string? targetPort)
     {
         return new Connector
         {
             ID = id,
             SourceID = sourceId,
-            SourcePortID = sourcePort,
+            SourcePortID = sourcePort ?? "output-0",
             TargetID = targetId,
-            TargetPortID = targetPort,
+            TargetPortID = targetPort ?? "input-0",
             Type = ConnectorSegmentType.Orthogonal,
             Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
             TargetDecorator = new DecoratorSettings 
@@ -1344,8 +1612,9 @@
             // Ensure node has full interactivity (drag, select, resize, delete)
             node.Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop;
             
-            // Generate unique ID if not already an instance
-            if (node.ID != null && !node.ID.Contains("-instance-"))
+            // Generate unique ID if not already an instance AND we're not loading a flow definition
+            // During flow loading, we preserve the exact IDs from the definition to maintain connector references
+            if (node.ID != null && !node.ID.Contains("-instance-") && !_isLoadingFlowDefinition)
             {
                 var baseId = node.ID;
                 node.ID = $"{baseId}-instance-{Guid.NewGuid():N}";
@@ -1443,6 +1712,13 @@
     private string GetNodeType(Node node)
     {
         var id = node.ID ?? "";
+        
+        // First check if we have a stored node type from loading
+        if (_nodeTypes.TryGetValue(id, out var storedType) && !string.IsNullOrEmpty(storedType))
+        {
+            return storedType.ToUpper().Replace("-", " ");
+        }
+        
         var parts = id.Split("-instance-").FirstOrDefault()?.Split('-') ?? Array.Empty<string>();
         return string.Join(" ", parts.Take(2)).ToUpper();
     }
@@ -1450,6 +1726,13 @@
     private string GetNodeBaseType(Node node)
     {
         var id = node.ID ?? "";
+        
+        // First check if we have a stored node type from loading
+        if (_nodeTypes.TryGetValue(id, out var storedType) && !string.IsNullOrEmpty(storedType))
+        {
+            return storedType;
+        }
+        
         return id.Split("-instance-").FirstOrDefault() ?? "unknown";
     }
     
@@ -1481,7 +1764,6 @@
     
     // Node property storage for node-specific settings
     private Dictionary<string, Dictionary<string, string>> _nodeProperties = new();
-    private bool _triggerOnDeploy = true;
     private bool _showAdvanced = false;
     
     // Dropdown options for node properties (kept for backward compatibility)
@@ -1501,12 +1783,30 @@
         switch (prop.Type)
         {
             case PropertyType.Text:
-            case PropertyType.TagPath:
             case PropertyType.Cron:
                 builder.OpenComponent<SfTextBox>(0);
                 builder.AddAttribute(1, "Value", value);
                 builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
                 builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.CloseComponent();
+                break;
+            
+            case PropertyType.TagPath:
+                // Tag path dropdown - show available tags from database
+                // Use ChildContent to add FieldSettings for proper text/value binding
+                builder.OpenComponent<SfDropDownList<string, SelectOption>>(0);
+                builder.AddAttribute(1, "DataSource", AvailableTags);
+                builder.AddAttribute(2, "Value", value);
+                builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(4, "AllowFiltering", true);
+                builder.AddAttribute(5, "Placeholder", prop.Placeholder ?? "Select a tag");
+                builder.AddAttribute(6, "ChildContent", (RenderFragment)(fieldBuilder =>
+                {
+                    fieldBuilder.OpenComponent<DropDownListFieldSettings>(0);
+                    fieldBuilder.AddAttribute(1, "Text", "Label");
+                    fieldBuilder.AddAttribute(2, "Value", "Value");
+                    fieldBuilder.CloseComponent();
+                }));
                 builder.CloseComponent();
                 break;
                 
@@ -1554,10 +1854,13 @@
                 builder.AddAttribute(1, "DataSource", prop.Options);
                 builder.AddAttribute(2, "Value", string.IsNullOrEmpty(value) ? prop.DefaultValue : value);
                 builder.AddAttribute(3, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
-                builder.AddAttribute(4, "TValue", typeof(string));
-                builder.AddAttribute(5, "TItem", typeof(SelectOption));
-                builder.AddAttribute(6, "TextField", "Label");
-                builder.AddAttribute(7, "ValueField", "Value");
+                builder.AddAttribute(4, "ChildContent", (RenderFragment)(fieldBuilder =>
+                {
+                    fieldBuilder.OpenComponent<DropDownListFieldSettings>(0);
+                    fieldBuilder.AddAttribute(1, "Text", "Label");
+                    fieldBuilder.AddAttribute(2, "Value", "Value");
+                    fieldBuilder.CloseComponent();
+                }));
                 builder.CloseComponent();
                 break;
                 
@@ -1575,6 +1878,17 @@
                 builder.AddAttribute(1, "class", "property-value");
                 builder.AddContent(2, value);
                 builder.CloseElement();
+                break;
+            
+            case PropertyType.Code:
+                // Code editor - use a multiline text box with monospace font styling
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", value);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, v => SetNodeProperty(prop.Key, v)));
+                builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.AddAttribute(4, "Multiline", true);
+                builder.AddAttribute(5, "CssClass", "code-editor");
+                builder.CloseComponent();
                 break;
                 
             default:
@@ -1796,5 +2110,137 @@
         public string Status => Deployed ? "Deployed" : "Stopped";
         public DateTime UpdatedAt { get; set; }
         public string Definition { get; set; } = "{}";
+    }
+    
+    class ConsoleMessage
+    {
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public string Text { get; set; } = "";
+        public string Type { get; set; } = "info"; // info, success, warning, error, node
+    }
+    
+    private void ClearConsole()
+    {
+        _consoleMessages.Clear();
+    }
+    
+    private void LogToConsole(string message, string type = "info")
+    {
+        _consoleMessages.Add(new ConsoleMessage
+        {
+            Timestamp = DateTime.Now,
+            Text = message,
+            Type = type
+        });
+        StateHasChanged();
+    }
+    
+    private async Task TestRunFlow()
+    {
+        if (_isRunning) return;
+        
+        _isRunning = true;
+        _consoleMessages.Clear();
+        
+        try
+        {
+            LogToConsole($"Starting flow execution: {CurrentFlow.Name}", "info");
+            
+            // Get all nodes sorted by their x position (left to right = execution order)
+            var orderedNodes = Nodes.OrderBy(n => n.OffsetX).ToList();
+            
+            if (orderedNodes.Count == 0)
+            {
+                LogToConsole("No nodes in the flow to execute", "warning");
+                return;
+            }
+            
+            // Simulate flow execution
+            foreach (var node in orderedNodes)
+            {
+                var nodeId = node.ID ?? "unknown";
+                var nodeLabel = node.Annotations?.FirstOrDefault()?.Content ?? nodeId;
+                var nodeType = _nodeTypes.TryGetValue(nodeId, out var type) ? type : "unknown";
+                
+                // Simulate processing time
+                await Task.Delay(300);
+                
+                LogToConsole($"→ Processing: {nodeLabel}", "node");
+                
+                // Simulate different node behaviors
+                await Task.Delay(200);
+                
+                switch (nodeType.ToLower())
+                {
+                    case "trigger-manual":
+                    case "trigger-schedule":
+                    case "trigger-onchange":
+                        LogToConsole($"  Trigger activated", "success");
+                        break;
+                        
+                    case "tag-input":
+                        var tagPath = GetNodePropertyForNode(nodeId, "tagPath", "");
+                        var simulatedValue = Math.Round(50 + Random.Shared.NextDouble() * 50, 2);
+                        LogToConsole($"  Read tag '{tagPath}': {simulatedValue}", "info");
+                        break;
+                        
+                    case "tag-output":
+                        var writeTag = GetNodePropertyForNode(nodeId, "tagPath", "");
+                        LogToConsole($"  Write to tag '{writeTag}'", "info");
+                        break;
+                        
+                    case "compare":
+                    case "compare-equal":
+                    case "compare-greater":
+                    case "compare-less":
+                        var result = Random.Shared.NextDouble() > 0.5;
+                        LogToConsole($"  Comparison result: {result}", result ? "success" : "warning");
+                        break;
+                        
+                    case "math":
+                    case "math-add":
+                    case "math-subtract":
+                    case "math-multiply":
+                    case "math-divide":
+                        var mathResult = Math.Round(Random.Shared.NextDouble() * 100, 2);
+                        LogToConsole($"  Math result: {mathResult}", "info");
+                        break;
+                        
+                    case "logic-if":
+                        var condition = Random.Shared.NextDouble() > 0.5;
+                        LogToConsole($"  Condition: {condition} → taking {(condition ? "true" : "false")} branch", "info");
+                        break;
+                        
+                    case "notification":
+                        LogToConsole($"  Notification sent!", "success");
+                        break;
+                        
+                    default:
+                        LogToConsole($"  Node executed", "info");
+                        break;
+                }
+            }
+            
+            await Task.Delay(300);
+            LogToConsole($"✓ Flow execution completed successfully", "success");
+        }
+        catch (Exception ex)
+        {
+            LogToConsole($"✗ Flow execution failed: {ex.Message}", "error");
+        }
+        finally
+        {
+            _isRunning = false;
+            StateHasChanged();
+        }
+    }
+    
+    private string GetNodePropertyForNode(string nodeId, string propertyName, string defaultValue)
+    {
+        if (_nodeProperties.TryGetValue(nodeId, out var props) && props.TryGetValue(propertyName, out var value))
+        {
+            return value;
+        }
+        return defaultValue;
     }
 }

@@ -562,6 +562,40 @@ public class DataService
     }
 
     /// <summary>
+    /// Updates a chart configuration.
+    /// </summary>
+    public async Task<bool> UpdateChartAsync(Guid id, string? name = null, string? chartType = null, string? options = null, 
+        bool? liveEnabled = null, int? refreshInterval = null, bool? enableLegend = null, string? legendPosition = null,
+        bool? enableZoom = null, bool? enablePan = null)
+    {
+        try
+        {
+            var chart = await _dbContext.ChartConfigs.FindAsync(id);
+            if (chart == null) return false;
+
+            if (name != null) chart.Name = name;
+            if (chartType != null) chart.ChartType = chartType;
+            if (options != null) chart.Options = options;
+            if (liveEnabled.HasValue) chart.LiveEnabled = liveEnabled.Value;
+            if (refreshInterval.HasValue) chart.RefreshInterval = refreshInterval.Value;
+            if (enableLegend.HasValue) chart.EnableLegend = enableLegend.Value;
+            if (legendPosition != null) chart.LegendPosition = legendPosition;
+            if (enableZoom.HasValue) chart.EnableZoom = enableZoom.Value;
+            if (enablePan.HasValue) chart.EnablePan = enablePan.Value;
+            
+            chart.UpdatedAt = DateTime.UtcNow;
+            
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating chart {ChartId}", id);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Deletes a chart.
     /// </summary>
     public async Task<bool> DeleteChartAsync(Guid id)

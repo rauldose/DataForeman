@@ -5,7 +5,9 @@
 @using Syncfusion.Blazor.Inputs
 @using Syncfusion.Blazor.Buttons
 @using Syncfusion.Blazor.Navigations
+@using System.Text.Json
 @inject DataService DataService
+@implements IDisposable
 
 <PageTitle>Chart Composer - DataForeman</PageTitle>
 
@@ -100,87 +102,55 @@
                         <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
                     </div>
                     
-                    <div class="chart-preview">
-                        @if (ChartSeries.Count > 0)
-                        {
-                            @if (SelectedChart.ChartType == "Line")
+                    <div class="chart-content-area">
+                        <div class="chart-preview">
+                            @if (ChartSeries.Count > 0 && ChartSeries.Any(s => s.Visible && s.Data?.Count > 0))
                             {
-                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                    <ChartArea>
-                                        <ChartAreaBorder Width="0"></ChartAreaBorder>
-                                    </ChartArea>
-                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
-                                        <ChartAxisMajorGridLines Width="0.5" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                                    </ChartPrimaryXAxis>
-                                    <ChartPrimaryYAxis Title="@PrimaryAxisLabel" Minimum="@(PrimaryAxisAutoScale ? null : PrimaryAxisMin)" Maximum="@(PrimaryAxisAutoScale ? null : PrimaryAxisMax)">
-                                        <ChartAxisMajorGridLines Width="@(PrimaryAxisShowGrid ? 0.5 : 0)" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                                    </ChartPrimaryYAxis>
-                                    @if (EnableSecondaryAxis)
-                                    {
-                                        <ChartAxes>
-                                            <ChartAxis Name="secondary" OpposedPosition="true" Title="@SecondaryAxisLabel" Minimum="@(SecondaryAxisAutoScale ? null : SecondaryAxisMin)" Maximum="@(SecondaryAxisAutoScale ? null : SecondaryAxisMax)">
-                                                <ChartAxisMajorGridLines Width="@(SecondaryAxisShowGrid ? 0.5 : 0)" Color="#3c3c3c"></ChartAxisMajorGridLines>
-                                            </ChartAxis>
-                                        </ChartAxes>
-                                    }
-                                    <ChartTooltipSettings Enable="@ShowTooltip"></ChartTooltipSettings>
-                                    <ChartLegendSettings Visible="@ShowLegend" Position="@GetLegendPosition()"></ChartLegendSettings>
-                                    @if (EnableZoom)
-                                    {
-                                        <ChartZoomSettings EnableSelectionZooming="true" EnablePinchZooming="true" EnableMouseWheelZooming="true"></ChartZoomSettings>
-                                    }
-                                    @if (EnableCrosshair)
-                                    {
-                                        <ChartCrosshairSettings Enable="true"></ChartCrosshairSettings>
-                                    }
-                                    <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries.Where(s => s.Visible))
-                                        {
-                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" 
-                                                         Type="@GetChartSeriesType(series.LineType)" 
-                                                         Width="@series.LineWidth" 
-                                                         Opacity="@series.Opacity" 
-                                                         Fill="@series.Color"
-                                                         DashArray="@GetDashArray(series.DashStyle)"
-                                                         YAxisName="@series.YAxisName">
-                                                <ChartMarker Visible="@series.ShowMarkers" Height="@series.MarkerSize" Width="@series.MarkerSize"></ChartMarker>
+                                @if (SelectedChart.ChartType.Equals("Line", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
+                                        <ChartSeriesCollection>
+                                            @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
+                                            {
+                                                <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.Spline" Opacity="@series.Opacity" Fill="@series.Color">
+                                                </ChartSeries>
+                                            }
+                                        </ChartSeriesCollection>
+                                    </SfChart>
+                                }
+                                else if (SelectedChart.ChartType.Equals("Bar", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
+                                        <ChartSeriesCollection>
+                                            <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
                                             </ChartSeries>
-                                        }
-                                    </ChartSeriesCollection>
-                                </SfChart>
+                                        </ChartSeriesCollection>
+                                    </SfChart>
+                                }
+                                else if (SelectedChart.ChartType.Equals("Area", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
+                                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
+                                        <ChartSeriesCollection>
+                                            @foreach (var series in ChartSeries.Where(s => s.Visible && s.Data?.Count > 0))
+                                            {
+                                                <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.SplineArea" Opacity="@series.Opacity" Fill="@series.Color">
+                                                </ChartSeries>
+                                            }
+                                        </ChartSeriesCollection>
+                                    </SfChart>
+                                }
                             }
-                            else if (SelectedChart.ChartType == "Bar")
+                            else
                             {
-                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.Category"></ChartPrimaryXAxis>
-                                    <ChartSeriesCollection>
-                                        <ChartSeries DataSource="@BarChartData" XName="Category" YName="Value" Type="ChartSeriesType.Column">
-                                        </ChartSeries>
-                                    </ChartSeriesCollection>
-                                </SfChart>
+                                <div class="no-data">Add tags from the sidebar to display chart data</div>
                             }
-                            else if (SelectedChart.ChartType == "Area")
-                            {
-                                <SfChart Theme="Syncfusion.Blazor.Theme.MaterialDark" Width="100%" Height="100%">
-                                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss"></ChartPrimaryXAxis>
-                                    <ChartSeriesCollection>
-                                        @foreach (var series in ChartSeries.Where(s => s.Visible))
-                                        {
-                                            <ChartSeries DataSource="@series.Data" XName="Timestamp" YName="Value" Name="@series.DisplayName" Type="ChartSeriesType.SplineArea" Opacity="@series.Opacity" Fill="@series.Color">
-                                            </ChartSeries>
-                                        }
-                                    </ChartSeriesCollection>
-                                </SfChart>
-                            }
-                        }
-                        else
-                        {
-                            <div class="no-data">Add tags from the sidebar to display chart data</div>
-                        }
-                    </div>
+                        </div>
                     
-                    <div class="configuration-panel">
-                        <SfTab CssClass="config-tabs">
+                        <div class="configuration-panel">
+                            <SfTab CssClass="config-tabs">
                             <TabItems>
                                 <TabItem>
                                     <ChildContent>
@@ -202,7 +172,7 @@
                                                             <span class="series-color-indicator" style="background: @series.Color"></span>
                                                             <span class="config-series-name">@series.DisplayName</span>
                                                             <div class="config-actions">
-                                                                <SfSwitch @bind-Checked="@series.Visible" CssClass="visibility-switch" OnLabel="ON" OffLabel="OFF"></SfSwitch>
+                                                                <SfSwitch TChecked="bool" Checked="@series.Visible" CheckedChanged="@((bool val) => { series.Visible = val; RefreshChart(); })" CssClass="visibility-switch" OnLabel="ON" OffLabel="OFF"></SfSwitch>
                                                                 <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveSeries(series))"></SfButton>
                                                             </div>
                                                         </div>
@@ -211,32 +181,32 @@
                                                             <div class="config-body">
                                                                 <div class="config-section">
                                                                     <label class="config-label">Display Name</label>
-                                                                    <SfTextBox @bind-Value="@series.DisplayName" Placeholder="Series name"></SfTextBox>
+                                                                    <SfTextBox Value="@series.DisplayName" ValueChanged="@((string val) => { series.DisplayName = val; RefreshChart(); })" Placeholder="Series name"></SfTextBox>
                                                                 </div>
                                                                 
                                                                 <div class="config-row">
                                                                     <div class="config-section">
                                                                         <label class="config-label">Color</label>
-                                                                        <SfColorPicker @bind-Value="@series.Color" Mode="ColorPickerMode.Palette" ModeSwitcher="false"></SfColorPicker>
+                                                                        <SfColorPicker Value="@series.Color" ValueChanged="@((string val) => { series.Color = val; RefreshChart(); })" Mode="ColorPickerMode.Palette" ModeSwitcher="false"></SfColorPicker>
                                                                     </div>
                                                                     
                                                                     <div class="config-section">
                                                                         <label class="config-label">Line Type</label>
-                                                                        <SfDropDownList TItem="string" TValue="string" @bind-Value="@series.LineType" DataSource="@LineTypes" Width="100%"></SfDropDownList>
+                                                                        <SfDropDownList TItem="string" TValue="string" Value="@series.LineType" ValueChanged="@((string val) => { series.LineType = val; RefreshChart(); })" DataSource="@LineTypes" Width="100%"></SfDropDownList>
                                                                     </div>
                                                                 </div>
                                                                 
                                                                 <div class="config-row">
                                                                     <div class="config-section">
                                                                         <label class="config-label">Line Width: @series.LineWidth.ToString("F1")</label>
-                                                                        <SfSlider @bind-Value="@series.LineWidth" Min="0.5" Max="5" Step="0.5" Type="SliderType.MinRange">
+                                                                        <SfSlider TValue="double" Value="@series.LineWidth" ValueChanged="@((double val) => { series.LineWidth = val; RefreshChart(); })" Min="0.5" Max="5" Step="0.5" Type="SliderType.MinRange">
                                                                             <SliderTicks Placement="Placement.After" ShowSmallTicks="false"></SliderTicks>
                                                                         </SfSlider>
                                                                     </div>
                                                                     
                                                                     <div class="config-section">
                                                                         <label class="config-label">Opacity: @series.Opacity.ToString("P0")</label>
-                                                                        <SfSlider @bind-Value="@series.Opacity" Min="0" Max="1" Step="0.1" Type="SliderType.MinRange">
+                                                                        <SfSlider TValue="double" Value="@series.Opacity" ValueChanged="@((double val) => { series.Opacity = val; RefreshChart(); })" Min="0" Max="1" Step="0.1" Type="SliderType.MinRange">
                                                                             <SliderTicks Placement="Placement.After" ShowSmallTicks="false"></SliderTicks>
                                                                         </SfSlider>
                                                                     </div>
@@ -244,26 +214,28 @@
                                                                 
                                                                 <div class="config-section">
                                                                     <label class="config-label">Dash Style</label>
-                                                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="@series.DashStyle" DataSource="@DashStyles" Width="100%"></SfDropDownList>
+                                                                    <SfDropDownList TItem="string" TValue="string" Value="@series.DashStyle" ValueChanged="@((string val) => { series.DashStyle = val; RefreshChart(); })" DataSource="@DashStyles" Width="100%"></SfDropDownList>
                                                                 </div>
                                                                 
                                                                 <div class="config-row">
                                                                     <div class="config-section">
-                                                                        <SfCheckBox @bind-Checked="@series.ShowMarkers" Label="Show Markers"></SfCheckBox>
+                                                                        <SfCheckBox TChecked="bool" Checked="@series.ShowMarkers" CheckedChanged="@((bool val) => { series.ShowMarkers = val; RefreshChart(); })" Label="Show Markers"></SfCheckBox>
                                                                     </div>
                                                                     
                                                                     @if (series.ShowMarkers)
                                                                     {
                                                                         <div class="config-section">
                                                                             <label class="config-label">Marker Size</label>
-                                                                            <SfNumericTextBox @bind-Value="@series.MarkerSize" Min="3" Max="12" Step="1" Width="100%"></SfNumericTextBox>
+                                                                            <SfNumericTextBox TValue="int" Value="@series.MarkerSize" ValueChanged="@((int val) => { series.MarkerSize = val; RefreshChart(); })" Min="3" Max="12" Step="1" Width="100%"></SfNumericTextBox>
                                                                         </div>
                                                                     }
                                                                 </div>
                                                                 
                                                                 <div class="config-section">
                                                                     <label class="config-label">Y-Axis Assignment</label>
-                                                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="@series.YAxisName" DataSource="@AxisOptions" Width="100%"></SfDropDownList>
+                                                                    <SfDropDownList TItem="AxisOption" TValue="string" Value="@series.YAxisName" ValueChanged="@((string val) => { series.YAxisName = val; RefreshChart(); })" DataSource="@ChartAxes" Width="100%">
+                                                                        <DropDownListFieldSettings Text="Label" Value="Name"></DropDownListFieldSettings>
+                                                                    </SfDropDownList>
                                                                 </div>
                                                             </div>
                                                         }
@@ -276,115 +248,129 @@
                                 
                                 <TabItem>
                                     <ChildContent>
-                                        <TabHeader Text="Axes Configuration"></TabHeader>
+                                        <TabHeader Text="Axes"></TabHeader>
                                     </ChildContent>
                                     <ContentTemplate>
                                         <div class="tab-content">
-                                            <div class="axis-config-card">
-                                                <h4>Primary Y-Axis (Left)</h4>
-                                                <div class="config-section">
-                                                    <label class="config-label">Axis Label</label>
-                                                    <SfTextBox @bind-Value="@PrimaryAxisLabel" Placeholder="e.g., Temperature (°C)"></SfTextBox>
-                                                </div>
-                                                
-                                                <div class="config-section">
-                                                    <SfCheckBox @bind-Checked="@PrimaryAxisAutoScale" Label="Auto Scale"></SfCheckBox>
-                                                </div>
-                                                
-                                                @if (!PrimaryAxisAutoScale)
-                                                {
-                                                    <div class="config-row">
-                                                        <div class="config-section">
-                                                            <label class="config-label">Minimum</label>
-                                                            <SfNumericTextBox @bind-Value="@PrimaryAxisMin" Placeholder="Min" Width="100%"></SfNumericTextBox>
-                                                        </div>
-                                                        <div class="config-section">
-                                                            <label class="config-label">Maximum</label>
-                                                            <SfNumericTextBox @bind-Value="@PrimaryAxisMax" Placeholder="Max" Width="100%"></SfNumericTextBox>
-                                                        </div>
-                                                    </div>
-                                                }
-                                                
-                                                <div class="config-section">
-                                                    <SfCheckBox @bind-Checked="@PrimaryAxisShowGrid" Label="Show Grid Lines"></SfCheckBox>
-                                                </div>
+                                            <div class="axes-header">
+                                                <span>Y-Axes</span>
+                                                <SfButton CssClass="e-flat e-small" IconCss="e-icons e-plus" Content="Add Axis" OnClick="@AddYAxis"></SfButton>
                                             </div>
                                             
-                                            <div class="axis-config-card">
-                                                <h4>Secondary Y-Axis (Right)</h4>
-                                                <div class="config-section">
-                                                    <SfCheckBox @bind-Checked="@EnableSecondaryAxis" Label="Enable Secondary Axis"></SfCheckBox>
-                                                </div>
-                                                
-                                                @if (EnableSecondaryAxis)
-                                                {
-                                                    <div class="config-section">
-                                                        <label class="config-label">Axis Label</label>
-                                                        <SfTextBox @bind-Value="@SecondaryAxisLabel" Placeholder="e.g., Pressure (kPa)"></SfTextBox>
+                                            @foreach (var axis in ChartAxes)
+                                            {
+                                                <div class="axis-config-card">
+                                                    <div class="config-header" @onclick="@(() => axis.IsExpanded = !axis.IsExpanded)">
+                                                        <span class="expand-icon e-icons @(axis.IsExpanded ? "e-chevron-down" : "e-chevron-right")"></span>
+                                                        <span class="axis-color-indicator" style="background: @axis.Color"></span>
+                                                        <span class="config-axis-name">@axis.Label</span>
+                                                        <div class="config-actions">
+                                                            <span class="axis-position">@(axis.OpposedPosition ? "Right" : "Left")</span>
+                                                            @if (axis.Name != "primary")
+                                                            {
+                                                                <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(() => RemoveYAxis(axis))"></SfButton>
+                                                            }
+                                                        </div>
                                                     </div>
-                                                    
-                                                    <div class="config-section">
-                                                        <SfCheckBox @bind-Checked="@SecondaryAxisAutoScale" Label="Auto Scale"></SfCheckBox>
-                                                    </div>
-                                                    
-                                                    @if (!SecondaryAxisAutoScale)
+                                                    @if (axis.IsExpanded)
                                                     {
-                                                        <div class="config-row">
+                                                        <div class="config-body">
                                                             <div class="config-section">
-                                                                <label class="config-label">Minimum</label>
-                                                                <SfNumericTextBox @bind-Value="@SecondaryAxisMin" Placeholder="Min" Width="100%"></SfNumericTextBox>
+                                                                <label class="config-label">Axis Label</label>
+                                                                <SfTextBox Value="@axis.Label" ValueChanged="@((string val) => { axis.Label = val; RefreshChart(); })" Placeholder="e.g., Temperature (°C)"></SfTextBox>
                                                             </div>
+                                                            
+                                                            <div class="config-row">
+                                                                <div class="config-section">
+                                                                    <label class="config-label">Position</label>
+                                                                    <SfDropDownList TItem="string" TValue="string" Value="@(axis.OpposedPosition ? "Right" : "Left")" ValueChanged="@((string val) => { axis.OpposedPosition = val == "Right"; RefreshChart(); })" DataSource="@(new List<string> { "Left", "Right" })" Width="100%"></SfDropDownList>
+                                                                </div>
+                                                                <div class="config-section">
+                                                                    <label class="config-label">Color</label>
+                                                                    <SfColorPicker Value="@axis.Color" ValueChanged="@((string val) => { axis.Color = val; RefreshChart(); })" Mode="ColorPickerMode.Palette" ModeSwitcher="false"></SfColorPicker>
+                                                                </div>
+                                                            </div>
+                                                            
                                                             <div class="config-section">
-                                                                <label class="config-label">Maximum</label>
-                                                                <SfNumericTextBox @bind-Value="@SecondaryAxisMax" Placeholder="Max" Width="100%"></SfNumericTextBox>
+                                                                <SfCheckBox TChecked="bool" Checked="@axis.AutoScale" CheckedChanged="@((bool val) => { axis.AutoScale = val; RefreshChart(); })" Label="Auto Scale"></SfCheckBox>
+                                                            </div>
+                                                            
+                                                            @if (!axis.AutoScale)
+                                                            {
+                                                                <div class="config-row">
+                                                                    <div class="config-section">
+                                                                        <label class="config-label">Minimum</label>
+                                                                        <SfNumericTextBox TValue="double?" Value="@axis.Minimum" ValueChanged="@((double? val) => { axis.Minimum = val; RefreshChart(); })" Placeholder="Min" Width="100%"></SfNumericTextBox>
+                                                                    </div>
+                                                                    <div class="config-section">
+                                                                        <label class="config-label">Maximum</label>
+                                                                        <SfNumericTextBox TValue="double?" Value="@axis.Maximum" ValueChanged="@((double? val) => { axis.Maximum = val; RefreshChart(); })" Placeholder="Max" Width="100%"></SfNumericTextBox>
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                            
+                                                            <div class="config-section">
+                                                                <SfCheckBox TChecked="bool" Checked="@axis.ShowGridLines" CheckedChanged="@((bool val) => { axis.ShowGridLines = val; RefreshChart(); })" Label="Show Grid Lines"></SfCheckBox>
                                                             </div>
                                                         </div>
                                                     }
-                                                    
-                                                    <div class="config-section">
-                                                        <SfCheckBox @bind-Checked="@SecondaryAxisShowGrid" Label="Show Grid Lines"></SfCheckBox>
-                                                    </div>
-                                                }
-                                            </div>
+                                                </div>
+                                            }
                                         </div>
                                     </ContentTemplate>
                                 </TabItem>
                                 
                                 <TabItem>
                                     <ChildContent>
-                                        <TabHeader Text="Chart Settings"></TabHeader>
+                                        <TabHeader Text="Settings"></TabHeader>
                                     </ChildContent>
                                     <ContentTemplate>
                                         <div class="tab-content">
+                                            <h4>Live Chart</h4>
+                                            <div class="config-section">
+                                                <SfSwitch TChecked="bool" Checked="@IsLiveMode" CheckedChanged="@ToggleLiveMode" OnLabel="LIVE" OffLabel="OFF" CssClass="live-switch"></SfSwitch>
+                                                <span class="live-label @(IsLiveMode ? "active" : "")">@(IsLiveMode ? "● Live updating" : "Static view")</span>
+                                            </div>
+                                            
+                                            @if (IsLiveMode)
+                                            {
+                                                <div class="config-section">
+                                                    <label class="config-label">Update Interval (seconds)</label>
+                                                    <SfNumericTextBox TValue="int" Value="@LiveUpdateIntervalSeconds" ValueChanged="@UpdateLiveInterval" Min="1" Max="60" Step="1" Width="100%"></SfNumericTextBox>
+                                                </div>
+                                            }
+                                            
+                                            <h4>Display Options</h4>
                                             <div class="config-section">
                                                 <label class="config-label">Legend Position</label>
-                                                <SfDropDownList TItem="string" TValue="string" @bind-Value="@LegendPosition" DataSource="@LegendPositions" Width="100%"></SfDropDownList>
+                                                <SfDropDownList TItem="string" TValue="string" Value="@LegendPosition" ValueChanged="@((string val) => { LegendPosition = val; RefreshChart(); })" DataSource="@LegendPositions" Width="100%"></SfDropDownList>
                                             </div>
                                             
                                             <div class="config-section">
-                                                <SfCheckBox @bind-Checked="@ShowLegend" Label="Show Legend"></SfCheckBox>
+                                                <SfCheckBox TChecked="bool" Checked="@ShowLegend" CheckedChanged="@((bool val) => { ShowLegend = val; RefreshChart(); })" Label="Show Legend"></SfCheckBox>
                                             </div>
                                             
                                             <div class="config-section">
-                                                <SfCheckBox @bind-Checked="@ShowTooltip" Label="Enable Tooltip"></SfCheckBox>
+                                                <SfCheckBox TChecked="bool" Checked="@ShowTooltip" CheckedChanged="@((bool val) => { ShowTooltip = val; RefreshChart(); })" Label="Enable Tooltip"></SfCheckBox>
                                             </div>
                                             
                                             <div class="config-section">
-                                                <SfCheckBox @bind-Checked="@EnableZoom" Label="Enable Zoom"></SfCheckBox>
+                                                <SfCheckBox TChecked="bool" Checked="@EnableZoom" CheckedChanged="@((bool val) => { EnableZoom = val; RefreshChart(); })" Label="Enable Zoom"></SfCheckBox>
                                             </div>
                                             
                                             <div class="config-section">
-                                                <SfCheckBox @bind-Checked="@EnableCrosshair" Label="Enable Crosshair"></SfCheckBox>
+                                                <SfCheckBox TChecked="bool" Checked="@EnableCrosshair" CheckedChanged="@((bool val) => { EnableCrosshair = val; RefreshChart(); })" Label="Enable Crosshair"></SfCheckBox>
                                             </div>
                                         </div>
                                     </ContentTemplate>
                                 </TabItem>
-                            </TabItems>
-                        </SfTab>
-                    </div>
-                }
-                else
-                {
+                                            </TabItems>
+                                        </SfTab>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
                     <div class="no-chart-selected">
                         <span class="e-icons e-line-chart" style="font-size: 64px; margin-bottom: 16px;"></span>
                         <p>Select a chart to edit or create a new one</p>
@@ -462,12 +448,13 @@
     .chart-list-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
+        gap: 8px;
+        padding: 8px 12px;
         border-radius: 4px;
         cursor: pointer;
         transition: background 0.2s;
         overflow: hidden;
+        margin-bottom: 2px;
     }
     
     .chart-list-item:hover {
@@ -480,11 +467,18 @@
         padding-left: 9px;
     }
     
+    .chart-icon {
+        font-size: 14px;
+        color: #4caf50;
+        flex-shrink: 0;
+    }
+    
     .chart-info {
         display: flex;
         flex-direction: column;
         flex: 1;
         min-width: 0;
+        gap: 2px;
     }
     
     .chart-name {
@@ -599,28 +593,98 @@
         font-size: 13px;
     }
     
+    .chart-content-area {
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 16px;
+        overflow: hidden;
+        min-height: 0; /* Important for flex children to shrink and enable scrolling */
+    }
+    
     .chart-preview {
         flex: 1;
         padding: 16px;
         min-height: 400px;
+        overflow: auto;
     }
     
     .configuration-panel {
-        height: 300px;
-        border-top: 1px solid #3c3c3c;
-        overflow: hidden;
+        width: 320px;
+        min-width: 280px;
+        max-width: 400px;
+        border-left: 1px solid #3c3c3c;
         display: flex;
         flex-direction: column;
+        overflow: hidden; /* Let children handle scrolling */
     }
     
     .config-tabs {
-        height: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0; /* Important for nested flex scrolling */
+        overflow: hidden;
+    }
+    
+    /* Override Syncfusion tab styles for proper scrolling */
+    .config-tabs .e-tab-header {
+        flex-shrink: 0;
+    }
+    
+    .config-tabs .e-content {
+        flex: 1;
+        overflow-y: auto !important;
+        min-height: 0;
     }
     
     .tab-content {
-        padding: 16px;
-        height: calc(100% - 48px);
+        padding: 12px;
         overflow-y: auto;
+        max-height: 100%;
+    }
+    
+    .axes-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-weight: 500;
+    }
+    
+    .axis-color-indicator {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .config-axis-name {
+        flex: 1;
+        font-weight: 500;
+        font-size: 14px;
+    }
+    
+    .axis-position {
+        font-size: 11px;
+        color: #9d9d9d;
+        padding: 2px 6px;
+        background: #3c3c3c;
+        border-radius: 3px;
+    }
+    
+    .live-switch {
+        margin-right: 12px;
+    }
+    
+    .live-label {
+        font-size: 12px;
+        color: #9d9d9d;
+    }
+    
+    .live-label.active {
+        color: #4caf50;
+        font-weight: 500;
     }
     
     .series-config-card, .axis-config-card {
@@ -725,22 +789,12 @@
     private List<string> ChartTypes = new() { "Line", "Bar", "Area", "Scatter" };
     private List<string> LineTypes = new() { "Line", "Spline", "StepLine" };
     private List<string> DashStyles = new() { "Solid", "Dash", "Dot", "DashDot", "LongDash" };
-    private List<string> AxisOptions = new() { "primary", "secondary" };
     private List<string> LegendPositions = new() { "Top", "Bottom", "Left", "Right" };
     
-    // Axis Configuration
-    private string PrimaryAxisLabel = "Value";
-    private bool PrimaryAxisAutoScale = true;
-    private double? PrimaryAxisMin = 0;
-    private double? PrimaryAxisMax = 100;
-    private bool PrimaryAxisShowGrid = true;
-    
-    private bool EnableSecondaryAxis = false;
-    private string SecondaryAxisLabel = "Secondary Value";
-    private bool SecondaryAxisAutoScale = true;
-    private double? SecondaryAxisMin = 0;
-    private double? SecondaryAxisMax = 100;
-    private bool SecondaryAxisShowGrid = true;
+    // Multiple Y-Axes support
+    private List<AxisOption> ChartAxes = new();
+    private static readonly string[] AxisColors = { "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4" };
+    private int _axisColorIndex = 0;
     
     // Chart Settings
     private string LegendPosition = "Bottom";
@@ -748,6 +802,11 @@
     private bool ShowTooltip = true;
     private bool EnableZoom = false;
     private bool EnableCrosshair = false;
+    
+    // Live chart support
+    private bool IsLiveMode = false;
+    private int LiveUpdateIntervalSeconds = 5;
+    private Timer? _liveUpdateTimer;
     
     private List<TimeRangeOption> TimeRanges = new()
     {
@@ -771,7 +830,26 @@
     
     protected override async Task OnInitializedAsync()
     {
+        InitializeDefaultAxes();
         await LoadData();
+    }
+    
+    private void InitializeDefaultAxes()
+    {
+        ChartAxes = new List<AxisOption>
+        {
+            new AxisOption
+            {
+                Name = "primary",
+                Label = "Primary Y-Axis",
+                Color = AxisColors[0],
+                OpposedPosition = false,
+                AutoScale = true,
+                ShowGridLines = true,
+                IsExpanded = true
+            }
+        };
+        _axisColorIndex = 1;
     }
     
     private async Task LoadData()
@@ -788,7 +866,15 @@
                 {
                     Id = c.Id.ToString(),
                     Name = c.Name,
-                    ChartType = c.ChartType
+                    // Normalize ChartType to Pascal case (Line, Bar, Area) to match dropdown
+                    ChartType = NormalizeChartType(c.ChartType),
+                    Options = c.Options ?? "{}",
+                    LiveEnabled = c.LiveEnabled,
+                    RefreshInterval = c.RefreshInterval,
+                    EnableLegend = c.EnableLegend,
+                    LegendPosition = c.LegendPosition ?? "bottom",
+                    EnableZoom = c.EnableZoom,
+                    EnablePan = c.EnablePan
                 }).ToList();
             }
             
@@ -826,8 +912,127 @@
     private void SelectChart(ChartListItem chart)
     {
         SelectedChart = chart;
-        // In production, load chart series from backend
-        ChartSeries = new List<ChartSeriesData>();
+        _colorIndex = 0;
+        
+        // Load settings from the saved chart
+        IsLiveMode = chart.LiveEnabled;
+        LiveUpdateIntervalSeconds = chart.RefreshInterval / 1000;
+        if (LiveUpdateIntervalSeconds < 1) LiveUpdateIntervalSeconds = 5;
+        ShowLegend = chart.EnableLegend;
+        LegendPosition = chart.LegendPosition ?? "bottom";
+        EnableZoom = chart.EnableZoom;
+        // Note: EnablePan is not currently stored but we load it for future use
+        
+        // Try to load saved configuration from Options JSON
+        ChartConfigOptions? config = null;
+        if (!string.IsNullOrEmpty(chart.Options) && chart.Options != "{}")
+        {
+            try
+            {
+                config = JsonSerializer.Deserialize<ChartConfigOptions>(chart.Options);
+            }
+            catch
+            {
+                // If parsing fails, use default configuration
+            }
+        }
+        
+        var now = DateTime.Now;
+        
+        // Load saved series or create default
+        if (config?.Series != null && config.Series.Count > 0)
+        {
+            ChartSeries = config.Series.Select(s => new ChartSeriesData
+            {
+                Name = s.Name,
+                DisplayName = s.DisplayName,
+                Color = s.Color,
+                LineType = s.LineType,
+                DashStyle = s.DashStyle,
+                LineWidth = s.LineWidth,
+                Opacity = s.Opacity,
+                ShowMarkers = s.ShowMarkers,
+                MarkerSize = s.MarkerSize,
+                Visible = s.Visible,
+                YAxisName = s.YAxisName,
+                IsExpanded = false,
+                // Generate sample data for each series
+                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = Math.Round(50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5, 2)
+                }).ToList()
+            }).ToList();
+        }
+        else
+        {
+            // Create default series if none saved
+            var dataPoints = new List<TimeSeriesPoint>();
+            for (int i = 0; i < 50; i++)
+            {
+                dataPoints.Add(new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = Math.Round(50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5, 2)
+                });
+            }
+            
+            ChartSeries = new List<ChartSeriesData>
+            {
+                new ChartSeriesData
+                {
+                    Name = "Sample Data",
+                    DisplayName = $"{chart.Name} - Series 1",
+                    Color = SeriesColors[0],
+                    LineType = "Spline",
+                    DashStyle = "Solid",
+                    LineWidth = 2.0,
+                    Opacity = 1.0,
+                    ShowMarkers = true,
+                    MarkerSize = 6,
+                    Visible = true,
+                    YAxisName = "primary",
+                    IsExpanded = false,
+                    Data = dataPoints
+                }
+            };
+        }
+        
+        // Load saved axes or create default
+        if (config?.Axes != null && config.Axes.Count > 0)
+        {
+            ChartAxes = config.Axes.Select(a => new AxisOption
+            {
+                Name = a.Name,
+                Label = a.Label,
+                Color = a.Color,
+                OpposedPosition = a.OpposedPosition,
+                AutoScale = a.AutoScale,
+                Minimum = a.Minimum,
+                Maximum = a.Maximum,
+                ShowGridLines = a.ShowGridLines,
+                IsExpanded = false
+            }).ToList();
+        }
+        else
+        {
+            // Create default primary axis
+            ChartAxes = new List<AxisOption>
+            {
+                new AxisOption
+                {
+                    Name = "primary",
+                    Label = "Primary Y-Axis",
+                    Color = "#4caf50",
+                    OpposedPosition = false,
+                    AutoScale = true,
+                    ShowGridLines = true,
+                    IsExpanded = false
+                }
+            };
+        }
+        
+        StateHasChanged();
     }
     
     private bool _showSaveMessage = false;
@@ -846,13 +1051,72 @@
         {
             try
             {
-                // Save to backend - currently just show success
-                // DataService.UpdateChartAsync would need to be added
-                _saveMessage = "Chart saved successfully!";
+                // Serialize the chart configuration (series and axes)
+                var config = new ChartConfigOptions
+                {
+                    Series = ChartSeries.Select(s => new SeriesConfig
+                    {
+                        Name = s.Name,
+                        DisplayName = s.DisplayName,
+                        Color = s.Color,
+                        LineType = s.LineType,
+                        DashStyle = s.DashStyle,
+                        LineWidth = s.LineWidth,
+                        Opacity = s.Opacity,
+                        ShowMarkers = s.ShowMarkers,
+                        MarkerSize = s.MarkerSize,
+                        Visible = s.Visible,
+                        YAxisName = s.YAxisName
+                    }).ToList(),
+                    Axes = ChartAxes.Select(a => new AxisConfig
+                    {
+                        Name = a.Name,
+                        Label = a.Label,
+                        Color = a.Color,
+                        OpposedPosition = a.OpposedPosition,
+                        AutoScale = a.AutoScale,
+                        Minimum = a.Minimum,
+                        Maximum = a.Maximum,
+                        ShowGridLines = a.ShowGridLines
+                    }).ToList()
+                };
+                
+                var options = JsonSerializer.Serialize(config);
+                
+                // Update the chart in the database
+                var success = await DataService.UpdateChartAsync(
+                    Guid.Parse(SelectedChart.Id),
+                    name: SelectedChart.Name,
+                    chartType: SelectedChart.ChartType,
+                    options: options,
+                    liveEnabled: IsLiveMode,
+                    refreshInterval: LiveUpdateIntervalSeconds * 1000,
+                    enableLegend: ShowLegend,
+                    legendPosition: LegendPosition,
+                    enableZoom: EnableZoom,
+                    enablePan: false // Not currently tracked
+                );
+                
+                if (success)
+                {
+                    // Update the local cache
+                    SelectedChart.Options = options;
+                    SelectedChart.LiveEnabled = IsLiveMode;
+                    SelectedChart.RefreshInterval = LiveUpdateIntervalSeconds * 1000;
+                    SelectedChart.EnableLegend = ShowLegend;
+                    SelectedChart.LegendPosition = LegendPosition;
+                    SelectedChart.EnableZoom = EnableZoom;
+                    
+                    _saveMessage = "Chart saved successfully!";
+                }
+                else
+                {
+                    _saveMessage = "Failed to save chart";
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                _saveMessage = "Failed to save chart";
+                _saveMessage = $"Failed to save chart: {ex.Message}";
             }
             
             _showSaveMessage = true;
@@ -947,6 +1211,129 @@
         };
     }
     
+    private static string NormalizeChartType(string chartType)
+    {
+        // Normalize to Pascal case to match dropdown options
+        return chartType?.ToLowerInvariant() switch
+        {
+            "line" => "Line",
+            "bar" => "Bar",
+            "area" => "Area",
+            "scatter" => "Scatter",
+            _ => "Line"
+        };
+    }
+    
+    // Chart refresh and live update methods
+    private void RefreshChart()
+    {
+        StateHasChanged();
+    }
+    
+    private void ToggleLiveMode(bool enabled)
+    {
+        IsLiveMode = enabled;
+        if (enabled)
+        {
+            StartLiveUpdates();
+        }
+        else
+        {
+            StopLiveUpdates();
+        }
+        StateHasChanged();
+    }
+    
+    private void UpdateLiveInterval(int seconds)
+    {
+        LiveUpdateIntervalSeconds = seconds;
+        if (IsLiveMode)
+        {
+            StopLiveUpdates();
+            StartLiveUpdates();
+        }
+    }
+    
+    private void StartLiveUpdates()
+    {
+        _liveUpdateTimer?.Dispose();
+        _liveUpdateTimer = new Timer(_ => 
+        {
+            try 
+            {
+                _ = UpdateLiveData();
+            }
+            catch { /* Timer callbacks should not throw */ }
+        }, null, 0, LiveUpdateIntervalSeconds * 1000);
+    }
+    
+    private void StopLiveUpdates()
+    {
+        _liveUpdateTimer?.Dispose();
+        _liveUpdateTimer = null;
+    }
+    
+    private async Task UpdateLiveData()
+    {
+        await InvokeAsync(() =>
+        {
+            var now = DateTime.Now;
+            foreach (var series in ChartSeries)
+            {
+                if (series.Data.Count > 1)
+                {
+                    // Store last value before modifying collection
+                    var lastValue = series.Data[series.Data.Count - 1].Value;
+                    // Remove oldest point and add new one
+                    series.Data.RemoveAt(0);
+                    series.Data.Add(new TimeSeriesPoint
+                    {
+                        Timestamp = now,
+                        Value = lastValue + (Random.Shared.NextDouble() - 0.5) * 10
+                    });
+                }
+            }
+            StateHasChanged();
+        });
+    }
+    
+    // Multiple Y-axis management
+    private void AddYAxis()
+    {
+        var axisNumber = ChartAxes.Count + 1;
+        var color = AxisColors[_axisColorIndex % AxisColors.Length];
+        _axisColorIndex++;
+        
+        ChartAxes.Add(new AxisOption
+        {
+            Name = $"axis_{axisNumber}",
+            Label = $"Y-Axis {axisNumber}",
+            Color = color,
+            OpposedPosition = ChartAxes.Count % 2 == 1, // Alternate left/right
+            AutoScale = true,
+            ShowGridLines = false,
+            IsExpanded = true
+        });
+        StateHasChanged();
+    }
+    
+    private void RemoveYAxis(AxisOption axis)
+    {
+        // Reassign any series using this axis to primary
+        foreach (var series in ChartSeries.Where(s => s.YAxisName == axis.Name))
+        {
+            series.YAxisName = "primary";
+        }
+        ChartAxes.Remove(axis);
+        StateHasChanged();
+    }
+    
+    public void Dispose()
+    {
+        _liveUpdateTimer?.Dispose();
+        _messageTimer?.Dispose();
+    }
+    
     record TimeRangeOption(string Label, string Value);
     
     class ChartListItem
@@ -954,6 +1341,13 @@
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
         public string ChartType { get; set; } = "Line";
+        public string Options { get; set; } = "{}"; // JSON for chart configuration
+        public bool LiveEnabled { get; set; } = false;
+        public int RefreshInterval { get; set; } = 5000;
+        public bool EnableLegend { get; set; } = true;
+        public string LegendPosition { get; set; } = "bottom";
+        public bool EnableZoom { get; set; } = true;
+        public bool EnablePan { get; set; } = true;
     }
     
     class TagListItem
@@ -979,6 +1373,19 @@
         public List<TimeSeriesPoint> Data { get; set; } = new();
     }
     
+    class AxisOption
+    {
+        public string Name { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Color { get; set; } = "#4caf50";
+        public bool OpposedPosition { get; set; } = false; // false = Left, true = Right
+        public bool AutoScale { get; set; } = true;
+        public double? Minimum { get; set; }
+        public double? Maximum { get; set; }
+        public bool ShowGridLines { get; set; } = true;
+        public bool IsExpanded { get; set; } = false;
+    }
+    
     class TimeSeriesPoint
     {
         public DateTime Timestamp { get; set; }
@@ -986,4 +1393,38 @@
     }
     
     record BarChartDataPoint(string Category, double Value);
+    
+    // Classes for JSON serialization of chart configuration
+    class ChartConfigOptions
+    {
+        public List<SeriesConfig> Series { get; set; } = new();
+        public List<AxisConfig> Axes { get; set; } = new();
+    }
+    
+    class SeriesConfig
+    {
+        public string Name { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Color { get; set; } = "#4caf50";
+        public string LineType { get; set; } = "Line";
+        public string DashStyle { get; set; } = "Solid";
+        public double LineWidth { get; set; } = 2.0;
+        public double Opacity { get; set; } = 1.0;
+        public bool ShowMarkers { get; set; } = true;
+        public int MarkerSize { get; set; } = 6;
+        public bool Visible { get; set; } = true;
+        public string YAxisName { get; set; } = "primary";
+    }
+    
+    class AxisConfig
+    {
+        public string Name { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Color { get; set; } = "#4caf50";
+        public bool OpposedPosition { get; set; } = false;
+        public bool AutoScale { get; set; } = true;
+        public double? Minimum { get; set; }
+        public double? Maximum { get; set; }
+        public bool ShowGridLines { get; set; } = true;
+    }
 }
