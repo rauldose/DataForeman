@@ -803,6 +803,7 @@
     private bool _connectorsAdded = false;
     private bool _isLoadingFlowDefinition = false; // Flag to prevent ID regeneration during flow loading
     private DiagramObjectCollection<Connector> _pendingConnectors = new();
+    private Dictionary<string, string> _nodeTypes = new(); // Maps node IDs to their type (e.g., "node_1" -> "tag-input")
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -894,6 +895,8 @@
                 Nodes = new DiagramObjectCollection<Node>();
                 Connectors = new DiagramObjectCollection<Connector>();
                 _pendingConnectors = new DiagramObjectCollection<Connector>();
+                _nodeTypes = new Dictionary<string, string>(); // Clear node type mappings
+                _nodeProperties = new Dictionary<string, Dictionary<string, string>>(); // Clear node properties
                 
                 // Load nodes
                 if (root.TryGetProperty("nodes", out var nodesElement))
@@ -936,6 +939,37 @@
                         
                         var node = CreateFlowNode(id, label ?? id, color, x, y, inputCount, outputCount);
                         Nodes.Add(node);
+                        
+                        // Store the node type mapping for property panel lookup
+                        if (!string.IsNullOrEmpty(nodeType))
+                        {
+                            _nodeTypes[id] = nodeType;
+                        }
+                        
+                        // Load node config into _nodeProperties for editing
+                        if (nodeDef.TryGetProperty("config", out var configElement))
+                        {
+                            if (!_nodeProperties.ContainsKey(id))
+                            {
+                                _nodeProperties[id] = new Dictionary<string, string>();
+                            }
+                            
+                            // Iterate through config properties and store them
+                            foreach (var configProp in configElement.EnumerateObject())
+                            {
+                                var propValue = configProp.Value.ValueKind switch
+                                {
+                                    System.Text.Json.JsonValueKind.String => configProp.Value.GetString() ?? "",
+                                    System.Text.Json.JsonValueKind.Number => configProp.Value.GetRawText(),
+                                    System.Text.Json.JsonValueKind.True => "true",
+                                    System.Text.Json.JsonValueKind.False => "false",
+                                    System.Text.Json.JsonValueKind.Array => System.Text.Json.JsonSerializer.Serialize(configProp.Value),
+                                    System.Text.Json.JsonValueKind.Object => System.Text.Json.JsonSerializer.Serialize(configProp.Value),
+                                    _ => configProp.Value.GetRawText()
+                                };
+                                _nodeProperties[id][configProp.Name] = propValue;
+                            }
+                        }
                     }
                 }
                 
@@ -967,7 +1001,13 @@
                         var targetPort = connDef.TryGetProperty("targetPort", out var tgtPort) ? tgtPort.GetString() :
                                         connDef.TryGetProperty("targetHandle", out var tgtHandle) ? tgtHandle.GetString() : null;
                         
-                        var connector = CreateFlowConnector(id, sourceId, sourcePort, targetId, targetPort);
+                        // Map semantic port names to indexed port names
+                        // The database uses names like "input1", "value", "numerator" but 
+                        // Syncfusion Diagram uses "input-0", "input-1", "output-0"
+                        var mappedSourcePort = MapPortName(sourcePort, "output");
+                        var mappedTargetPort = MapPortName(targetPort, "input");
+                        
+                        var connector = CreateFlowConnector(id, sourceId, mappedSourcePort, targetId, mappedTargetPort);
                         _pendingConnectors.Add(connector);
                     }
                 }
@@ -1161,6 +1201,42 @@
         }
         
         return node;
+    }
+    
+    /// <summary>
+    /// Maps semantic port names from flow definitions to actual port IDs
+    /// Database uses names like "input1", "value", "numerator" but Syncfusion uses "input-0", "output-0"
+    /// </summary>
+    private string MapPortName(string? portName, string portType)
+    {
+        if (string.IsNullOrEmpty(portName))
+        {
+            return $"{portType}-0";
+        }
+        
+        // If it's already in the correct format (input-0, output-0), return as-is
+        if (portName.StartsWith("input-") || portName.StartsWith("output-"))
+        {
+            return portName;
+        }
+        
+        // Map semantic names to indexed names
+        // Common patterns: input1, input2, value, numerator, denominator, etc.
+        if (portName.StartsWith("input") && int.TryParse(portName.Substring(5), out var inputNum))
+        {
+            // "input1" -> "input-0", "input2" -> "input-1"
+            return $"input-{inputNum - 1}";
+        }
+        
+        if (portName.StartsWith("output") && int.TryParse(portName.Substring(6), out var outputNum))
+        {
+            // "output1" -> "output-0", "output2" -> "output-1"
+            return $"output-{outputNum - 1}";
+        }
+        
+        // For other semantic names, map to first port of appropriate type
+        // This handles names like "value", "numerator", "highAlert", etc.
+        return $"{portType}-0";
     }
     
     /// <summary>
@@ -1481,6 +1557,13 @@
     private string GetNodeType(Node node)
     {
         var id = node.ID ?? "";
+        
+        // First check if we have a stored node type from loading
+        if (_nodeTypes.TryGetValue(id, out var storedType) && !string.IsNullOrEmpty(storedType))
+        {
+            return storedType.ToUpper().Replace("-", " ");
+        }
+        
         var parts = id.Split("-instance-").FirstOrDefault()?.Split('-') ?? Array.Empty<string>();
         return string.Join(" ", parts.Take(2)).ToUpper();
     }
@@ -1488,6 +1571,13 @@
     private string GetNodeBaseType(Node node)
     {
         var id = node.ID ?? "";
+        
+        // First check if we have a stored node type from loading
+        if (_nodeTypes.TryGetValue(id, out var storedType) && !string.IsNullOrEmpty(storedType))
+        {
+            return storedType;
+        }
+        
         return id.Split("-instance-").FirstOrDefault() ?? "unknown";
     }
     
