@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="DataForeman.App/DataForeman.App.csproj" />
+  <Project Path="DataForeman.Engine/DataForeman.Engine.csproj" />
+  <Project Path="DataForeman.Shared/DataForeman.Shared.csproj" />
+</Solution>

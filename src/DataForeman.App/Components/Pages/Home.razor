@@ -1,0 +1,139 @@
+@page "/"
+@rendermode InteractiveServer
+@inject RealtimeDataService RealtimeData
+@inject ConfigService ConfigService
+@implements IDisposable
+
+<PageTitle>Home - DataForeman</PageTitle>
+
+<div class="home-page">
+    <h1>DataForeman Dashboard</h1>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">🔌</div>
+            <div class="stat-content">
+                <div class="stat-value">@ConfigService.Connections.Count</div>
+                <div class="stat-label">Connections</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🏷️</div>
+            <div class="stat-content">
+                <div class="stat-value">@TotalTags</div>
+                <div class="stat-label">Tags</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+                <div class="stat-value">@ConfigService.Charts.Count</div>
+                <div class="stat-label">Charts</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🔀</div>
+            <div class="stat-content">
+                <div class="stat-value">@ConfigService.Flows.Count</div>
+                <div class="stat-label">Flows</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="engine-status-panel">
+        <h2>Engine Status</h2>
+        @if (EngineStatus != null)
+        {
+            <div class="status-details">
+                <div class="status-item">
+                    <span class="label">Status:</span>
+                    <span class="value @(EngineStatus.IsRunning ? "running" : "stopped")">
+                        @(EngineStatus.IsRunning ? "Running" : "Stopped")
+                    </span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Active Connections:</span>
+                    <span class="value">@EngineStatus.ActiveConnections</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Active Tags:</span>
+                    <span class="value">@EngineStatus.ActiveTags</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Total Polls:</span>
+                    <span class="value">@EngineStatus.TotalPolls.ToString("N0")</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Avg Poll Time:</span>
+                    <span class="value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
+                </div>
+                <div class="status-item">
+                    <span class="label">Started:</span>
+                    <span class="value">@EngineStatus.StartTime.ToLocalTime().ToString("g")</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p class="no-data">Engine status not available. Make sure the DataForeman.Engine is running.</p>
+        }
+    </div>
+
+    <div class="recent-values-panel">
+        <h2>Recent Tag Values</h2>
+        @if (RecentValues.Any())
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tag</th>
+                        <th>Value</th>
+                        <th>Quality</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tag in RecentValues.Take(10))
+                    {
+                        <tr>
+                            <td>@tag.TagName</td>
+                            <td class="value-cell">@tag.FormattedValue</td>
+                            <td>
+                                <span class="quality-badge @(tag.IsGoodQuality ? "good" : "bad")">
+                                    @tag.QualityText
+                                </span>
+                            </td>
+                            <td>@tag.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="no-data">No tag values received yet. Make sure the DataForeman.Engine is running and polling tags.</p>
+        }
+    </div>
+</div>
+
+@code {
+    private DataForeman.Shared.Mqtt.EngineStatusMessage? EngineStatus => RealtimeData.GetEngineStatus();
+    private int TotalTags => ConfigService.Connections.Sum(c => c.Tags.Count);
+    private IEnumerable<TagValueCache> RecentValues => RealtimeData.GetAllTagValues().Values.OrderByDescending(v => v.Timestamp);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+    }
+
+    private void HandleDataChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+    }
+}

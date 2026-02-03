@@ -1,0 +1,441 @@
+@page "/charts"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject RealtimeDataService RealtimeData
+@implements IDisposable
+
+<PageTitle>Charts - DataForeman</PageTitle>
+
+<div class="charts-page">
+    <div class="page-header">
+        <h1>Chart Composer</h1>
+        <div class="page-actions">
+            <button class="btn btn-primary" @onclick="CreateNewChart">
+                ➕ New Chart
+            </button>
+        </div>
+    </div>
+
+    <div class="charts-container">
+        <div class="charts-sidebar">
+            <h3>Saved Charts</h3>
+            @if (!ConfigService.Charts.Any())
+            {
+                <p class="no-items">No charts saved yet</p>
+            }
+            else
+            {
+                <div class="chart-list">
+                    @foreach (var chart in ConfigService.Charts)
+                    {
+                        <div class="chart-list-item @(SelectedChart?.Id == chart.Id ? "selected" : "")" 
+                             @onclick="@(() => SelectChart(chart))">
+                            <span class="chart-icon">📊</span>
+                            <div class="chart-info">
+                                <span class="chart-name">@chart.Name</span>
+                                <span class="chart-type">@chart.ChartType</span>
+                            </div>
+                            <button class="btn btn-icon btn-danger btn-small" 
+                                    title="Delete" 
+                                    @onclick:stopPropagation="true"
+                                    @onclick="@(() => ConfirmDeleteChart(chart))">🗑️</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <h3>Available Tags</h3>
+            <p class="help-text">Click a tag to add it to the chart</p>
+            <input type="text" class="form-input" placeholder="Search tags..." @bind="TagSearchQuery" @bind:event="oninput" />
+            <div class="tag-list">
+                @if (!FilteredTags.Any())
+                {
+                    <p class="no-items">No tags available</p>
+                }
+                else
+                {
+                    @foreach (var item in FilteredTags)
+                    {
+                        <div class="tag-item" @onclick="@(() => AddTagToChart(item.Tag, item.Connection))" title="Click to add to chart">
+                            <span class="tag-icon">🏷️</span>
+                            <span class="tag-name">@item.Tag.Name</span>
+                            <span class="add-icon">+</span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="chart-editor">
+            @if (SelectedChart != null)
+            {
+                <div class="chart-toolbar">
+                    <input type="text" class="form-input chart-name-input" 
+                           @bind="SelectedChart.Name" placeholder="Chart Name" />
+                    <select class="form-select" @bind="SelectedChart.ChartType">
+                        <option value="Line">Line</option>
+                        <option value="Area">Area</option>
+                        <option value="Bar">Bar</option>
+                    </select>
+                    <div class="toolbar-spacer"></div>
+                    @if (ShowSaveMessage)
+                    {
+                        <span class="save-message">@SaveMessage</span>
+                    }
+                    <select class="form-select" @bind="SelectedChart.Settings.TimeRange">
+                        <option value="1m">Last 1 min</option>
+                        <option value="5m">Last 5 min</option>
+                        <option value="15m">Last 15 min</option>
+                        <option value="30m">Last 30 min</option>
+                        <option value="1h">Last 1 hour</option>
+                    </select>
+                    <button class="btn btn-primary" @onclick="SaveChart">💾 Save</button>
+                </div>
+
+                <div class="chart-content-area">
+                    <div class="chart-preview">
+                        @if (SelectedChart.Series.Any())
+                        {
+                            <div class="chart-canvas">
+                                @* Simple SVG line chart *@
+                                <svg viewBox="0 0 800 400" class="line-chart">
+                                    @* Grid lines *@
+                                    @for (int i = 0; i <= 4; i++)
+                                    {
+                                        var y = i * 100;
+                                        <line x1="50" y1="@y" x2="780" y2="@y" stroke="#3a4049" stroke-dasharray="2,4" />
+                                    }
+                                    @for (int i = 0; i <= 6; i++)
+                                    {
+                                        var x = 50 + i * 122;
+                                        <line x1="@x" y1="0" x2="@x" y2="400" stroke="#3a4049" stroke-dasharray="2,4" />
+                                    }
+                                    
+                                    @* Data series *@
+                                    @foreach (var series in SelectedChart.Series.Where(s => s.Visible))
+                                    {
+                                        var points = GetSeriesPoints(series.TagId);
+                                        if (points.Any())
+                                        {
+                                            var pathData = GenerateSvgPath(points);
+                                            <path d="@pathData" fill="none" stroke="@series.Color" stroke-width="@series.LineWidth" />
+                                        }
+                                    }
+                                    
+                                    @* Axes *@
+                                    <line x1="50" y1="0" x2="50" y2="400" stroke="#9ca3af" stroke-width="1" />
+                                    <line x1="50" y1="400" x2="780" y2="400" stroke="#9ca3af" stroke-width="1" />
+                                </svg>
+                                
+                                @* Legend *@
+                                @if (SelectedChart.Settings.ShowLegend)
+                                {
+                                    <div class="chart-legend">
+                                        @foreach (var series in SelectedChart.Series.Where(s => s.Visible))
+                                        {
+                                            <div class="legend-item">
+                                                <span class="legend-color" style="background-color: @series.Color"></span>
+                                                <span class="legend-label">@series.DisplayName</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="no-data">Add tags from the sidebar to display chart data</div>
+                        }
+                    </div>
+
+                    <div class="configuration-panel">
+                        <h3>Series Configuration</h3>
+                        @if (!SelectedChart.Series.Any())
+                        {
+                            <p class="no-items">No series added. Click tags from the sidebar to add series.</p>
+                        }
+                        else
+                        {
+                            @foreach (var series in SelectedChart.Series)
+                            {
+                                <div class="series-config-card">
+                                    <div class="config-header">
+                                        <span class="series-color-indicator" style="background: @series.Color"></span>
+                                        <span class="config-series-name">@series.DisplayName</span>
+                                        <div class="config-actions">
+                                            <label class="visibility-toggle">
+                                                <input type="checkbox" @bind="series.Visible" />
+                                                @(series.Visible ? "Visible" : "Hidden")
+                                            </label>
+                                            <button class="btn btn-icon btn-small btn-danger" @onclick="@(() => RemoveSeries(series))">🗑️</button>
+                                        </div>
+                                    </div>
+                                    <div class="config-body">
+                                        <div class="config-row">
+                                            <div class="config-section">
+                                                <label>Display Name</label>
+                                                <input type="text" class="form-input" @bind="series.DisplayName" />
+                                            </div>
+                                            <div class="config-section">
+                                                <label>Color</label>
+                                                <input type="color" class="form-input color-input" @bind="series.Color" />
+                                            </div>
+                                        </div>
+                                        <div class="config-row">
+                                            <div class="config-section">
+                                                <label>Line Width</label>
+                                                <input type="number" class="form-input" @bind="series.LineWidth" min="1" max="5" />
+                                            </div>
+                                            <div class="config-section">
+                                                <label>Line Type</label>
+                                                <select class="form-select" @bind="series.LineType">
+                                                    <option value="Solid">Solid</option>
+                                                    <option value="Dashed">Dashed</option>
+                                                    <option value="Dotted">Dotted</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="current-value">
+                                            Current: @GetCurrentValue(series.TagId)
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="no-chart-selected">
+                    <p>Select a chart from the sidebar or create a new one</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* Delete Confirmation Dialog *@
+@if (ShowDeleteDialog)
+{
+    <div class="modal-backdrop" @onclick="CloseDialogs"></div>
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Confirm Delete</h3>
+            <button class="btn-close" @onclick="CloseDialogs">×</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete chart "@DeletingChart?.Name"?</p>
+            <p class="warning">This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" @onclick="CloseDialogs">Cancel</button>
+            <button class="btn btn-danger" @onclick="DeleteChart">Delete</button>
+        </div>
+    </div>
+}
+
+@code {
+    private DataForeman.Shared.Models.ChartConfig? SelectedChart;
+    private string TagSearchQuery = "";
+    private bool ShowSaveMessage;
+    private string SaveMessage = "";
+    private bool ShowDeleteDialog;
+    private DataForeman.Shared.Models.ChartConfig? DeletingChart;
+
+    private static readonly string[] ChartColors = new[]
+    {
+        "#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6",
+        "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1"
+    };
+
+    private IEnumerable<(DataForeman.Shared.Models.ConnectionConfig Connection, DataForeman.Shared.Models.TagConfig Tag)> FilteredTags
+    {
+        get
+        {
+            var query = ConfigService.GetAllTagsWithConnection().AsEnumerable();
+            
+            if (!string.IsNullOrEmpty(TagSearchQuery))
+            {
+                query = query.Where(x => 
+                    x.Tag.Name.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    x.Tag.Address.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase));
+            }
+            
+            return query;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+        
+        // Select first chart if any
+        if (ConfigService.Charts.Any())
+        {
+            SelectedChart = ConfigService.Charts.First();
+        }
+    }
+
+    private void HandleDataChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void CreateNewChart()
+    {
+        SelectedChart = new DataForeman.Shared.Models.ChartConfig
+        {
+            Name = "New Chart",
+            ChartType = "Line"
+        };
+    }
+
+    private void SelectChart(DataForeman.Shared.Models.ChartConfig chart)
+    {
+        SelectedChart = chart;
+    }
+
+    private void AddTagToChart(DataForeman.Shared.Models.TagConfig tag, DataForeman.Shared.Models.ConnectionConfig connection)
+    {
+        if (SelectedChart == null) return;
+        
+        // Check if tag is already in the chart
+        if (SelectedChart.Series.Any(s => s.TagId == tag.Id)) return;
+
+        var colorIndex = SelectedChart.Series.Count % ChartColors.Length;
+        SelectedChart.Series.Add(new DataForeman.Shared.Models.ChartSeries
+        {
+            TagId = tag.Id,
+            DisplayName = tag.Name,
+            Color = ChartColors[colorIndex],
+            LineWidth = 2,
+            Visible = true
+        });
+    }
+
+    private void RemoveSeries(DataForeman.Shared.Models.ChartSeries series)
+    {
+        SelectedChart?.Series.Remove(series);
+    }
+
+    private async Task SaveChart()
+    {
+        if (SelectedChart == null) return;
+
+        SelectedChart.UpdatedAt = DateTime.UtcNow;
+        
+        var existing = ConfigService.Charts.FirstOrDefault(c => c.Id == SelectedChart.Id);
+        if (existing == null)
+        {
+            await ConfigService.AddChartAsync(SelectedChart);
+        }
+        else
+        {
+            await ConfigService.UpdateChartAsync(SelectedChart);
+        }
+
+        ShowSaveMessage = true;
+        SaveMessage = "Chart saved!";
+        StateHasChanged();
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            ShowSaveMessage = false;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void ConfirmDeleteChart(DataForeman.Shared.Models.ChartConfig chart)
+    {
+        DeletingChart = chart;
+        ShowDeleteDialog = true;
+    }
+
+    private async Task DeleteChart()
+    {
+        if (DeletingChart == null) return;
+
+        await ConfigService.DeleteChartAsync(DeletingChart.Id);
+        
+        if (SelectedChart?.Id == DeletingChart.Id)
+        {
+            SelectedChart = ConfigService.Charts.FirstOrDefault();
+        }
+        
+        CloseDialogs();
+    }
+
+    private void CloseDialogs()
+    {
+        ShowDeleteDialog = false;
+        DeletingChart = null;
+    }
+
+    private string GetCurrentValue(string tagId)
+    {
+        var value = RealtimeData.GetTagValue(tagId);
+        return value?.FormattedValue ?? "N/A";
+    }
+
+    private List<(double X, double Y)> GetSeriesPoints(string tagId)
+    {
+        var history = RealtimeData.GetTagHistory(tagId, 100);
+        if (!history.Any()) return new List<(double, double)>();
+
+        var points = new List<(double X, double Y)>();
+        var minTime = history.Min(h => h.Timestamp);
+        var maxTime = history.Max(h => h.Timestamp);
+        var timeRange = (maxTime - minTime).TotalSeconds;
+        if (timeRange < 1) timeRange = 1;
+
+        var values = history.Select(h => ConvertToDouble(h.Value)).ToList();
+        var minValue = values.Min();
+        var maxValue = values.Max();
+        var valueRange = maxValue - minValue;
+        if (valueRange < 0.001) valueRange = 1;
+
+        foreach (var item in history)
+        {
+            var x = 50 + ((item.Timestamp - minTime).TotalSeconds / timeRange) * 730;
+            var value = ConvertToDouble(item.Value);
+            var y = 400 - ((value - minValue) / valueRange) * 380 - 10;
+            points.Add((x, y));
+        }
+
+        return points.OrderBy(p => p.X).ToList();
+    }
+
+    private double ConvertToDouble(object? value)
+    {
+        if (value == null) return 0;
+        if (value is double d) return d;
+        if (value is float f) return f;
+        if (value is int i) return i;
+        if (value is bool b) return b ? 1 : 0;
+        if (double.TryParse(value.ToString(), out var parsed)) return parsed;
+        return 0;
+    }
+
+    private string GenerateSvgPath(List<(double X, double Y)> points)
+    {
+        if (!points.Any()) return "";
+        
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"M {points[0].X:F1} {points[0].Y:F1}");
+        
+        for (int i = 1; i < points.Count; i++)
+        {
+            sb.Append($" L {points[i].X:F1} {points[i].Y:F1}");
+        }
+        
+        return sb.ToString();
+    }
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+    }
+}
