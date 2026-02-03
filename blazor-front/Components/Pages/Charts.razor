@@ -846,18 +846,109 @@
         {
             try
             {
-                // Save to backend - currently just show success
-                // DataService.UpdateChartAsync would need to be added
-                _saveMessage = "Chart saved successfully!";
+                // Build chart options JSON
+                var optionsJson = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    series = ChartSeries.Select(s => new
+                    {
+                        name = s.Name,
+                        displayName = s.DisplayName,
+                        color = s.Color,
+                        lineType = s.LineType,
+                        dashStyle = s.DashStyle,
+                        lineWidth = s.LineWidth,
+                        opacity = s.Opacity,
+                        showMarkers = s.ShowMarkers,
+                        markerSize = s.MarkerSize,
+                        visible = s.Visible,
+                        yAxisName = s.YAxisName
+                    }),
+                    primaryAxis = new
+                    {
+                        label = PrimaryAxisLabel,
+                        autoScale = PrimaryAxisAutoScale,
+                        min = PrimaryAxisMin,
+                        max = PrimaryAxisMax,
+                        showGrid = PrimaryAxisShowGrid
+                    },
+                    secondaryAxis = new
+                    {
+                        enabled = EnableSecondaryAxis,
+                        label = SecondaryAxisLabel,
+                        autoScale = SecondaryAxisAutoScale,
+                        min = SecondaryAxisMin,
+                        max = SecondaryAxisMax,
+                        showGrid = SecondaryAxisShowGrid
+                    }
+                });
+
+                // Check if this is a new chart or existing
+                if (Guid.TryParse(SelectedChart.Id, out var chartId))
+                {
+                    var existingChart = await DataService.GetChartAsync(chartId);
+                    if (existingChart != null)
+                    {
+                        // Update existing chart
+                        var success = await DataService.UpdateChartAsync(
+                            chartId,
+                            name: SelectedChart.Name,
+                            chartType: SelectedChart.ChartType,
+                            options: optionsJson,
+                            enableLegend: ShowLegend,
+                            legendPosition: LegendPosition,
+                            enableTooltip: ShowTooltip,
+                            enableZoom: EnableZoom
+                        );
+                        _saveMessage = success ? "Chart saved successfully!" : "Failed to save chart";
+                    }
+                    else
+                    {
+                        // Create new chart
+                        var newChart = await DataService.CreateChartAsync(
+                            SelectedChart.Name,
+                            SelectedChart.ChartType,
+                            optionsJson,
+                            Guid.Empty // Owner ID would come from auth context
+                        );
+                        if (newChart != null)
+                        {
+                            SelectedChart.Id = newChart.Id.ToString();
+                            _saveMessage = "Chart created successfully!";
+                        }
+                        else
+                        {
+                            _saveMessage = "Failed to create chart";
+                        }
+                    }
+                }
+                else
+                {
+                    // Create new chart
+                    var newChart = await DataService.CreateChartAsync(
+                        SelectedChart.Name,
+                        SelectedChart.ChartType,
+                        optionsJson,
+                        Guid.Empty
+                    );
+                    if (newChart != null)
+                    {
+                        SelectedChart.Id = newChart.Id.ToString();
+                        _saveMessage = "Chart created successfully!";
+                    }
+                    else
+                    {
+                        _saveMessage = "Failed to create chart";
+                    }
+                }
             }
             catch (Exception)
             {
                 _saveMessage = "Failed to save chart";
             }
-            
+
             _showSaveMessage = true;
             StateHasChanged();
-            
+
             _messageTimer?.Dispose();
             _messageTimer = new Timer(HideMessage, null, 3000, Timeout.Infinite);
         }

@@ -11,7 +11,10 @@
     <div class="page-header">
         <h1>Users</h1>
         <div class="page-actions">
-            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add User" OnClick="@OpenAddUserDialog"></SfButton>
+            @if (AppState.HasPermission("users", "create"))
+            {
+                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add User" OnClick="@OpenAddUserDialog"></SfButton>
+            }
         </div>
     </div>
 
@@ -50,9 +53,15 @@
                             if (user != null)
                             {
                                 <div class="action-buttons">
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditUser(user))" title="Edit"></SfButton>
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-key" OnClick="@(() => ManagePermissions(user))" title="Permissions"></SfButton>
-                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" OnClick="@(() => DeleteUser(user))" title="Delete"></SfButton>
+                                    @if (AppState.HasPermission("users", "update"))
+                                    {
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditUser(user))" title="Edit"></SfButton>
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-key" OnClick="@(() => ManagePermissions(user))" title="Permissions"></SfButton>
+                                    }
+                                    @if (AppState.HasPermission("users", "delete"))
+                                    {
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" OnClick="@(() => DeleteUser(user))" title="Delete"></SfButton>
+                                    }
                                 </div>
                             }
                         }
@@ -68,8 +77,15 @@
     <DialogTemplates>
         <Content>
             <div class="dialog-form">
+                @if (!string.IsNullOrEmpty(_validationError))
+                {
+                    <div class="validation-error">
+                        <span class="e-icons e-circle-close"></span>
+                        @_validationError
+                    </div>
+                }
                 <div class="form-group">
-                    <label>Email</label>
+                    <label>Email <span class="required">*</span></label>
                     <SfTextBox @bind-Value="EditingUser.Email" Placeholder="Enter email address" Enabled="@(!IsEditMode)"></SfTextBox>
                 </div>
                 <div class="form-group">
@@ -79,8 +95,9 @@
                 @if (!IsEditMode)
                 {
                     <div class="form-group">
-                        <label>Password</label>
-                        <SfTextBox @bind-Value="EditingUser.Password" Placeholder="Enter password" Type="InputType.Password"></SfTextBox>
+                        <label>Password <span class="required">*</span></label>
+                        <SfTextBox @bind-Value="EditingUser.Password" Placeholder="Minimum 8 characters" Type="InputType.Password"></SfTextBox>
+                        <span class="field-hint">Minimum 8 characters</span>
                     </div>
                 }
                 <div class="form-group">
@@ -95,6 +112,29 @@
         <DialogButton Content="@(IsEditMode ? "Update" : "Create")" IsPrimary="true" OnClick="@SaveUser"></DialogButton>
     </DialogButtons>
 </SfDialog>
+
+@* Delete Confirmation Dialog *@
+<SfDialog @bind-Visible="ShowDeleteConfirmDialog" Header="Confirm Delete" Width="400px" IsModal="true">
+    <DialogTemplates>
+        <Content>
+            <p>Are you sure you want to delete user <strong>@UserToDelete?.Email</strong>?</p>
+            <p style="color: #ff5252; font-size: 13px;">This action cannot be undone.</p>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="@(() => ShowDeleteConfirmDialog = false)"></DialogButton>
+        <DialogButton Content="Delete" IsPrimary="true" CssClass="e-danger" OnClick="@ConfirmDeleteUser"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+@* Toast Notification *@
+@if (_showToast)
+{
+    <div class="toast-notification @_toastType">
+        <span class="e-icons @(_toastType == "success" ? "e-check" : "e-close")"></span>
+        <span>@_toastMessage</span>
+    </div>
+}
 
 @* Permissions Dialog *@
 <SfDialog @bind-Visible="ShowPermissionsDialog" Header="@($"Permissions - {SelectedUser?.Email}")" Width="700px" IsModal="true">
@@ -230,20 +270,85 @@
         max-height: 400px;
         overflow-y: auto;
     }
+
+    .toast-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 10000;
+        animation: slideIn 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .toast-notification.success {
+        background: #2e7d32;
+        color: white;
+    }
+
+    .toast-notification.error {
+        background: #c62828;
+        color: white;
+    }
+
+    @@keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .validation-error {
+        background: rgba(198, 40, 40, 0.2);
+        border: 1px solid #c62828;
+        color: #ff5252;
+        padding: 10px 14px;
+        border-radius: 4px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .required {
+        color: #ff5252;
+    }
+
+    .field-hint {
+        font-size: 11px;
+        color: #9d9d9d;
+        margin-top: 4px;
+        display: block;
+    }
 </style>
 
 @code {
     private bool IsLoading = true;
     private List<UserListItem> UsersList = new();
-    
+
     // Dialog state
     private bool ShowUserDialog = false;
     private bool IsEditMode = false;
     private EditUserModel EditingUser = new();
-    
+
     private bool ShowPermissionsDialog = false;
     private UserListItem? SelectedUser;
     private List<UserPermissionInfo> UserPermissions = new();
+
+    // Delete confirmation
+    private bool ShowDeleteConfirmDialog = false;
+    private UserListItem? UserToDelete;
+
+    // Toast notifications
+    private bool _showToast = false;
+    private string _toastMessage = "";
+    private string _toastType = "success"; // success or error
+
+    // Validation
+    private string? _validationError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -306,36 +411,106 @@
 
     private async Task SaveUser()
     {
+        _validationError = null;
+
+        // Validate email format
+        if (string.IsNullOrWhiteSpace(EditingUser.Email) || !EditingUser.Email.Contains("@"))
+        {
+            _validationError = "Please enter a valid email address";
+            return;
+        }
+
         if (IsEditMode)
         {
-            await DataService.UpdateUserAsync(
+            var success = await DataService.UpdateUserAsync(
                 EditingUser.Id,
                 EditingUser.DisplayName,
                 null, // Don't update email
                 EditingUser.IsActive,
                 null // Password not changed
             );
+
+            if (success)
+            {
+                _toastMessage = "User updated successfully";
+                _toastType = "success";
+            }
+            else
+            {
+                _toastMessage = "Failed to update user";
+                _toastType = "error";
+            }
         }
         else
         {
+            // Validate password for new users
             if (string.IsNullOrWhiteSpace(EditingUser.Password))
             {
-                // Password is required for new users
+                _validationError = "Password is required";
                 return;
             }
-            // Create user
-            await DataService.CreateUserAsync(EditingUser.Email, EditingUser.Password, EditingUser.DisplayName);
+            if (EditingUser.Password.Length < 8)
+            {
+                _validationError = "Password must be at least 8 characters";
+                return;
+            }
+
+            var user = await DataService.CreateUserAsync(EditingUser.Email, EditingUser.Password, EditingUser.DisplayName);
+            if (user != null)
+            {
+                _toastMessage = "User created successfully";
+                _toastType = "success";
+            }
+            else
+            {
+                _toastMessage = "Failed to create user (email may already exist)";
+                _toastType = "error";
+            }
         }
-        
+
+        _showToast = true;
+        _ = Task.Delay(3000).ContinueWith(_ =>
+        {
+            _showToast = false;
+            InvokeAsync(StateHasChanged);
+        });
+
         ShowUserDialog = false;
         await LoadUsers();
     }
 
-    private async Task DeleteUser(UserListItem user)
+    private void DeleteUser(UserListItem user)
     {
-        // TODO: Add confirmation dialog in production
-        await DataService.DeleteUserAsync(user.Id);
-        await LoadUsers();
+        UserToDelete = user;
+        ShowDeleteConfirmDialog = true;
+    }
+
+    private async Task ConfirmDeleteUser()
+    {
+        if (UserToDelete != null)
+        {
+            var success = await DataService.DeleteUserAsync(UserToDelete.Id);
+            if (success)
+            {
+                _toastMessage = "User deleted successfully";
+                _toastType = "success";
+            }
+            else
+            {
+                _toastMessage = "Failed to delete user";
+                _toastType = "error";
+            }
+            _showToast = true;
+            _ = Task.Delay(3000).ContinueWith(_ =>
+            {
+                _showToast = false;
+                InvokeAsync(StateHasChanged);
+            });
+
+            await LoadUsers();
+        }
+        ShowDeleteConfirmDialog = false;
+        UserToDelete = null;
     }
 
     private async Task ManagePermissions(UserListItem user)
@@ -382,8 +557,35 @@
     {
         if (SelectedUser != null)
         {
-            // TODO: Implement UpdateUserPermissionsAsync in DataService
-            // await DataService.UpdateUserPermissionsAsync(SelectedUser.Id, UserPermissions);
+            var permissionUpdates = UserPermissions.Select(p => new UserPermissionUpdate
+            {
+                Feature = p.Feature,
+                CanCreate = p.CanCreate,
+                CanRead = p.CanRead,
+                CanUpdate = p.CanUpdate,
+                CanDelete = p.CanDelete
+            }).ToList();
+
+            var success = await DataService.UpdateUserPermissionsAsync(SelectedUser.Id, permissionUpdates);
+            if (success)
+            {
+                _toastMessage = "Permissions saved successfully";
+                _toastType = "success";
+            }
+            else
+            {
+                _toastMessage = "Failed to save permissions";
+                _toastType = "error";
+            }
+            _showToast = true;
+            StateHasChanged();
+
+            // Auto-hide toast after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ =>
+            {
+                _showToast = false;
+                InvokeAsync(StateHasChanged);
+            });
         }
         ShowPermissionsDialog = false;
     }

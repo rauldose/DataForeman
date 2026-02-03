@@ -4,6 +4,7 @@
 @using System.Text.Json
 @inject DataService DataService
 @inject SimulatorService SimulatorService
+@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Connectivity - DataForeman</PageTitle>
@@ -12,7 +13,10 @@
     <div class="page-header">
         <h1>Connectivity</h1>
         <div class="page-actions">
-            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Connection" OnClick="@OpenAddConnectionDialog"></SfButton>
+            @if (AppState.HasPermission("connectivity.devices", "create"))
+            {
+                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Connection" OnClick="@OpenAddConnectionDialog"></SfButton>
+            }
         </div>
     </div>
     
@@ -814,18 +818,29 @@
         SelectedConnectionId = conn.Id;
     }
     
-    private void TestConnection(ConnectionDisplayItem conn)
+    private async Task TestConnection(ConnectionDisplayItem conn)
     {
         ShowStatus($"Testing connection '{conn.Name}'...", "info");
-        // Simulate test
-        Task.Delay(1000).ContinueWith(_ => 
+        StateHasChanged();
+
+        try
         {
-            InvokeAsync(() => 
+            var result = await DataService.TestConnectionAsync(conn.Id);
+            if (result.Success)
             {
-                ShowStatus($"Connection '{conn.Name}' test successful", "success");
-                StateHasChanged();
-            });
-        });
+                ShowStatus($"Connection '{conn.Name}' test successful ({result.ResponseTimeMs}ms)", "success");
+            }
+            else
+            {
+                ShowStatus($"Connection '{conn.Name}' test failed: {result.Message}", "error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Connection test error: {ex.Message}", "error");
+        }
+
+        StateHasChanged();
     }
     
     private async Task StartSimulator(ConnectionDisplayItem conn)

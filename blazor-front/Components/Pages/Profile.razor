@@ -301,9 +301,9 @@
             return;
         }
 
-        if (NewPassword.Length < 6)
+        if (NewPassword.Length < 8)
         {
-            PasswordError = "Password must be at least 6 characters.";
+            PasswordError = "Password must be at least 8 characters.";
             return;
         }
 
@@ -325,8 +325,19 @@
 
     private async Task SignOutEverywhere()
     {
-        // This would revoke all refresh tokens
+        if (CurrentUser != null)
+        {
+            // Revoke all refresh tokens for this user
+            var success = await DataService.RevokeAllUserTokensAsync(CurrentUser.Id);
+            if (success)
+            {
+                await ShowSuccess("All sessions have been terminated");
+            }
+        }
+
+        // Then log out current session
         await AuthProvider.LogoutAsync();
+        AppState.Clear();
         Navigation.NavigateTo("/login");
     }
 

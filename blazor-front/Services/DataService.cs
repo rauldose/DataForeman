@@ -253,26 +253,105 @@ public class DataService
             var permissions = await _dbContext.UserPermissions
                 .Where(p => p.UserId == userId)
                 .ToListAsync();
-            
+
             // If no specific permissions, return default read-only for all features
             if (!permissions.Any())
             {
-                return new List<UserPermission>
-                {
-                    new UserPermission { Feature = "dashboard", CanRead = true },
-                    new UserPermission { Feature = "flows", CanRead = true },
-                    new UserPermission { Feature = "charts", CanRead = true },
-                    new UserPermission { Feature = "connectivity", CanRead = true },
-                    new UserPermission { Feature = "diagnostics", CanRead = true }
-                };
+                return GetDefaultPermissions(userId);
             }
-            
+
             return permissions;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting permissions for user {UserId}", userId);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets default permissions for a new user.
+    /// </summary>
+    private List<UserPermission> GetDefaultPermissions(Guid userId)
+    {
+        var features = new[] { "dashboards", "flows", "chart_composer", "connectivity.devices",
+                               "connectivity.tags", "diagnostics", "users" };
+        return features.Select(f => new UserPermission
+        {
+            UserId = userId,
+            Feature = f,
+            CanRead = f != "users",  // Default read access except users
+            CanCreate = false,
+            CanUpdate = false,
+            CanDelete = false
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Updates permissions for a user.
+    /// </summary>
+    public async Task<bool> UpdateUserPermissionsAsync(Guid userId, List<UserPermissionUpdate> permissions)
+    {
+        try
+        {
+            // Remove existing permissions
+            var existingPermissions = await _dbContext.UserPermissions
+                .Where(p => p.UserId == userId)
+                .ToListAsync();
+            _dbContext.UserPermissions.RemoveRange(existingPermissions);
+
+            // Add new permissions
+            foreach (var perm in permissions)
+            {
+                var permission = new UserPermission
+                {
+                    UserId = userId,
+                    Feature = perm.Feature,
+                    CanCreate = perm.CanCreate,
+                    CanRead = perm.CanRead,
+                    CanUpdate = perm.CanUpdate,
+                    CanDelete = perm.CanDelete,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _dbContext.UserPermissions.Add(permission);
+            }
+
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Updated permissions for user {UserId}", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating permissions for user {UserId}", userId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Revokes all refresh tokens for a user (sign out everywhere).
+    /// </summary>
+    public async Task<bool> RevokeAllUserTokensAsync(Guid userId)
+    {
+        try
+        {
+            var tokens = await _dbContext.RefreshTokens
+                .Where(t => t.UserId == userId && t.RevokedAt == null)
+                .ToListAsync();
+
+            foreach (var token in tokens)
+            {
+                token.RevokedAt = DateTime.UtcNow;
+            }
+
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Revoked all tokens for user {UserId}", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error revoking tokens for user {UserId}", userId);
+            return false;
         }
     }
 
@@ -558,6 +637,42 @@ public class DataService
         {
             _logger.LogError(ex, "Error creating chart");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Updates a chart.
+    /// </summary>
+    public async Task<bool> UpdateChartAsync(Guid id, string? name = null, string? chartType = null,
+        string? options = null, bool? enableLegend = null, string? legendPosition = null,
+        bool? enableTooltip = null, bool? enableZoom = null, bool? enablePan = null,
+        bool? liveEnabled = null, int? refreshInterval = null)
+    {
+        try
+        {
+            var chart = await _dbContext.ChartConfigs.FindAsync(id);
+            if (chart == null) return false;
+
+            if (name != null) chart.Name = name;
+            if (chartType != null) chart.ChartType = chartType;
+            if (options != null) chart.Options = options;
+            if (enableLegend.HasValue) chart.EnableLegend = enableLegend.Value;
+            if (legendPosition != null) chart.LegendPosition = legendPosition;
+            if (enableTooltip.HasValue) chart.EnableTooltip = enableTooltip.Value;
+            if (enableZoom.HasValue) chart.EnableZoom = enableZoom.Value;
+            if (enablePan.HasValue) chart.EnablePan = enablePan.Value;
+            if (liveEnabled.HasValue) chart.LiveEnabled = liveEnabled.Value;
+            if (refreshInterval.HasValue) chart.RefreshInterval = refreshInterval.Value;
+
+            chart.UpdatedAt = DateTime.UtcNow;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Updated chart {ChartId}", id);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating chart {ChartId}", id);
+            return false;
         }
     }
 
@@ -964,6 +1079,261 @@ public class DataService
     }
 
     #endregion
+
+    #region System Metrics
+
+    /// <summary>
+    /// Gets system metrics (CPU, memory, disk usage).
+    /// </summary>
+    public SystemMetrics GetSystemMetrics()
+    {
+        try
+        {
+            var process = System.Diagnostics.Process.GetCurrentProcess();
+
+            // Get memory info
+            var workingSet = process.WorkingSet64;
+            var gcMemory = GC.GetTotalMemory(false);
+
+            // Get CPU usage (approximate)
+            var cpuTime = process.TotalProcessorTime;
+            var uptime = DateTime.Now - process.StartTime;
+            var cpuUsage = uptime.TotalMilliseconds > 0
+                ? (cpuTime.TotalMilliseconds / uptime.TotalMilliseconds / Environment.ProcessorCount) * 100
+                : 0;
+
+            // Get disk usage for current drive
+            var currentDrive = new DriveInfo(Path.GetPathRoot(Environment.CurrentDirectory) ?? "C:");
+            var diskUsedPercent = currentDrive.IsReady
+                ? ((double)(currentDrive.TotalSize - currentDrive.AvailableFreeSpace) / currentDrive.TotalSize) * 100
+                : 0;
+
+            return new SystemMetrics
+            {
+                CpuUsagePercent = Math.Round(cpuUsage, 1),
+                MemoryUsedMb = workingSet / (1024 * 1024),
+                MemoryGcMb = gcMemory / (1024 * 1024),
+                DiskUsedPercent = Math.Round(diskUsedPercent, 1),
+                DiskTotalGb = currentDrive.IsReady ? currentDrive.TotalSize / (1024 * 1024 * 1024) : 0,
+                DiskFreeGb = currentDrive.IsReady ? currentDrive.AvailableFreeSpace / (1024 * 1024 * 1024) : 0,
+                UptimeSeconds = (long)uptime.TotalSeconds,
+                ThreadCount = process.Threads.Count
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting system metrics");
+            return new SystemMetrics();
+        }
+    }
+
+    /// <summary>
+    /// Gets database statistics.
+    /// </summary>
+    public async Task<DatabaseStats> GetDatabaseStatsAsync()
+    {
+        try
+        {
+            var dbPath = _dbContext.Database.GetConnectionString();
+            var fileInfo = !string.IsNullOrEmpty(dbPath) && dbPath.Contains("Data Source=")
+                ? new FileInfo(dbPath.Split("Data Source=")[1].Split(";")[0])
+                : null;
+
+            return new DatabaseStats
+            {
+                UserCount = await _dbContext.Users.CountAsync(),
+                FlowCount = await _dbContext.Flows.CountAsync(),
+                ChartCount = await _dbContext.ChartConfigs.CountAsync(),
+                ConnectionCount = await _dbContext.Connections.CountAsync(),
+                TagCount = await _dbContext.TagMetadata.CountAsync(),
+                DashboardCount = await _dbContext.Dashboards.CountAsync(),
+                DatabaseSizeKb = fileInfo?.Exists == true ? fileInfo.Length / 1024 : 0
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting database stats");
+            return new DatabaseStats();
+        }
+    }
+
+    #endregion
+
+    #region Connection Testing
+
+    /// <summary>
+    /// Tests a connection to a device.
+    /// </summary>
+    public async Task<ConnectionTestResult> TestConnectionAsync(Guid connectionId)
+    {
+        try
+        {
+            var connection = await _dbContext.Connections.FindAsync(connectionId);
+            if (connection == null)
+            {
+                return new ConnectionTestResult { Success = false, Message = "Connection not found" };
+            }
+
+            // Parse config to get host/port
+            var configData = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(connection.ConfigData);
+            var host = configData?.GetValueOrDefault("host")?.ToString() ?? "";
+            var portStr = configData?.GetValueOrDefault("port")?.ToString() ?? "0";
+            int.TryParse(portStr, out var port);
+
+            if (connection.Type.Equals("Simulator", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ConnectionTestResult
+                {
+                    Success = true,
+                    Message = "Simulator connection always succeeds",
+                    ResponseTimeMs = 1
+                };
+            }
+
+            if (string.IsNullOrEmpty(host))
+            {
+                return new ConnectionTestResult { Success = false, Message = "No host configured" };
+            }
+
+            // Try to connect with timeout
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            using var client = new System.Net.Sockets.TcpClient();
+            var connectTask = client.ConnectAsync(host, port > 0 ? port : 502);
+            var timeoutTask = Task.Delay(5000);
+
+            var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+            stopwatch.Stop();
+
+            if (completedTask == timeoutTask)
+            {
+                return new ConnectionTestResult
+                {
+                    Success = false,
+                    Message = $"Connection timed out after 5 seconds",
+                    ResponseTimeMs = 5000
+                };
+            }
+
+            if (connectTask.IsFaulted)
+            {
+                return new ConnectionTestResult
+                {
+                    Success = false,
+                    Message = connectTask.Exception?.InnerException?.Message ?? "Connection failed",
+                    ResponseTimeMs = stopwatch.ElapsedMilliseconds
+                };
+            }
+
+            return new ConnectionTestResult
+            {
+                Success = true,
+                Message = $"Connected to {host}:{port}",
+                ResponseTimeMs = stopwatch.ElapsedMilliseconds
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error testing connection {ConnectionId}", connectionId);
+            return new ConnectionTestResult { Success = false, Message = ex.Message };
+        }
+    }
+
+    #endregion
+
+    #region Jobs
+
+    /// <summary>
+    /// Gets running jobs/background tasks status.
+    /// </summary>
+    public List<JobInfo> GetRunningJobs()
+    {
+        // In a real implementation, this would track actual background jobs
+        // For now, return info about known background services
+        return new List<JobInfo>
+        {
+            new JobInfo
+            {
+                Id = "telemetry-ingest",
+                Name = "Telemetry Ingestion",
+                Status = "Running",
+                StartedAt = DateTime.UtcNow.AddHours(-2),
+                Progress = null
+            },
+            new JobInfo
+            {
+                Id = "flow-engine",
+                Name = "Flow Execution Engine",
+                Status = "Running",
+                StartedAt = DateTime.UtcNow.AddHours(-2),
+                Progress = null
+            }
+        };
+    }
+
+    #endregion
+}
+
+/// <summary>
+/// User permission update model.
+/// </summary>
+public class UserPermissionUpdate
+{
+    public string Feature { get; set; } = "";
+    public bool CanCreate { get; set; }
+    public bool CanRead { get; set; }
+    public bool CanUpdate { get; set; }
+    public bool CanDelete { get; set; }
+}
+
+/// <summary>
+/// System metrics model.
+/// </summary>
+public class SystemMetrics
+{
+    public double CpuUsagePercent { get; set; }
+    public long MemoryUsedMb { get; set; }
+    public long MemoryGcMb { get; set; }
+    public double DiskUsedPercent { get; set; }
+    public long DiskTotalGb { get; set; }
+    public long DiskFreeGb { get; set; }
+    public long UptimeSeconds { get; set; }
+    public int ThreadCount { get; set; }
+}
+
+/// <summary>
+/// Database statistics model.
+/// </summary>
+public class DatabaseStats
+{
+    public int UserCount { get; set; }
+    public int FlowCount { get; set; }
+    public int ChartCount { get; set; }
+    public int ConnectionCount { get; set; }
+    public int TagCount { get; set; }
+    public int DashboardCount { get; set; }
+    public long DatabaseSizeKb { get; set; }
+}
+
+/// <summary>
+/// Connection test result model.
+/// </summary>
+public class ConnectionTestResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public long ResponseTimeMs { get; set; }
+}
+
+/// <summary>
+/// Job/background task info model.
+/// </summary>
+public class JobInfo
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Status { get; set; } = "";
+    public DateTime StartedAt { get; set; }
+    public int? Progress { get; set; }
 }
 
 /// <summary>

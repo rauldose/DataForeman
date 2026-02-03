@@ -536,40 +536,98 @@
             var connectionsTask = DataService.GetConnectionsAsync();
             var flowsTask = DataService.GetFlowsAsync();
             var tagsTask = DataService.GetTagsAsync();
-            
-            await Task.WhenAll(connectionsTask, flowsTask, tagsTask);
-            
+            var dbStatsTask = DataService.GetDatabaseStatsAsync();
+
+            await Task.WhenAll(connectionsTask, flowsTask, tagsTask, dbStatsTask);
+
             var connections = await connectionsTask;
             var (flows, _) = await flowsTask;
             var tags = await tagsTask;
-            
+            var dbStats = await dbStatsTask;
+
             ActiveConnections = connections?.Count(c => c.Enabled) ?? 0;
             RunningFlows = flows?.Count(f => f.Deployed) ?? 0;
             SubscribedTags = tags?.Count ?? 0;
-            
-            // Build network connections from actual data
+
+            // Get real system metrics
+            var metrics = DataService.GetSystemMetrics();
+            CpuUsage = metrics.CpuUsagePercent;
+            MemoryUsage = metrics.MemoryUsedMb > 0 ? Math.Min(100, (metrics.MemoryUsedMb / 2048.0) * 100) : 0; // Assume 2GB max
+            DiskUsage = metrics.DiskUsedPercent;
+
+            // Format uptime
+            var uptimeSpan = TimeSpan.FromSeconds(metrics.UptimeSeconds);
+            if (uptimeSpan.TotalDays >= 1)
+                Uptime = $"{(int)uptimeSpan.TotalDays}d {uptimeSpan.Hours}h {uptimeSpan.Minutes}m";
+            else if (uptimeSpan.TotalHours >= 1)
+                Uptime = $"{(int)uptimeSpan.TotalHours}h {uptimeSpan.Minutes}m";
+            else
+                Uptime = $"{uptimeSpan.Minutes}m {uptimeSpan.Seconds}s";
+
+            // Build network connections from actual data with parsed config
             if (connections != null)
             {
-                NetworkConnections = connections.Select(c => new NetworkConnection
+                NetworkConnections = connections.Select(c =>
                 {
-                    Name = c.Name,
-                    Host = "configured",
-                    Port = 0,
-                    Connected = c.Enabled,
-                    Latency = 0,
-                    LastActivity = DateTime.Now
+                    var host = "N/A";
+                    var port = 0;
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(c.ConfigData))
+                        {
+                            var config = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(c.ConfigData);
+                            host = config?.GetValueOrDefault("host")?.ToString() ?? "N/A";
+                            int.TryParse(config?.GetValueOrDefault("port")?.ToString(), out port);
+                        }
+                    }
+                    catch { }
+
+                    return new NetworkConnection
+                    {
+                        Name = c.Name,
+                        Host = host,
+                        Port = port,
+                        Connected = c.Enabled,
+                        Latency = 0,
+                        LastActivity = c.UpdatedAt
+                    };
                 }).ToList();
             }
-            
-            // Set initial system metrics
-            Uptime = "Started";
-            CpuUsage = 15;
-            MemoryUsage = 45;
-            DiskUsage = 30;
+
+            // Get running jobs
+            var jobInfos = DataService.GetRunningJobs();
+            Jobs = jobInfos.Select(j => new JobItem
+            {
+                Type = j.Name,
+                Status = j.Status,
+                Progress = j.Progress ?? 0,
+                StartedAt = j.StartedAt,
+                CompletedAt = null
+            }).ToList();
+
+            // Add sample log entries
+            if (!Logs.Any())
+            {
+                Logs = new List<LogEntry>
+                {
+                    new() { Timestamp = DateTime.Now.AddMinutes(-5), Level = "Info", Source = "System", Message = "Application started" },
+                    new() { Timestamp = DateTime.Now.AddMinutes(-4), Level = "Info", Source = "Database", Message = "Database connection established" },
+                    new() { Timestamp = DateTime.Now.AddMinutes(-3), Level = "Info", Source = "Flows", Message = $"{RunningFlows} flows deployed" },
+                    new() { Timestamp = DateTime.Now.AddMinutes(-2), Level = "Info", Source = "Connectivity", Message = $"{ActiveConnections} connections active" },
+                    new() { Timestamp = DateTime.Now, Level = "Info", Source = "Diagnostics", Message = "Diagnostics data refreshed" }
+                };
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Data not available - show empty state
+            // Log error and show empty state
+            Logs.Add(new LogEntry
+            {
+                Timestamp = DateTime.Now,
+                Level = "Error",
+                Source = "Diagnostics",
+                Message = $"Failed to load diagnostics: {ex.Message}"
+            });
         }
     }
     
