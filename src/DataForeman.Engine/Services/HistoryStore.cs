@@ -130,7 +130,7 @@ public class HistoryStore : IAsyncDisposable
 
             if (limit.HasValue)
             {
-                sql += $" LIMIT {limit.Value}";
+                sql += " LIMIT @limit";
             }
 
             await using var command = connection.CreateCommand();
@@ -139,6 +139,10 @@ public class HistoryStore : IAsyncDisposable
             command.Parameters.AddWithValue("@tagId", tagId);
             command.Parameters.AddWithValue("@startTime", startTime.ToString("O"));
             command.Parameters.AddWithValue("@endTime", endTime.ToString("O"));
+            if (limit.HasValue)
+            {
+                command.Parameters.AddWithValue("@limit", limit.Value);
+            }
 
             await using var reader = await command.ExecuteReaderAsync();
             while (await reader.ReadAsync())
