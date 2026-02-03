@@ -1085,6 +1085,12 @@
                     CreateFlowNode("notification-1", "Notification", "#e91e63", 750, 150, 1, 0)
                 };
                 
+                // Store node types for property panel
+                _nodeTypes["trigger-manual-1"] = "trigger-manual";
+                _nodeTypes["tag-input-1"] = "tag-input";
+                _nodeTypes["compare-greater-1"] = "compare-greater";
+                _nodeTypes["notification-1"] = "notification";
+                
                 // Store connectors to be added after diagram renders
                 // This avoids the issue where connectors appear at (0,0) before nodes are rendered
                 _pendingConnectors = new DiagramObjectCollection<Connector>

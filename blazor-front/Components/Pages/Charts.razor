@@ -462,12 +462,13 @@
     .chart-list-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
+        gap: 8px;
+        padding: 8px 12px;
         border-radius: 4px;
         cursor: pointer;
         transition: background 0.2s;
         overflow: hidden;
+        margin-bottom: 2px;
     }
     
     .chart-list-item:hover {
@@ -480,11 +481,18 @@
         padding-left: 9px;
     }
     
+    .chart-icon {
+        font-size: 14px;
+        color: #4caf50;
+        flex-shrink: 0;
+    }
+    
     .chart-info {
         display: flex;
         flex-direction: column;
         flex: 1;
         min-width: 0;
+        gap: 2px;
     }
     
     .chart-name {
@@ -606,7 +614,9 @@
     }
     
     .configuration-panel {
-        height: 300px;
+        height: 280px;
+        min-height: 200px;
+        max-height: 350px;
         border-top: 1px solid #3c3c3c;
         overflow: hidden;
         display: flex;
@@ -615,10 +625,11 @@
     
     .config-tabs {
         height: 100%;
+        overflow: hidden;
     }
     
     .tab-content {
-        padding: 16px;
+        padding: 12px;
         height: calc(100% - 48px);
         overflow-y: auto;
     }
@@ -826,8 +837,34 @@
     private void SelectChart(ChartListItem chart)
     {
         SelectedChart = chart;
-        // In production, load chart series from backend
-        ChartSeries = new List<ChartSeriesData>();
+        _colorIndex = 0;
+        
+        // Generate sample data for demonstration
+        // In production, this would load from the backend
+        var now = DateTime.Now;
+        ChartSeries = new List<ChartSeriesData>
+        {
+            new ChartSeriesData
+            {
+                Name = "Sample Data",
+                DisplayName = $"{chart.Name} - Series 1",
+                Color = SeriesColors[0],
+                LineType = "Line",
+                DashStyle = "Solid",
+                LineWidth = 2.0,
+                Opacity = 1.0,
+                ShowMarkers = true,
+                MarkerSize = 6,
+                Visible = true,
+                YAxisName = "primary",
+                IsExpanded = false,
+                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = 50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5
+                }).ToList()
+            }
+        };
     }
     
     private bool _showSaveMessage = false;
