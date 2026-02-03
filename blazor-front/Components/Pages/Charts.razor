@@ -5,6 +5,7 @@
 @using Syncfusion.Blazor.Inputs
 @using Syncfusion.Blazor.Buttons
 @using Syncfusion.Blazor.Navigations
+@using System.Text.Json
 @inject DataService DataService
 @implements IDisposable
 
@@ -598,12 +599,14 @@
         flex-direction: row;
         gap: 16px;
         overflow: hidden;
+        min-height: 0; /* Important for flex children to shrink and enable scrolling */
     }
     
     .chart-preview {
         flex: 1;
         padding: 16px;
         min-height: 400px;
+        overflow: auto;
     }
     
     .configuration-panel {
@@ -611,21 +614,34 @@
         min-width: 280px;
         max-width: 400px;
         border-left: 1px solid #3c3c3c;
-        overflow-y: auto;
         display: flex;
         flex-direction: column;
+        overflow: hidden; /* Let children handle scrolling */
     }
     
     .config-tabs {
-        height: 100%;
+        flex: 1;
         display: flex;
         flex-direction: column;
+        min-height: 0; /* Important for nested flex scrolling */
+        overflow: hidden;
+    }
+    
+    /* Override Syncfusion tab styles for proper scrolling */
+    .config-tabs .e-tab-header {
+        flex-shrink: 0;
+    }
+    
+    .config-tabs .e-content {
+        flex: 1;
+        overflow-y: auto !important;
+        min-height: 0;
     }
     
     .tab-content {
         padding: 12px;
-        flex: 1;
         overflow-y: auto;
+        max-height: 100%;
     }
     
     .axes-header {
@@ -851,7 +867,14 @@
                     Id = c.Id.ToString(),
                     Name = c.Name,
                     // Normalize ChartType to Pascal case (Line, Bar, Area) to match dropdown
-                    ChartType = NormalizeChartType(c.ChartType)
+                    ChartType = NormalizeChartType(c.ChartType),
+                    Options = c.Options ?? "{}",
+                    LiveEnabled = c.LiveEnabled,
+                    RefreshInterval = c.RefreshInterval,
+                    EnableLegend = c.EnableLegend,
+                    LegendPosition = c.LegendPosition ?? "bottom",
+                    EnableZoom = c.EnableZoom,
+                    EnablePan = c.EnablePan
                 }).ToList();
             }
             
@@ -891,40 +914,125 @@
         SelectedChart = chart;
         _colorIndex = 0;
         
-        // Generate sample data for demonstration
-        // In production, this would load from the backend
-        var now = DateTime.Now;
+        // Load settings from the saved chart
+        IsLiveMode = chart.LiveEnabled;
+        LiveUpdateIntervalSeconds = chart.RefreshInterval / 1000;
+        if (LiveUpdateIntervalSeconds < 1) LiveUpdateIntervalSeconds = 5;
+        ShowLegend = chart.EnableLegend;
+        LegendPosition = chart.LegendPosition ?? "bottom";
+        EnableZoom = chart.EnableZoom;
+        // Note: EnablePan is not currently stored but we load it for future use
         
-        // Create data list explicitly to avoid lazy evaluation issues
-        var dataPoints = new List<TimeSeriesPoint>();
-        for (int i = 0; i < 50; i++)
+        // Try to load saved configuration from Options JSON
+        ChartConfigOptions? config = null;
+        if (!string.IsNullOrEmpty(chart.Options) && chart.Options != "{}")
         {
-            dataPoints.Add(new TimeSeriesPoint
+            try
             {
-                Timestamp = now.AddMinutes(-50 + i),
-                Value = Math.Round(50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5, 2)
-            });
+                config = JsonSerializer.Deserialize<ChartConfigOptions>(chart.Options);
+            }
+            catch
+            {
+                // If parsing fails, use default configuration
+            }
         }
         
-        ChartSeries = new List<ChartSeriesData>
+        var now = DateTime.Now;
+        
+        // Load saved series or create default
+        if (config?.Series != null && config.Series.Count > 0)
         {
-            new ChartSeriesData
+            ChartSeries = config.Series.Select(s => new ChartSeriesData
             {
-                Name = "Sample Data",
-                DisplayName = $"{chart.Name} - Series 1",
-                Color = SeriesColors[0],
-                LineType = "Line",
-                DashStyle = "Solid",
-                LineWidth = 2.0,
-                Opacity = 1.0,
-                ShowMarkers = true,
-                MarkerSize = 6,
-                Visible = true,
-                YAxisName = "primary",
+                Name = s.Name,
+                DisplayName = s.DisplayName,
+                Color = s.Color,
+                LineType = s.LineType,
+                DashStyle = s.DashStyle,
+                LineWidth = s.LineWidth,
+                Opacity = s.Opacity,
+                ShowMarkers = s.ShowMarkers,
+                MarkerSize = s.MarkerSize,
+                Visible = s.Visible,
+                YAxisName = s.YAxisName,
                 IsExpanded = false,
-                Data = dataPoints
+                // Generate sample data for each series
+                Data = Enumerable.Range(0, 50).Select(i => new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = Math.Round(50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5, 2)
+                }).ToList()
+            }).ToList();
+        }
+        else
+        {
+            // Create default series if none saved
+            var dataPoints = new List<TimeSeriesPoint>();
+            for (int i = 0; i < 50; i++)
+            {
+                dataPoints.Add(new TimeSeriesPoint
+                {
+                    Timestamp = now.AddMinutes(-50 + i),
+                    Value = Math.Round(50 + Math.Sin(i * 0.3) * 20 + Random.Shared.NextDouble() * 5, 2)
+                });
             }
-        };
+            
+            ChartSeries = new List<ChartSeriesData>
+            {
+                new ChartSeriesData
+                {
+                    Name = "Sample Data",
+                    DisplayName = $"{chart.Name} - Series 1",
+                    Color = SeriesColors[0],
+                    LineType = "Spline",
+                    DashStyle = "Solid",
+                    LineWidth = 2.0,
+                    Opacity = 1.0,
+                    ShowMarkers = true,
+                    MarkerSize = 6,
+                    Visible = true,
+                    YAxisName = "primary",
+                    IsExpanded = false,
+                    Data = dataPoints
+                }
+            };
+        }
+        
+        // Load saved axes or create default
+        if (config?.Axes != null && config.Axes.Count > 0)
+        {
+            ChartAxes = config.Axes.Select(a => new AxisOption
+            {
+                Name = a.Name,
+                Label = a.Label,
+                Color = a.Color,
+                OpposedPosition = a.OpposedPosition,
+                AutoScale = a.AutoScale,
+                Minimum = a.Minimum,
+                Maximum = a.Maximum,
+                ShowGridLines = a.ShowGridLines,
+                IsExpanded = false
+            }).ToList();
+        }
+        else
+        {
+            // Create default primary axis
+            ChartAxes = new List<AxisOption>
+            {
+                new AxisOption
+                {
+                    Name = "primary",
+                    Label = "Primary Y-Axis",
+                    Color = "#4caf50",
+                    OpposedPosition = false,
+                    AutoScale = true,
+                    ShowGridLines = true,
+                    IsExpanded = false
+                }
+            };
+        }
+        
+        StateHasChanged();
     }
     
     private bool _showSaveMessage = false;
@@ -943,13 +1051,72 @@
         {
             try
             {
-                // Save to backend - currently just show success
-                // DataService.UpdateChartAsync would need to be added
-                _saveMessage = "Chart saved successfully!";
+                // Serialize the chart configuration (series and axes)
+                var config = new ChartConfigOptions
+                {
+                    Series = ChartSeries.Select(s => new SeriesConfig
+                    {
+                        Name = s.Name,
+                        DisplayName = s.DisplayName,
+                        Color = s.Color,
+                        LineType = s.LineType,
+                        DashStyle = s.DashStyle,
+                        LineWidth = s.LineWidth,
+                        Opacity = s.Opacity,
+                        ShowMarkers = s.ShowMarkers,
+                        MarkerSize = s.MarkerSize,
+                        Visible = s.Visible,
+                        YAxisName = s.YAxisName
+                    }).ToList(),
+                    Axes = ChartAxes.Select(a => new AxisConfig
+                    {
+                        Name = a.Name,
+                        Label = a.Label,
+                        Color = a.Color,
+                        OpposedPosition = a.OpposedPosition,
+                        AutoScale = a.AutoScale,
+                        Minimum = a.Minimum,
+                        Maximum = a.Maximum,
+                        ShowGridLines = a.ShowGridLines
+                    }).ToList()
+                };
+                
+                var options = JsonSerializer.Serialize(config);
+                
+                // Update the chart in the database
+                var success = await DataService.UpdateChartAsync(
+                    Guid.Parse(SelectedChart.Id),
+                    name: SelectedChart.Name,
+                    chartType: SelectedChart.ChartType,
+                    options: options,
+                    liveEnabled: IsLiveMode,
+                    refreshInterval: LiveUpdateIntervalSeconds * 1000,
+                    enableLegend: ShowLegend,
+                    legendPosition: LegendPosition,
+                    enableZoom: EnableZoom,
+                    enablePan: false // Not currently tracked
+                );
+                
+                if (success)
+                {
+                    // Update the local cache
+                    SelectedChart.Options = options;
+                    SelectedChart.LiveEnabled = IsLiveMode;
+                    SelectedChart.RefreshInterval = LiveUpdateIntervalSeconds * 1000;
+                    SelectedChart.EnableLegend = ShowLegend;
+                    SelectedChart.LegendPosition = LegendPosition;
+                    SelectedChart.EnableZoom = EnableZoom;
+                    
+                    _saveMessage = "Chart saved successfully!";
+                }
+                else
+                {
+                    _saveMessage = "Failed to save chart";
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                _saveMessage = "Failed to save chart";
+                _saveMessage = $"Failed to save chart: {ex.Message}";
             }
             
             _showSaveMessage = true;
@@ -1174,6 +1341,13 @@
         public string Id { get; set; } = "";
         public string Name { get; set; } = "";
         public string ChartType { get; set; } = "Line";
+        public string Options { get; set; } = "{}"; // JSON for chart configuration
+        public bool LiveEnabled { get; set; } = false;
+        public int RefreshInterval { get; set; } = 5000;
+        public bool EnableLegend { get; set; } = true;
+        public string LegendPosition { get; set; } = "bottom";
+        public bool EnableZoom { get; set; } = true;
+        public bool EnablePan { get; set; } = true;
     }
     
     class TagListItem
@@ -1219,4 +1393,38 @@
     }
     
     record BarChartDataPoint(string Category, double Value);
+    
+    // Classes for JSON serialization of chart configuration
+    class ChartConfigOptions
+    {
+        public List<SeriesConfig> Series { get; set; } = new();
+        public List<AxisConfig> Axes { get; set; } = new();
+    }
+    
+    class SeriesConfig
+    {
+        public string Name { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Color { get; set; } = "#4caf50";
+        public string LineType { get; set; } = "Line";
+        public string DashStyle { get; set; } = "Solid";
+        public double LineWidth { get; set; } = 2.0;
+        public double Opacity { get; set; } = 1.0;
+        public bool ShowMarkers { get; set; } = true;
+        public int MarkerSize { get; set; } = 6;
+        public bool Visible { get; set; } = true;
+        public string YAxisName { get; set; } = "primary";
+    }
+    
+    class AxisConfig
+    {
+        public string Name { get; set; } = "";
+        public string Label { get; set; } = "";
+        public string Color { get; set; } = "#4caf50";
+        public bool OpposedPosition { get; set; } = false;
+        public bool AutoScale { get; set; } = true;
+        public double? Minimum { get; set; }
+        public double? Maximum { get; set; }
+        public bool ShowGridLines { get; set; } = true;
+    }
 }
