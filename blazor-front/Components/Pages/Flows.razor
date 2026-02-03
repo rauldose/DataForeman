@@ -1222,13 +1222,13 @@
         
         // Map semantic names to indexed names
         // Common patterns: input1, input2, value, numerator, denominator, etc.
-        if (portName.StartsWith("input") && int.TryParse(portName.Substring(5), out var inputNum))
+        if (portName.StartsWith("input") && portName.Length > 5 && int.TryParse(portName.Substring(5), out var inputNum))
         {
             // "input1" -> "input-0", "input2" -> "input-1"
             return $"input-{inputNum - 1}";
         }
         
-        if (portName.StartsWith("output") && int.TryParse(portName.Substring(6), out var outputNum))
+        if (portName.StartsWith("output") && portName.Length > 6 && int.TryParse(portName.Substring(6), out var outputNum))
         {
             // "output1" -> "output-0", "output2" -> "output-1"
             return $"output-{outputNum - 1}";
