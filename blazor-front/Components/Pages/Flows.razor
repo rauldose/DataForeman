@@ -815,18 +815,21 @@
             // Wait for nodes to be fully rendered in the diagram
             await Task.Delay(500);
             
-            // Add connectors programmatically after nodes are rendered
+            // NOW clear the loading flag - after nodes have been processed by OnNodeCreating
+            // This ensures node IDs are preserved during the async rendering process
+            _isLoadingFlowDefinition = false;
+            
+            // Add connectors programmatically after nodes are rendered using Diagram API
             try
             {
-                foreach (var connector in _pendingConnectors)
-                {
-                    // Add connector directly to Connectors collection after nodes are rendered
-                    Connectors.Add(connector);
-                }
+                // Convert pending connectors to list for AddDiagramElements
+                var connectorsToAdd = _pendingConnectors.ToList();
+                
+                // Use AddDiagramElementsAsync to properly add connectors to the rendered diagram
+                await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
                 
                 // Clear pending connectors after they're added
                 _pendingConnectors.Clear();
-                StateHasChanged();
             }
             catch (Exception ex)
             {
@@ -880,6 +883,7 @@
             try
             {
                 // Set flag to prevent OnNodeCreating from regenerating IDs
+                // This flag will be cleared in OnAfterRenderAsync after connectors are added
                 _isLoadingFlowDefinition = true;
                 
                 // Deserialize flow definition
@@ -989,11 +993,8 @@
                 // Fall back to hardcoded sample for demo purposes
                 LoadSampleFlowDefinition(flow);
             }
-            finally
-            {
-                // Clear the flag after loading is complete
-                _isLoadingFlowDefinition = false;
-            }
+            // Note: DO NOT clear _isLoadingFlowDefinition here - it will be cleared in OnAfterRenderAsync
+            // after connectors are added, because OnNodeCreating events fire asynchronously during render
         }
         else
         {
@@ -1035,11 +1036,11 @@
                 Connectors = new DiagramObjectCollection<Connector>();
             }
         }
-        finally
+        catch (Exception ex)
         {
-            // Clear the flag after loading
-            _isLoadingFlowDefinition = false;
+            Console.WriteLine($"Error in LoadSampleFlowDefinition: {ex.Message}");
         }
+        // Note: DO NOT clear _isLoadingFlowDefinition here - it will be cleared in OnAfterRenderAsync
     }
     
     /// <summary>
