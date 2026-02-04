@@ -420,7 +420,9 @@
         
         foreach (var node in flow.Nodes)
         {
-            var plugin = NodeRegistry.Get(node.Type);
+            // Map legacy type names to plugin IDs
+            var mappedType = MapNodeType(node.Type);
+            var plugin = NodeRegistry.Get(mappedType);
             var diagramNode = CreateFlowNode(
                 node.Id,
                 node.Label ?? plugin?.Name ?? node.Type,
@@ -432,11 +434,8 @@
             );
             Nodes.Add(diagramNode);
             
-            // Store node type mapping
-            if (!string.IsNullOrEmpty(node.Type))
-            {
-                _nodeTypes[node.Id] = node.Type;
-            }
+            // Store node type mapping (store the mapped type for proper plugin lookup)
+            _nodeTypes[node.Id] = mappedType;
             
             // Store node properties
             if (node.Properties != null)
@@ -448,16 +447,106 @@
         // Add connectors to pending list - they'll be added after nodes render
         foreach (var edge in flow.Edges)
         {
+            // Map semantic port names to indexed port IDs
+            var mappedSourcePort = MapPortName(edge.SourcePortId, "output");
+            var mappedTargetPort = MapPortName(edge.TargetPortId, "input");
+            
             _pendingConnectors.Add(CreateFlowConnector(
                 edge.Id,
                 edge.SourceNodeId,
-                edge.SourcePortId,
+                mappedSourcePort,
                 edge.TargetNodeId,
-                edge.TargetPortId
+                mappedTargetPort
             ));
         }
         
         _connectorsAdded = false;
+    }
+
+    /// <summary>
+    /// Maps legacy node type names to plugin registry IDs
+    /// Config files may use names like "TagInput", "Compare" but registry uses "tag-input", "logic-compare"
+    /// </summary>
+    private string MapNodeType(string? nodeType)
+    {
+        if (string.IsNullOrEmpty(nodeType))
+            return "unknown";
+            
+        // If it already matches a plugin ID, return as-is
+        if (NodeRegistry.Get(nodeType) != null)
+            return nodeType;
+        
+        // Map legacy names to plugin IDs
+        return nodeType.ToLower() switch
+        {
+            "taginput" => "tag-input",
+            "tagoutput" => "tag-output",
+            "compare" => "logic-compare",
+            "debug" => "output-log",
+            "notification" => "output-notification",
+            "timer" => "trigger-schedule",
+            "inject" => "trigger-manual",
+            "multiply" => "math-multiply",
+            "divide" => "math-divide",
+            "add" => "math-add",
+            "subtract" => "math-subtract",
+            "scale" => "math-scale",
+            "smooth" => "data-smooth",
+            "mqttin" => "mqtt-in",
+            "mqttout" => "mqtt-out",
+            "template" => "func-template",
+            "switch" => "func-switch",
+            "branch" => "logic-branch",
+            "and" => "logic-and",
+            "or" => "logic-or",
+            "delay" => "util-delay",
+            "filter" => "util-filter",
+            "constant" => "util-constant",
+            "aggregate" => "data-aggregate",
+            "deadband" => "data-deadband",
+            "rateofchange" => "data-rateofchange",
+            "httprequest" => "http-request",
+            "javascript" => "func-javascript",
+            _ => nodeType.ToLower() // Try lowercase as fallback
+        };
+    }
+
+    /// <summary>
+    /// Maps semantic port names from flow definitions to actual port IDs
+    /// Config uses names like "input", "output", "true", "input1" but diagram uses "input-0", "output-0"
+    /// </summary>
+    private string MapPortName(string? portName, string portType)
+    {
+        if (string.IsNullOrEmpty(portName))
+            return $"{portType}-0";
+        
+        // If already in correct format, return as-is
+        if (portName.StartsWith("input-") || portName.StartsWith("output-"))
+            return portName;
+        
+        // Handle simple "input" or "output" -> first port
+        if (portName.Equals("input", StringComparison.OrdinalIgnoreCase) ||
+            portName.Equals("output", StringComparison.OrdinalIgnoreCase))
+            return $"{portType}-0";
+        
+        // Handle boolean outputs like "true", "false"
+        if (portName.Equals("true", StringComparison.OrdinalIgnoreCase))
+            return "output-0";
+        if (portName.Equals("false", StringComparison.OrdinalIgnoreCase))
+            return "output-1";
+        
+        // Handle numbered ports: "input1" -> "input-0", "input2" -> "input-1"
+        if (portName.StartsWith("input", StringComparison.OrdinalIgnoreCase) && 
+            int.TryParse(portName[5..], out var inputNum))
+            return $"input-{inputNum - 1}";
+        
+        if (portName.StartsWith("output", StringComparison.OrdinalIgnoreCase) && 
+            portName.Length > 6 && int.TryParse(portName[6..], out var outputNum))
+            return $"output-{outputNum - 1}";
+        
+        // Handle semantic names (map to appropriate type's first port)
+        // This handles names like "value", "trigger", "temp", "pressure", etc.
+        return $"{portType}-0";
     }
 
     private void CreateNewFlow() => Navigation.NavigateTo("/flows/new");
