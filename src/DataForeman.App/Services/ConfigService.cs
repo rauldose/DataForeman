@@ -418,7 +418,9 @@ public class ConfigService
 
     public async Task<DashboardConfig> AddDashboardAsync(DashboardConfig dashboard)
     {
-        dashboard.CreatedAt = DateTime.UtcNow;
+        // Only set timestamps if they haven't been set (new dashboards)
+        if (dashboard.CreatedAt == default)
+            dashboard.CreatedAt = DateTime.UtcNow;
         dashboard.UpdatedAt = DateTime.UtcNow;
         _dashboards.Dashboards.Add(dashboard);
         await SaveDashboardsAsync();

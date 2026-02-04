@@ -428,8 +428,7 @@
 
     private async Task SaveDashboard()
     {
-        CurrentDashboard.UpdatedAt = DateTime.UtcNow;
-        
+        // UpdatedAt is set in the service layer
         if (DashboardId == "new")
             await ConfigService.AddDashboardAsync(CurrentDashboard);
         else
