@@ -10,28 +10,28 @@
     <!-- Stats Row -->
     <div class="stats-row">
         <div class="stat-item">
-            <i class="fa-solid fa-plug stat-icon"></i>
+            <span class="stat-icon e-icons e-edit"></span>
             <div class="stat-data">
                 <span class="stat-value">@ConfigService.Connections.Count</span>
                 <span class="stat-label">Connections</span>
             </div>
         </div>
         <div class="stat-item">
-            <i class="fa-solid fa-tags stat-icon"></i>
+            <span class="stat-icon e-icons e-list-unordered"></span>
             <div class="stat-data">
                 <span class="stat-value">@TotalTags</span>
                 <span class="stat-label">Tags</span>
             </div>
         </div>
         <div class="stat-item">
-            <i class="fa-solid fa-chart-line stat-icon"></i>
+            <span class="stat-icon e-icons e-chart"></span>
             <div class="stat-data">
                 <span class="stat-value">@ConfigService.Charts.Count</span>
                 <span class="stat-label">Charts</span>
             </div>
         </div>
         <div class="stat-item">
-            <i class="fa-solid fa-diagram-project stat-icon"></i>
+            <span class="stat-icon e-icons e-flow"></span>
             <div class="stat-data">
                 <span class="stat-value">@ConfigService.Flows.Count</span>
                 <span class="stat-label">Flows</span>
@@ -45,7 +45,7 @@
             <AccordionItem Expanded="true">
                 <HeaderTemplate>
                     <div class="panel-header">
-                        <i class="fa-solid fa-server"></i>
+                        <span class="e-icons e-settings"></span>
                         <span>Engine Status</span>
                     </div>
                 </HeaderTemplate>
@@ -84,7 +84,7 @@
                     else
                     {
                         <div class="empty-state">
-                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <span class="e-icons e-circle-info"></span>
                             <span>Engine status not available</span>
                         </div>
                     }
@@ -93,7 +93,7 @@
             <AccordionItem Expanded="true">
                 <HeaderTemplate>
                     <div class="panel-header">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span class="e-icons e-clock"></span>
                         <span>Recent Tag Values</span>
                     </div>
                 </HeaderTemplate>
@@ -109,7 +109,7 @@
                                         @{
                                             var item = (context as TagValueDisplay);
                                             <span class="quality-indicator @(item?.IsGoodQuality == true ? "good" : "bad")">
-                                                <i class="fa-solid @(item?.IsGoodQuality == true ? "fa-check" : "fa-xmark")"></i>
+                                                @(item?.IsGoodQuality == true ? "✓" : "✗")
                                             </span>
                                         }
                                     </Template>
@@ -121,7 +121,7 @@
                     else
                     {
                         <div class="empty-state">
-                            <i class="fa-solid fa-inbox"></i>
+                            <span class="e-icons e-inbox"></span>
                             <span>No tag values received yet</span>
                         </div>
                     }

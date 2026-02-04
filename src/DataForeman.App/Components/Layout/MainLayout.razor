@@ -3,31 +3,22 @@
 @implements IDisposable
 
 <div class="app-container">
-    <!-- Minimal Top Menu Bar -->
-    <header class="top-header">
-        <div class="brand-section">
-            <i class="fa-solid fa-gear brand-icon"></i>
-            <span class="brand-name">DataForeman</span>
+    <!-- Minimal Top Menu Bar using SfAppBar -->
+    <SfAppBar ColorMode="AppBarColor.Dark">
+        <span class="brand-icon">⚙</span>
+        <span class="brand-name">DataForeman</span>
+        <AppBarSpacer></AppBarSpacer>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/")'>Home</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/dashboards")'>Dashboards</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/connectivity")'>Connectivity</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
+        <AppBarSpacer></AppBarSpacer>
+        <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
+            <span class="status-dot">●</span>
+            <span>Engine: @(EngineConnected ? "Online" : "Offline")</span>
         </div>
-        
-        <SfMenu TValue="MenuItem" CssClass="top-menu">
-            <MenuItems>
-                <MenuItem Text="Home" IconCss="fa-solid fa-house" Url="/"></MenuItem>
-                <MenuItem Text="Dashboards" IconCss="fa-solid fa-gauge" Url="/dashboards"></MenuItem>
-                <MenuItem Text="Connectivity" IconCss="fa-solid fa-plug" Url="/connectivity"></MenuItem>
-                <MenuItem Text="Charts" IconCss="fa-solid fa-chart-line" Url="/charts"></MenuItem>
-                <MenuItem Text="Flows" IconCss="fa-solid fa-diagram-project" Url="/flows"></MenuItem>
-            </MenuItems>
-            <MenuEvents TValue="MenuItem" ItemSelected="OnMenuItemSelected"></MenuEvents>
-        </SfMenu>
-        
-        <div class="header-right">
-            <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
-                <i class="fa-solid fa-circle status-dot"></i>
-                <span>Engine: @(EngineConnected ? "Online" : "Offline")</span>
-            </div>
-        </div>
-    </header>
+    </SfAppBar>
     
     <!-- Main Content -->
     <main class="main-content">
@@ -59,12 +50,9 @@
         StateHasChanged();
     }
     
-    private void OnMenuItemSelected(MenuEventArgs<MenuItem> args)
+    private void NavigateTo(string url)
     {
-        if (!string.IsNullOrEmpty(args.Item.Url))
-        {
-            Navigation.NavigateTo(args.Item.Url);
-        }
+        Navigation.NavigateTo(url);
     }
     
     public void Dispose()

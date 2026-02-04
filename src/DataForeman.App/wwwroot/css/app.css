@@ -35,29 +35,40 @@ html, body {
     height: 100vh;
 }
 
-.top-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0 1rem;
-    height: 48px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-subtle);
+/* SfAppBar Overrides */
+.e-appbar {
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0 1rem !important;
+    height: 48px !important;
+    min-height: 48px !important;
 }
 
-.brand-section {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding-right: 1rem;
-    border-right: 1px solid var(--border-subtle);
+.e-appbar .brand-icon { 
+    font-size: 1.25rem; 
+    color: var(--accent-blue);
+    margin-right: 0.5rem;
 }
 
-.brand-icon { font-size: 1.25rem; color: var(--accent-blue); }
-.brand-name { font-weight: 600; font-size: 1rem; }
+.e-appbar .brand-name { 
+    font-weight: 600; 
+    font-size: 1rem;
+    color: var(--text-primary);
+}
 
-.header-right {
-    margin-left: auto;
+/* Navigation Buttons in AppBar */
+.nav-btn.e-btn {
+    color: var(--text-secondary) !important;
+    background: transparent !important;
+    border: none !important;
+    font-size: 0.875rem !important;
+    padding: 0.5rem 1rem !important;
+    text-transform: none !important;
+}
+
+.nav-btn.e-btn:hover {
+    color: var(--text-primary) !important;
+    background: var(--bg-tertiary) !important;
 }
 
 .engine-status {
@@ -79,32 +90,6 @@ html, body {
     flex: 1;
     overflow: auto;
     padding: 1rem;
-}
-
-/* Syncfusion Menu Override */
-.top-menu.e-menu-wrapper {
-    background: transparent !important;
-    border: none !important;
-}
-
-.top-menu .e-menu {
-    background: transparent !important;
-}
-
-.top-menu .e-menu-item {
-    padding: 0.5rem 1rem !important;
-    color: var(--text-secondary) !important;
-    font-size: 0.875rem !important;
-}
-
-.top-menu .e-menu-item:hover,
-.top-menu .e-menu-item.e-focused {
-    background: var(--bg-tertiary) !important;
-    color: var(--text-primary) !important;
-}
-
-.top-menu .e-menu-item .e-menu-icon {
-    margin-right: 0.5rem;
 }
 
 /* Page Container */
