@@ -331,7 +331,7 @@
     // Node type mapping (for looking up plugin info)
     private Dictionary<string, string> _nodeTypes = new();
     
-    // Pending connectors (added after nodes are rendered)
+    // Pending connectors (added after diagram is rendered)
     private DiagramObjectCollection<Connector> _pendingConnectors = new();
     private bool _connectorsAdded = false;
     
@@ -362,6 +362,7 @@
             {
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
+                Console.WriteLine($"Loaded flow {flow.Name} with {Nodes.Count} nodes and {_pendingConnectors.Count} pending connectors");
             }
         }
         else if (FlowId == "new")
@@ -387,13 +388,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        Console.WriteLine($"OnAfterRenderAsync: firstRender={firstRender}, Nodes.Count={Nodes.Count}, _pendingConnectors.Count={_pendingConnectors.Count}, Diagram null={Diagram == null}");
+        
         // Add connectors after nodes are fully rendered
-        if (!_connectorsAdded && !string.IsNullOrEmpty(FlowId) && FlowId != "new" && Diagram != null && _pendingConnectors.Count > 0)
+        if (!_connectorsAdded && Diagram != null && _pendingConnectors.Count > 0)
         {
             _connectorsAdded = true;
+            Console.WriteLine($"Adding {_pendingConnectors.Count} connectors to diagram...");
             
             // Wait for nodes to be fully rendered
-            await Task.Delay(300);
+            await Task.Delay(500);
             
             try
             {
@@ -401,6 +405,7 @@
                 var connectorsToAdd = _pendingConnectors.ToList();
                 await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
                 _pendingConnectors.Clear();
+                Console.WriteLine($"Successfully added {connectorsToAdd.Count} connectors");
             }
             catch (Exception ex)
             {
@@ -432,6 +437,7 @@
                 plugin?.InputCount ?? 1,
                 plugin?.OutputCount ?? 1
             );
+            // Add directly to Nodes collection so it's available when diagram renders
             Nodes.Add(diagramNode);
             
             // Store node type mapping (store the mapped type for proper plugin lookup)
