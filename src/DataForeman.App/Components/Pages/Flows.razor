@@ -327,13 +327,16 @@
     private string SelectedNodeLabel = "";
     
     // Palette state
-    private HashSet<string> ExpandedCategories = new() { "Triggers", "Tags" };
+     private HashSet<string> ExpandedCategories = new() { "Triggers", "Tags" };
     private NodePluginDefinition? _draggingPlugin;
     
     private FlowConfig CurrentFlow = new();
     private bool ShowDeleteDialog;
     private string DeleteFlowId = "";
     private string? _lastLoadedFlowId;
+    
+    // Disposal flag to stop execution when navigating away
+    private bool _disposed = false;
     
     // MISSING FIELDS ADDED HERE:
     private string? _editingSubflowId;
@@ -445,9 +448,15 @@
     
     private async void HandleTagValueChanged(string tagId)
     {
+        // Stop if component is disposed (user navigated away)
+        if (_disposed) return;
+        
         // Find nodes that use this tag and trigger execution from them
         foreach (var nodeEntry in NodeProperties)
         {
+            // Check again in loop in case disposal happens during iteration
+            if (_disposed) return;
+            
             if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
                 tagPath?.ToString() == tagId)
             {
@@ -463,7 +472,12 @@
                             ["value"] = tagValue.NumericValue ?? tagValue.Value ?? 0.0
                         };
                         await SimulateNodeExecution(node, inputData);
-                        await InvokeAsync(StateHasChanged);
+                        
+                        // Only update UI if not disposed
+                        if (!_disposed)
+                        {
+                            await InvokeAsync(StateHasChanged);
+                        }
                     }
                 }
             }
@@ -808,6 +822,7 @@
         
         foreach (var triggerNode in triggerNodes)
         {
+            if (_disposed) return; // Stop if disposed during execution
             await SimulateNodeExecution(triggerNode, new Dictionary<string, object> { ["value"] = GenerateSimulatedValue(triggerNode) });
         }
         
@@ -816,6 +831,8 @@
     
     private async Task SimulateNodeExecution(Node? node, Dictionary<string, object> inputData)
     {
+        // Stop execution if disposed (user navigated away)
+        if (_disposed) return;
         if (node == null || string.IsNullOrEmpty(node.ID)) return;
         
         var label = GetNodeLabel(node);
@@ -1227,6 +1244,9 @@
     
     public void Dispose()
     {
+        // Set disposed flag first to stop any running execution
+        _disposed = true;
+        
         _simulationTimer?.Dispose();
         RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
     }
