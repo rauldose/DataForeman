@@ -38,9 +38,42 @@ public class FlowEdge
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string SourceNodeId { get; set; } = string.Empty;
-    public string SourcePortId { get; set; } = "output";
+    public string SourcePortId { get; set; } = "output-0";
     public string TargetNodeId { get; set; } = string.Empty;
-    public string TargetPortId { get; set; } = "input";
+    public string TargetPortId { get; set; } = "input-0";
+}
+
+/// <summary>
+/// Subflow - a reusable group of nodes that acts as a single node.
+/// </summary>
+public class SubflowConfig
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Color { get; set; } = "#8b5cf6"; // Purple for subflows
+    public string Icon { get; set; } = "fa-solid fa-object-group";
+    public int InputCount { get; set; } = 1;
+    public int OutputCount { get; set; } = 1;
+    public List<FlowNode> Nodes { get; set; } = new();
+    public List<FlowEdge> Edges { get; set; } = new();
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Flow template - a reusable flow pattern that can be applied.
+/// </summary>
+public class FlowTemplate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Category { get; set; } = "Custom";
+    public string Icon { get; set; } = "fa-solid fa-file-code";
+    public List<FlowNode> Nodes { get; set; } = new();
+    public List<FlowEdge> Edges { get; set; } = new();
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 /// <summary>
@@ -51,4 +84,24 @@ public class FlowsFile
     [JsonPropertyName("$schema")]
     public string? Schema { get; set; }
     public List<FlowConfig> Flows { get; set; } = new();
+}
+
+/// <summary>
+/// Root configuration file structure for subflows.
+/// </summary>
+public class SubflowsFile
+{
+    [JsonPropertyName("$schema")]
+    public string? Schema { get; set; }
+    public List<SubflowConfig> Subflows { get; set; } = new();
+}
+
+/// <summary>
+/// Root configuration file structure for flow templates.
+/// </summary>
+public class FlowTemplatesFile
+{
+    [JsonPropertyName("$schema")]
+    public string? Schema { get; set; }
+    public List<FlowTemplate> Templates { get; set; } = new();
 }

@@ -1085,3 +1085,209 @@ html, body {
     font-size: 0.7rem;
     color: var(--text-muted);
 }
+
+/* Output Console */
+.output-console {
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: height 0.2s ease;
+}
+
+.output-console.collapsed {
+    height: 36px;
+}
+
+.output-console.expanded {
+    height: 200px;
+}
+
+.console-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.console-header:hover {
+    background: var(--bg-tertiary);
+}
+
+.console-toggle {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.console-title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.console-title i {
+    margin-right: 0.5rem;
+    color: var(--accent-green);
+}
+
+.console-badge {
+    background: var(--accent-blue);
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+}
+
+.console-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.console-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.console-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.console-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8rem;
+    background: #0d1117;
+}
+
+.console-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 2rem;
+}
+
+.console-line {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.125rem 0.25rem;
+    border-radius: 2px;
+}
+
+.console-line:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.console-time {
+    color: var(--text-muted);
+    min-width: 80px;
+}
+
+.console-level {
+    min-width: 50px;
+    font-weight: 600;
+}
+
+.console-line.info .console-level { color: var(--accent-blue); }
+.console-line.debug .console-level { color: var(--text-muted); }
+.console-line.warn .console-level { color: var(--accent-yellow); }
+.console-line.error .console-level { color: var(--accent-red); }
+
+.console-node {
+    color: var(--accent-purple);
+    min-width: 100px;
+}
+
+.console-text {
+    color: var(--text-primary);
+    flex: 1;
+}
+
+/* Template Dialog */
+.template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.template-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.template-card:hover {
+    border-color: var(--accent-blue);
+    background: var(--bg-tertiary);
+}
+
+.template-name {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.template-name i {
+    color: var(--accent-purple);
+    margin-right: 0.5rem;
+}
+
+.template-description {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.template-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+}
+
+.template-category {
+    background: var(--accent-blue);
+    color: white;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+}
+
+.template-nodes {
+    color: var(--text-muted);
+}
+
+/* Toolbar Separator */
+.toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background: var(--border-color);
+    margin: 0 0.5rem;
+}
+
+/* Flow Editor Layout Fix */
+.flow-editor {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.editor-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}

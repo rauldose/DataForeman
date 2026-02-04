@@ -707,4 +707,62 @@ public class NodePluginRegistry
             }
         });
     }
+
+    /// <summary>
+    /// Registers a subflow as a reusable node plugin.
+    /// </summary>
+    public void RegisterSubflow(SubflowConfig subflow)
+    {
+        var plugin = new NodePluginDefinition
+        {
+            Id = subflow.Id,
+            Name = subflow.Name,
+            ShortLabel = subflow.Name.Length > 12 ? subflow.Name[..12] : subflow.Name,
+            Category = "Subflows",
+            Description = subflow.Description ?? $"Custom subflow with {subflow.Nodes.Count} nodes",
+            Icon = subflow.Icon,
+            Color = subflow.Color,
+            InputCount = subflow.InputCount,
+            OutputCount = subflow.OutputCount,
+            Properties = new()
+            {
+                new() { Key = "_subflowId", Label = "Subflow ID", Type = PropertyType.Text, DefaultValue = subflow.Id, HelpText = "Internal subflow reference", Advanced = true }
+            }
+        };
+        
+        Register(plugin);
+    }
+
+    /// <summary>
+    /// Unregisters a subflow node plugin.
+    /// </summary>
+    public void UnregisterSubflow(string subflowId)
+    {
+        lock (_lock)
+        {
+            if (_plugins.Remove(subflowId))
+            {
+                if (_byCategory.TryGetValue("Subflows", out var list))
+                {
+                    list.RemoveAll(p => p.Id == subflowId);
+                    if (list.Count == 0)
+                    {
+                        _byCategory.Remove("Subflows");
+                        _categoryOrder.Remove("Subflows");
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks if a node type is a subflow.
+    /// </summary>
+    public bool IsSubflow(string nodeTypeId)
+    {
+        lock (_lock)
+        {
+            return _plugins.TryGetValue(nodeTypeId, out var plugin) && plugin.Category == "Subflows";
+        }
+    }
 }

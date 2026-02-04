@@ -53,6 +53,8 @@ public class ConfigService
         await LoadChartsAsync();
         await LoadFlowsAsync();
         await LoadDashboardsAsync();
+        await LoadSubflowsAsync();
+        await LoadFlowTemplatesAsync();
         _logger.LogInformation("All configuration files loaded from {Directory}", _configDirectory);
     }
 
@@ -446,6 +448,221 @@ public class ConfigService
             await SaveDashboardsAsync();
         }
         return removed;
+    }
+
+    #endregion
+
+    #region Subflow Operations
+
+    private SubflowsFile _subflows = new();
+    public IReadOnlyList<SubflowConfig> Subflows => _subflows.Subflows.AsReadOnly();
+
+    public async Task LoadSubflowsAsync()
+    {
+        var filePath = GetConfigFilePath("subflows.json");
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = await File.ReadAllTextAsync(filePath);
+                _subflows = JsonSerializer.Deserialize<SubflowsFile>(json, _jsonOptions) ?? new SubflowsFile();
+                _logger.LogInformation("Loaded {Count} subflows from {FilePath}", _subflows.Subflows.Count, filePath);
+            }
+            else
+            {
+                _subflows = new SubflowsFile();
+                await SaveSubflowsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading subflows from {FilePath}", filePath);
+            _subflows = new SubflowsFile();
+        }
+    }
+
+    public async Task SaveSubflowsAsync()
+    {
+        var filePath = GetConfigFilePath("subflows.json");
+        try
+        {
+            var json = JsonSerializer.Serialize(_subflows, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json);
+            _logger.LogDebug("Saved subflows to {FilePath}", filePath);
+            OnConfigurationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving subflows to {FilePath}", filePath);
+        }
+    }
+
+    public SubflowConfig? GetSubflow(string id) 
+        => _subflows.Subflows.FirstOrDefault(s => s.Id == id);
+
+    public async Task<SubflowConfig> AddSubflowAsync(SubflowConfig subflow)
+    {
+        subflow.CreatedAt = DateTime.UtcNow;
+        subflow.UpdatedAt = DateTime.UtcNow;
+        _subflows.Subflows.Add(subflow);
+        await SaveSubflowsAsync();
+        return subflow;
+    }
+
+    public async Task<bool> UpdateSubflowAsync(SubflowConfig subflow)
+    {
+        var existing = _subflows.Subflows.FindIndex(s => s.Id == subflow.Id);
+        if (existing < 0) return false;
+        
+        subflow.UpdatedAt = DateTime.UtcNow;
+        _subflows.Subflows[existing] = subflow;
+        await SaveSubflowsAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteSubflowAsync(string id)
+    {
+        var removed = _subflows.Subflows.RemoveAll(s => s.Id == id) > 0;
+        if (removed)
+        {
+            await SaveSubflowsAsync();
+        }
+        return removed;
+    }
+
+    #endregion
+
+    #region Flow Template Operations
+
+    private FlowTemplatesFile _flowTemplates = new();
+    public IReadOnlyList<FlowTemplate> FlowTemplates => _flowTemplates.Templates.AsReadOnly();
+
+    public async Task LoadFlowTemplatesAsync()
+    {
+        var filePath = GetConfigFilePath("flow-templates.json");
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = await File.ReadAllTextAsync(filePath);
+                _flowTemplates = JsonSerializer.Deserialize<FlowTemplatesFile>(json, _jsonOptions) ?? new FlowTemplatesFile();
+                _logger.LogInformation("Loaded {Count} flow templates from {FilePath}", _flowTemplates.Templates.Count, filePath);
+            }
+            else
+            {
+                _flowTemplates = CreateDefaultFlowTemplates();
+                await SaveFlowTemplatesAsync();
+                _logger.LogInformation("Created default flow templates");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading flow templates from {FilePath}", filePath);
+            _flowTemplates = new FlowTemplatesFile();
+        }
+    }
+
+    public async Task SaveFlowTemplatesAsync()
+    {
+        var filePath = GetConfigFilePath("flow-templates.json");
+        try
+        {
+            var json = JsonSerializer.Serialize(_flowTemplates, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json);
+            _logger.LogDebug("Saved flow templates to {FilePath}", filePath);
+            OnConfigurationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving flow templates to {FilePath}", filePath);
+        }
+    }
+
+    public FlowTemplate? GetFlowTemplate(string id) 
+        => _flowTemplates.Templates.FirstOrDefault(t => t.Id == id);
+
+    public async Task<FlowTemplate> AddFlowTemplateAsync(FlowTemplate template)
+    {
+        template.CreatedAt = DateTime.UtcNow;
+        _flowTemplates.Templates.Add(template);
+        await SaveFlowTemplatesAsync();
+        return template;
+    }
+
+    public async Task<bool> DeleteFlowTemplateAsync(string id)
+    {
+        var removed = _flowTemplates.Templates.RemoveAll(t => t.Id == id) > 0;
+        if (removed)
+        {
+            await SaveFlowTemplatesAsync();
+        }
+        return removed;
+    }
+
+    private FlowTemplatesFile CreateDefaultFlowTemplates()
+    {
+        return new FlowTemplatesFile
+        {
+            Templates = new List<FlowTemplate>
+            {
+                new FlowTemplate
+                {
+                    Id = "template-alarm-simple",
+                    Name = "Simple Alarm",
+                    Description = "Basic alarm flow: reads a tag, compares to threshold, outputs debug",
+                    Category = "Alarms",
+                    Nodes = new List<FlowNode>
+                    {
+                        new() { Id = "n1", Type = "tag-input", Label = "Tag Input", X = 100, Y = 100 },
+                        new() { Id = "n2", Type = "logic-compare", Label = "Compare", X = 320, Y = 100, Properties = new() { ["operator"] = ">", ["threshold"] = "50" } },
+                        new() { Id = "n3", Type = "output-debug", Label = "Debug", X = 540, Y = 100 }
+                    },
+                    Edges = new List<FlowEdge>
+                    {
+                        new() { Id = "e1", SourceNodeId = "n1", SourcePortId = "output-0", TargetNodeId = "n2", TargetPortId = "input-0" },
+                        new() { Id = "e2", SourceNodeId = "n2", SourcePortId = "output-0", TargetNodeId = "n3", TargetPortId = "input-0" }
+                    }
+                },
+                new FlowTemplate
+                {
+                    Id = "template-data-calc",
+                    Name = "Data Calculation",
+                    Description = "Reads two tags, performs calculation, outputs result",
+                    Category = "Calculations",
+                    Nodes = new List<FlowNode>
+                    {
+                        new() { Id = "n1", Type = "tag-input", Label = "Input A", X = 100, Y = 80 },
+                        new() { Id = "n2", Type = "tag-input", Label = "Input B", X = 100, Y = 180 },
+                        new() { Id = "n3", Type = "math-multiply", Label = "Multiply", X = 320, Y = 130 },
+                        new() { Id = "n4", Type = "tag-output", Label = "Result", X = 540, Y = 130 }
+                    },
+                    Edges = new List<FlowEdge>
+                    {
+                        new() { Id = "e1", SourceNodeId = "n1", SourcePortId = "output-0", TargetNodeId = "n3", TargetPortId = "input-0" },
+                        new() { Id = "e2", SourceNodeId = "n2", SourcePortId = "output-0", TargetNodeId = "n3", TargetPortId = "input-1" },
+                        new() { Id = "e3", SourceNodeId = "n3", SourcePortId = "output-0", TargetNodeId = "n4", TargetPortId = "input-0" }
+                    }
+                },
+                new FlowTemplate
+                {
+                    Id = "template-mqtt-bridge",
+                    Name = "MQTT Bridge",
+                    Description = "Reads tags and publishes to MQTT topic",
+                    Category = "Integration",
+                    Nodes = new List<FlowNode>
+                    {
+                        new() { Id = "n1", Type = "trigger-timer", Label = "Timer", X = 100, Y = 100, Properties = new() { ["interval"] = "5000" } },
+                        new() { Id = "n2", Type = "tag-input", Label = "Read Tag", X = 320, Y = 100 },
+                        new() { Id = "n3", Type = "comm-mqtt-out", Label = "MQTT Publish", X = 540, Y = 100, Properties = new() { ["topic"] = "data/values" } }
+                    },
+                    Edges = new List<FlowEdge>
+                    {
+                        new() { Id = "e1", SourceNodeId = "n1", SourcePortId = "output-0", TargetNodeId = "n2", TargetPortId = "input-0" },
+                        new() { Id = "e2", SourceNodeId = "n2", SourcePortId = "output-0", TargetNodeId = "n3", TargetPortId = "input-0" }
+                    }
+                }
+            }
+        };
     }
 
     #endregion
