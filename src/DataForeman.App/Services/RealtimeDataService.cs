@@ -168,6 +168,9 @@ public class RealtimeDataService : IDisposable
                 cache.Quality = tagValue.Quality;
                 cache.Timestamp = tagValue.Timestamp;
                 cache.AddToHistory(tagValue.Timestamp, tagValue.Value);
+                
+                // Fire individual tag change event for each tag
+                OnTagValueChanged?.Invoke(key);
             }
 
             OnDataChanged?.Invoke();
