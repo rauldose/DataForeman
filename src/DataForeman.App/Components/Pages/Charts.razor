@@ -275,19 +275,22 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header>Confirm Delete</Header>
-        <Content>
-            <p>Delete this chart?</p>
-            <p class="text-muted">This action cannot be undone.</p>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
-            <SfButton CssClass="e-danger" @onclick="ExecuteDeleteChart">Delete</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete this chart?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDeleteChart">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 @code {
     [Parameter] public string? ChartId { get; set; }

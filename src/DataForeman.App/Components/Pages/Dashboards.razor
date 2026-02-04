@@ -126,145 +126,154 @@
 </div>
 
 <!-- Add Panel Dialog -->
-<SfDialog @bind-Visible="ShowAddPanelDialog" Width="400px" IsModal="true" ShowCloseIcon="true" Header="Add Panel" AllowPrerender="false">
-    <DialogTemplates>
-        <Content>
-            <div class="add-panel-form">
-                <div class="form-group">
-                    <label>Panel Type</label>
-                    <SfDropDownList TItem="PanelTypeOption" TValue="PanelType" DataSource="@PanelTypes" @bind-Value="NewPanelType">
-                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
-                    </SfDropDownList>
-                </div>
-                <div class="form-group">
-                    <label>Title</label>
-                    <SfTextBox @bind-Value="NewPanelTitle"></SfTextBox>
-                </div>
-            </div>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => ShowAddPanelDialog = false">Cancel</SfButton>
-            <SfButton CssClass="e-primary" @onclick="AddPanel">Add</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
-
-<!-- Panel Config Dialog -->
-<SfDialog @bind-Visible="ShowPanelConfigDialog" Width="600px" IsModal="true" ShowCloseIcon="true" Header="Configure Panel" AllowPrerender="false">
-    <DialogTemplates>
-        <Content>
-            @if (ConfiguringPanel != null)
-            {
-                <div class="panel-config-form">
+@if (ShowAddPanelDialog)
+{
+    <SfDialog @bind-Visible="ShowAddPanelDialog" Width="400px" IsModal="true" ShowCloseIcon="true" Header="Add Panel">
+        <DialogTemplates>
+            <Content>
+                <div class="add-panel-form">
+                    <div class="form-group">
+                        <label>Panel Type</label>
+                        <SfDropDownList TItem="PanelTypeOption" TValue="PanelType" DataSource="@PanelTypes" @bind-Value="NewPanelType">
+                            <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                    </div>
                     <div class="form-group">
                         <label>Title</label>
-                        <SfTextBox @bind-Value="ConfiguringPanel.Title"></SfTextBox>
+                        <SfTextBox @bind-Value="NewPanelTitle"></SfTextBox>
                     </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Width (columns)</label>
-                            <SfNumericTextBox TValue="int" @bind-Value="ConfiguringPanel.GridWidth" Min="1" Max="12"></SfNumericTextBox>
-                        </div>
-                        <div class="form-group">
-                            <label>Height (rows)</label>
-                            <SfNumericTextBox TValue="int" @bind-Value="ConfiguringPanel.GridHeight" Min="1" Max="10"></SfNumericTextBox>
-                        </div>
-                    </div>
-                    
-                    @switch (ConfiguringPanel.Type)
-                    {
-                        case PanelType.Stat:
-                            <div class="form-group">
-                                <label>Tag</label>
-                                <SfDropDownList TItem="TagOption" TValue="string" DataSource="@AvailableTags" 
-                                                Value="@(ConfiguringPanel.StatConfig?.TagId)" ValueChanged="@(v => SetStatTag(v))">
-                                    <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
-                                </SfDropDownList>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Unit</label>
-                                    <SfTextBox Value="@(ConfiguringPanel.StatConfig?.Unit)" ValueChanged="@(v => SetStatUnit(v))"></SfTextBox>
-                                </div>
-                                <div class="form-group">
-                                    <label>Decimals</label>
-                                    <SfNumericTextBox TValue="int" Value="@(ConfiguringPanel.StatConfig?.Decimals ?? 2)" ValueChanged="@(v => SetStatDecimals(v))"></SfNumericTextBox>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <SfCheckBox TChecked="bool" Checked="@(ConfiguringPanel.StatConfig?.ShowSparkline ?? false)" CheckedChanged="@(v => SetStatSparkline(v))" Label="Show Sparkline"></SfCheckBox>
-                            </div>
-                            break;
-                            
-                        case PanelType.Gauge:
-                            <div class="form-group">
-                                <label>Tag</label>
-                                <SfDropDownList TItem="TagOption" TValue="string" DataSource="@AvailableTags" 
-                                                Value="@(ConfiguringPanel.GaugeConfig?.TagId)" ValueChanged="@(v => SetGaugeTag(v))">
-                                    <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
-                                </SfDropDownList>
-                            </div>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Min Value</label>
-                                    <SfNumericTextBox TValue="double" Value="@(ConfiguringPanel.GaugeConfig?.MinValue ?? 0)" ValueChanged="@(v => SetGaugeMin(v))"></SfNumericTextBox>
-                                </div>
-                                <div class="form-group">
-                                    <label>Max Value</label>
-                                    <SfNumericTextBox TValue="double" Value="@(ConfiguringPanel.GaugeConfig?.MaxValue ?? 100)" ValueChanged="@(v => SetGaugeMax(v))"></SfNumericTextBox>
-                                </div>
-                            </div>
-                            break;
-                            
-                        case PanelType.Chart:
-                            <div class="form-group">
-                                <label>Data Sources</label>
-                                @foreach (var tag in AvailableTags)
-                                {
-                                    var isSelected = ConfiguringPanel.ChartConfig?.DataSources?.Any(d => d.TagId == tag.Id) ?? false;
-                                    <div class="tag-selector">
-                                        <SfCheckBox TChecked="bool" Checked="@isSelected" CheckedChanged="@(v => ToggleChartDataSource(tag.Id, v))" Label="@tag.Name"></SfCheckBox>
-                                    </div>
-                                }
-                            </div>
-                            break;
-                            
-                        case PanelType.Table:
-                            <div class="form-group">
-                                <label>Tags</label>
-                                @foreach (var tag in AvailableTags)
-                                {
-                                    var isSelected = ConfiguringPanel.TableConfig?.TagIds?.Contains(tag.Id) ?? false;
-                                    <div class="tag-selector">
-                                        <SfCheckBox TChecked="bool" Checked="@isSelected" CheckedChanged="@(v => ToggleTableTag(tag.Id, v))" Label="@tag.Name"></SfCheckBox>
-                                    </div>
-                                }
-                            </div>
-                            break;
-                    }
                 </div>
-            }
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => ShowPanelConfigDialog = false">Close</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowAddPanelDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-primary" @onclick="AddPanel">Add</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- Panel Config Dialog -->
+@if (ShowPanelConfigDialog)
+{
+    <SfDialog @bind-Visible="ShowPanelConfigDialog" Width="600px" IsModal="true" ShowCloseIcon="true" Header="Configure Panel">
+        <DialogTemplates>
+            <Content>
+                @if (ConfiguringPanel != null)
+                {
+                    <div class="panel-config-form">
+                        <div class="form-group">
+                            <label>Title</label>
+                            <SfTextBox @bind-Value="ConfiguringPanel.Title"></SfTextBox>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Width (columns)</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="ConfiguringPanel.GridWidth" Min="1" Max="12"></SfNumericTextBox>
+                            </div>
+                            <div class="form-group">
+                                <label>Height (rows)</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="ConfiguringPanel.GridHeight" Min="1" Max="10"></SfNumericTextBox>
+                            </div>
+                        </div>
+                        
+                        @switch (ConfiguringPanel.Type)
+                        {
+                            case PanelType.Stat:
+                                <div class="form-group">
+                                    <label>Tag</label>
+                                    <SfDropDownList TItem="TagOption" TValue="string" DataSource="@AvailableTags" 
+                                                    Value="@(ConfiguringPanel.StatConfig?.TagId)" ValueChanged="@(v => SetStatTag(v))">
+                                        <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                    </SfDropDownList>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Unit</label>
+                                        <SfTextBox Value="@(ConfiguringPanel.StatConfig?.Unit)" ValueChanged="@(v => SetStatUnit(v))"></SfTextBox>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Decimals</label>
+                                        <SfNumericTextBox TValue="int" Value="@(ConfiguringPanel.StatConfig?.Decimals ?? 2)" ValueChanged="@(v => SetStatDecimals(v))"></SfNumericTextBox>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <SfCheckBox TChecked="bool" Checked="@(ConfiguringPanel.StatConfig?.ShowSparkline ?? false)" CheckedChanged="@(v => SetStatSparkline(v))" Label="Show Sparkline"></SfCheckBox>
+                                </div>
+                                break;
+                                
+                            case PanelType.Gauge:
+                                <div class="form-group">
+                                    <label>Tag</label>
+                                    <SfDropDownList TItem="TagOption" TValue="string" DataSource="@AvailableTags" 
+                                                    Value="@(ConfiguringPanel.GaugeConfig?.TagId)" ValueChanged="@(v => SetGaugeTag(v))">
+                                        <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                    </SfDropDownList>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Min Value</label>
+                                        <SfNumericTextBox TValue="double" Value="@(ConfiguringPanel.GaugeConfig?.MinValue ?? 0)" ValueChanged="@(v => SetGaugeMin(v))"></SfNumericTextBox>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Value</label>
+                                        <SfNumericTextBox TValue="double" Value="@(ConfiguringPanel.GaugeConfig?.MaxValue ?? 100)" ValueChanged="@(v => SetGaugeMax(v))"></SfNumericTextBox>
+                                    </div>
+                                </div>
+                                break;
+                                
+                            case PanelType.Chart:
+                                <div class="form-group">
+                                    <label>Data Sources</label>
+                                    @foreach (var tag in AvailableTags)
+                                    {
+                                        var isSelected = ConfiguringPanel.ChartConfig?.DataSources?.Any(d => d.TagId == tag.Id) ?? false;
+                                        <div class="tag-selector">
+                                            <SfCheckBox TChecked="bool" Checked="@isSelected" CheckedChanged="@(v => ToggleChartDataSource(tag.Id, v))" Label="@tag.Name"></SfCheckBox>
+                                        </div>
+                                    }
+                                </div>
+                                break;
+                                
+                            case PanelType.Table:
+                                <div class="form-group">
+                                    <label>Tags</label>
+                                    @foreach (var tag in AvailableTags)
+                                    {
+                                        var isSelected = ConfiguringPanel.TableConfig?.TagIds?.Contains(tag.Id) ?? false;
+                                        <div class="tag-selector">
+                                            <SfCheckBox TChecked="bool" Checked="@isSelected" CheckedChanged="@(v => ToggleTableTag(tag.Id, v))" Label="@tag.Name"></SfCheckBox>
+                                        </div>
+                                    }
+                                </div>
+                                break;
+                        }
+                    </div>
+                }
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowPanelConfigDialog = false">Close</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header>Confirm Delete</Header>
-        <Content>
-            <p>Delete this dashboard?</p>
-            <p class="text-muted">This action cannot be undone.</p>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
-            <SfButton CssClass="e-danger" @onclick="ExecuteDeleteDashboard">Delete</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete this dashboard?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDeleteDashboard">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 @code {
     [Parameter] public string? DashboardId { get; set; }

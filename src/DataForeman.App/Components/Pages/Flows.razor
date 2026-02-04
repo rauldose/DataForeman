@@ -238,66 +238,75 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header>Confirm Delete</Header>
-        <Content>
-            <p>Delete this flow?</p>
-            <p class="text-muted">This action cannot be undone.</p>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
-            <SfButton CssClass="e-danger" @onclick="ExecuteDeleteFlow">Delete</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete this flow?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDeleteFlow">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 <!-- Template Selection Dialog -->
-<SfDialog @bind-Visible="ShowTemplateDialog" Width="500px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header><i class="fa-solid fa-layer-group"></i> Flow Templates</Header>
-        <Content>
-            @if (!AvailableTemplates.Any())
-            {
-                <p class="text-muted">No templates available. Save a flow as template first.</p>
-            }
-            else
-            {
-                <div class="template-list">
-                    @foreach (var template in AvailableTemplates)
-                    {
-                        <div class="template-card" @onclick="() => ApplyTemplate(template)">
-                            <div class="template-name"><i class="fa-solid fa-file-code"></i> @template.Name</div>
-                            <div class="template-description">@template.Description</div>
-                            <div class="template-meta">
-                                <span class="template-category">@template.Category</span>
-                                <span class="template-nodes">@template.Nodes.Count nodes</span>
+@if (ShowTemplateDialog)
+{
+    <SfDialog @bind-Visible="ShowTemplateDialog" Width="500px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header><i class="fa-solid fa-layer-group"></i> Flow Templates</Header>
+            <Content>
+                @if (!AvailableTemplates.Any())
+                {
+                    <p class="text-muted">No templates available. Save a flow as template first.</p>
+                }
+                else
+                {
+                    <div class="template-list">
+                        @foreach (var template in AvailableTemplates)
+                        {
+                            <div class="template-card" @onclick="() => ApplyTemplate(template)">
+                                <div class="template-name"><i class="fa-solid fa-file-code"></i> @template.Name</div>
+                                <div class="template-description">@template.Description</div>
+                                <div class="template-meta">
+                                    <span class="template-category">@template.Category</span>
+                                    <span class="template-nodes">@template.Nodes.Count nodes</span>
+                                </div>
                             </div>
-                        </div>
-                    }
-                </div>
-            }
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => ShowTemplateDialog = false">Close</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+                        }
+                    </div>
+                }
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowTemplateDialog = false">Close</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 <!-- Replace with Subflow Dialog -->
-<SfDialog @bind-Visible="ShowReplaceWithSubflowDialog" Width="400px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header><i class="fa-solid fa-object-group"></i> Subflow Created</Header>
-        <Content>
-            <p>Subflow has been created and added to the palette.</p>
-            <p>Would you like to replace the selected nodes with the new subflow node?</p>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="() => { ShowReplaceWithSubflowDialog = false; PendingSubflowId = string.Empty; }">Keep Nodes</SfButton>
-            <SfButton CssClass="e-primary" @onclick="ReplaceSelectionWithSubflow">Replace with Subflow</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+@if (ShowReplaceWithSubflowDialog)
+{
+    <SfDialog @bind-Visible="ShowReplaceWithSubflowDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header><i class="fa-solid fa-object-group"></i> Subflow Created</Header>
+            <Content>
+                <p>Subflow has been created and added to the palette.</p>
+                <p>Would you like to replace the selected nodes with the new subflow node?</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => { ShowReplaceWithSubflowDialog = false; PendingSubflowId = string.Empty; }">Keep Nodes</SfButton>
+                <SfButton CssClass="e-primary" @onclick="ReplaceSelectionWithSubflow">Replace with Subflow</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 @code {
     [Parameter] public string? FlowId { get; set; }

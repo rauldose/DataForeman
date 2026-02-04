@@ -132,92 +132,101 @@
 </div>
 
 <!-- Connection Dialog -->
-<SfDialog @bind-Visible="ShowConnectionDialog" Width="400px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header>@(EditingConnection == null ? "Add Connection" : "Edit Connection")</Header>
-        <Content>
-            <div class="dialog-form">
-                <div class="form-row">
-                    <label>Name</label>
-                    <SfTextBox @bind-Value="ConnectionForm.Name" Placeholder="Connection name"></SfTextBox>
+@if (ShowConnectionDialog)
+{
+    <SfDialog @bind-Visible="ShowConnectionDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>@(EditingConnection == null ? "Add Connection" : "Edit Connection")</Header>
+            <Content>
+                <div class="dialog-form">
+                    <div class="form-row">
+                        <label>Name</label>
+                        <SfTextBox @bind-Value="ConnectionForm.Name" Placeholder="Connection name"></SfTextBox>
+                    </div>
+                    <div class="form-row">
+                        <label>Type</label>
+                        <SfDropDownList TItem="string" TValue="string" DataSource="@ConnectionTypes" @bind-Value="ConnectionForm.Type"></SfDropDownList>
+                    </div>
+                    <div class="form-row">
+                        <SfCheckBox @bind-Checked="ConnectionForm.Enabled" Label="Enabled"></SfCheckBox>
+                    </div>
                 </div>
-                <div class="form-row">
-                    <label>Type</label>
-                    <SfDropDownList TItem="string" TValue="string" DataSource="@ConnectionTypes" @bind-Value="ConnectionForm.Type"></SfDropDownList>
-                </div>
-                <div class="form-row">
-                    <SfCheckBox @bind-Checked="ConnectionForm.Enabled" Label="Enabled"></SfCheckBox>
-                </div>
-            </div>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="CloseDialogs">Cancel</SfButton>
-            <SfButton CssClass="e-primary" @onclick="SaveConnection">Save</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+                <SfButton CssClass="e-primary" @onclick="SaveConnection">Save</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 <!-- Tag Dialog -->
-<SfDialog @bind-Visible="ShowTagDialog" Width="450px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header>@(EditingTag == null ? "Add Tag" : "Edit Tag")</Header>
-        <Content>
-            <div class="dialog-form">
-                @if (EditingTag == null)
-                {
+@if (ShowTagDialog)
+{
+    <SfDialog @bind-Visible="ShowTagDialog" Width="450px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>@(EditingTag == null ? "Add Tag" : "Edit Tag")</Header>
+            <Content>
+                <div class="dialog-form">
+                    @if (EditingTag == null)
+                    {
+                        <div class="form-row">
+                            <label>Connection</label>
+                            <SfDropDownList TItem="ConnectionOption" TValue="string" DataSource="@ConnectionOptionsNoAll" @bind-Value="TagConnectionId">
+                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                            </SfDropDownList>
+                        </div>
+                    }
                     <div class="form-row">
-                        <label>Connection</label>
-                        <SfDropDownList TItem="ConnectionOption" TValue="string" DataSource="@ConnectionOptionsNoAll" @bind-Value="TagConnectionId">
-                            <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
-                        </SfDropDownList>
+                        <label>Name</label>
+                        <SfTextBox @bind-Value="TagForm.Name" Placeholder="Tag name"></SfTextBox>
                     </div>
-                }
-                <div class="form-row">
-                    <label>Name</label>
-                    <SfTextBox @bind-Value="TagForm.Name" Placeholder="Tag name"></SfTextBox>
+                    <div class="form-row">
+                        <label>Address</label>
+                        <SfTextBox @bind-Value="TagForm.Address" Placeholder="Tag address"></SfTextBox>
+                    </div>
+                    <div class="form-row">
+                        <label>Data Type</label>
+                        <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" @bind-Value="TagForm.DataType"></SfDropDownList>
+                    </div>
+                    <div class="form-row">
+                        <label>Poll Rate (ms)</label>
+                        <SfNumericTextBox TValue="int" @bind-Value="TagForm.PollRateMs" Min="10" Max="60000"></SfNumericTextBox>
+                    </div>
+                    <div class="form-row">
+                        <label>Unit</label>
+                        <SfTextBox @bind-Value="TagForm.Unit" Placeholder="e.g. °C, bar"></SfTextBox>
+                    </div>
+                    <div class="form-row">
+                        <SfCheckBox @bind-Checked="TagForm.Enabled" Label="Enabled"></SfCheckBox>
+                    </div>
                 </div>
-                <div class="form-row">
-                    <label>Address</label>
-                    <SfTextBox @bind-Value="TagForm.Address" Placeholder="Tag address"></SfTextBox>
-                </div>
-                <div class="form-row">
-                    <label>Data Type</label>
-                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" @bind-Value="TagForm.DataType"></SfDropDownList>
-                </div>
-                <div class="form-row">
-                    <label>Poll Rate (ms)</label>
-                    <SfNumericTextBox TValue="int" @bind-Value="TagForm.PollRateMs" Min="10" Max="60000"></SfNumericTextBox>
-                </div>
-                <div class="form-row">
-                    <label>Unit</label>
-                    <SfTextBox @bind-Value="TagForm.Unit" Placeholder="e.g. °C, bar"></SfTextBox>
-                </div>
-                <div class="form-row">
-                    <SfCheckBox @bind-Checked="TagForm.Enabled" Label="Enabled"></SfCheckBox>
-                </div>
-            </div>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="CloseDialogs">Cancel</SfButton>
-            <SfButton CssClass="e-primary" @onclick="SaveTag">Save</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+                <SfButton CssClass="e-primary" @onclick="SaveTag">Save</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
-    <DialogTemplates>
-        <Header>Confirm Delete</Header>
-        <Content>
-            <p>Delete "@DeleteItemName"?</p>
-            <p class="text-muted">This action cannot be undone.</p>
-        </Content>
-        <FooterTemplate>
-            <SfButton @onclick="CloseDialogs">Cancel</SfButton>
-            <SfButton CssClass="e-danger" @onclick="ExecuteDelete">Delete</SfButton>
-        </FooterTemplate>
-    </DialogTemplates>
-</SfDialog>
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete "@DeleteItemName"?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDelete">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
 
 @code {
     private string SelectedConnectionId = "";
