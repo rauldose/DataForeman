@@ -157,7 +157,7 @@ public class PanelDataSource
     public string DisplayName { get; set; } = string.Empty;
     public string Color { get; set; } = "#3b82f6";
     public string? YAxisId { get; set; }
-    public int LineWidth { get; set; } = 2;
+    public double LineWidth { get; set; } = 2.0;
 }
 
 /// <summary>

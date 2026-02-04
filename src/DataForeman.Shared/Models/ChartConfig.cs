@@ -43,7 +43,7 @@ public class ChartSeriesConfig
     public string DisplayName { get; set; } = string.Empty;
     public string Color { get; set; } = "#3b82f6";
     public string LineType { get; set; } = "Solid"; // Solid, Dashed, Dotted
-    public int LineWidth { get; set; } = 2;
+    public double LineWidth { get; set; } = 2.0;
     public double Opacity { get; set; } = 1.0;
     public bool Visible { get; set; } = true;
     public string? YAxisId { get; set; } // Reference to ChartAxisConfig.Id
