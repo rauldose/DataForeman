@@ -96,30 +96,43 @@
                 </div>
             </div>
             
-            <!-- Dashboard Grid -->
+            <!-- Dashboard Grid using SfDashboardLayout -->
             <div class="dashboard-grid-container @(IsFullscreen ? "fullscreen" : "")">
-                <div class="panel-grid" style="--columns: 12; --row-height: 60px;">
-                    @foreach (var panel in CurrentDashboard.Panels)
-                    {
-                        <div class="panel @(SelectedPanel?.Id == panel.Id ? "selected" : "")"
-                             style="grid-column: span @panel.GridWidth; grid-row: span @panel.GridHeight;"
-                             @onclick="() => SelectPanel(panel)">
-                            <div class="panel-header">
-                                <span class="panel-title">@panel.Title</span>
-                                @if (IsEditMode)
-                                {
-                                    <div class="panel-actions" @onclick:stopPropagation="true">
-                                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-cog" @onclick="() => ConfigurePanel(panel)"></SfButton>
-                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => RemovePanel(panel)"></SfButton>
+                <SfDashboardLayout @ref="DashboardLayout" 
+                                   Columns="12" 
+                                   CellSpacing="@(new double[] { 10, 10 })"
+                                   CellAspectRatio="1.0"
+                                   AllowDragging="@IsEditMode"
+                                   AllowResizing="@IsEditMode">
+                    <DashboardLayoutPanels>
+                        @foreach (var panel in CurrentDashboard.Panels)
+                        {
+                            <DashboardLayoutPanel Id="@panel.Id" 
+                                                  Row="@panel.GridY" 
+                                                  Column="@panel.GridX" 
+                                                  SizeX="@panel.GridWidth" 
+                                                  SizeY="@panel.GridHeight">
+                                <HeaderTemplate>
+                                    <div class="panel-header-content @(SelectedPanel?.Id == panel.Id ? "selected" : "")" @onclick="() => SelectPanel(panel)">
+                                        <span class="panel-title">@panel.Title</span>
+                                        @if (IsEditMode)
+                                        {
+                                            <div class="panel-actions" @onclick:stopPropagation="true">
+                                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-cog" @onclick="() => ConfigurePanel(panel)"></SfButton>
+                                                <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => RemovePanel(panel)"></SfButton>
+                                            </div>
+                                        }
                                     </div>
-                                }
-                            </div>
-                            <div class="panel-content">
-                                @RenderPanel(panel)
-                            </div>
-                        </div>
-                    }
-                </div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <div class="panel-content">
+                                        @RenderPanel(panel)
+                                    </div>
+                                </ContentTemplate>
+                            </DashboardLayoutPanel>
+                        }
+                    </DashboardLayoutPanels>
+                </SfDashboardLayout>
             </div>
         </div>
     }
@@ -278,6 +291,7 @@
 @code {
     [Parameter] public string? DashboardId { get; set; }
     
+    private SfDashboardLayout? DashboardLayout;
     private DashboardConfig CurrentDashboard = new();
     private DashboardPanel? SelectedPanel;
     private DashboardPanel? ConfiguringPanel;

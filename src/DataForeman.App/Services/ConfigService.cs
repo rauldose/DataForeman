@@ -676,8 +676,30 @@ public class ConfigService
         }
     }
 
-    private string GetConfigFilePath(string fileName) 
-        => Path.Combine(_configDirectory, fileName);
+    private string GetConfigFilePath(string fileName)
+    {
+        // Search multiple locations for config files
+        var searchPaths = new[]
+        {
+            _configDirectory,
+            Path.Combine(Directory.GetCurrentDirectory(), "config"),
+            Path.Combine(AppContext.BaseDirectory, "config"),
+            Path.Combine(Path.GetDirectoryName(typeof(ConfigService).Assembly.Location) ?? "", "config")
+        };
+        
+        foreach (var searchPath in searchPaths)
+        {
+            var fullPath = Path.Combine(searchPath, fileName);
+            if (File.Exists(fullPath))
+            {
+                _logger.LogDebug("Found config file {FileName} at {Path}", fileName, fullPath);
+                return fullPath;
+            }
+        }
+        
+        // If not found anywhere, return the default path (for creating new files)
+        return Path.Combine(_configDirectory, fileName);
+    }
 
     private ConnectionsFile CreateDefaultConnections()
     {
