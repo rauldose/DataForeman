@@ -87,6 +87,8 @@
                               Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
                               @onclick="ToggleEnabled"></SfButton>
                     <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                    <span class="toolbar-separator"></span>
+                    <SfButton CssClass="e-info" IconCss="fa-solid fa-play-circle" Content="Test" @onclick="RunFlowSimulation"></SfButton>
                 }
             </div>
             
@@ -225,8 +227,8 @@
                     <span class="console-title"><i class="fa-solid fa-terminal"></i> Output Console</span>
                     <span class="console-badge">@ConsoleMessages.Count</span>
                     <div class="console-actions" @onclick:stopPropagation="true">
-                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-trash" @onclick="ClearConsole" title="Clear Console"></SfButton>
-                        <SfButton CssClass="e-flat e-small e-success" IconCss="fa-solid fa-play" @onclick="SimulateExecution" title="Test Run"></SfButton>
+                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-trash" OnClick="@ClearConsole" title="Clear Console"></SfButton>
+                        <SfButton CssClass="e-flat e-small e-success" IconCss="fa-solid fa-play" OnClick="@RunFlowSimulation" title="Test Run"></SfButton>
                     </div>
                 </div>
                 @if (ConsoleExpanded)
@@ -1074,9 +1076,23 @@
         InvokeAsync(StateHasChanged);
     }
     
+    private void RunFlowSimulation()
+    {
+        Console.WriteLine($"RunFlowSimulation called. Nodes.Count={Nodes.Count}, _nodeTypes.Count={_nodeTypes.Count}");
+        _ = SimulateExecution();
+    }
+    
     private async Task SimulateExecution()
     {
         Console.WriteLine($"SimulateExecution called. Nodes.Count={Nodes.Count}");
+        
+        // If Nodes collection is empty but we have loaded node types, use the config directly
+        if (!Nodes.Any() && _nodeTypes.Any())
+        {
+            AddConsoleMessage("INFO", "System", $"Executing flow from config: {CurrentFlow.Name}");
+            await ExecuteFlowFromConfig();
+            return;
+        }
         
         if (!Nodes.Any())
         {
@@ -1106,6 +1122,134 @@
         }
         
         AddConsoleMessage("INFO", "System", "Flow execution completed");
+    }
+    
+    private async Task ExecuteFlowFromConfig()
+    {
+        AddConsoleMessage("INFO", "System", $"Starting flow execution: {CurrentFlow.Name}");
+        
+        // Find trigger nodes from config
+        var triggerNodes = CurrentFlow.Nodes.Where(n =>
+        {
+            var mappedType = MapNodeType(n.Type);
+            var plugin = NodeRegistry.Get(mappedType);
+            return plugin?.Category == "Triggers";
+        }).ToList();
+        
+        if (!triggerNodes.Any())
+        {
+            // If no triggers, start from nodes with no incoming connections
+            var nodesWithIncoming = CurrentFlow.Edges.Select(e => e.TargetNodeId).ToHashSet();
+            triggerNodes = CurrentFlow.Nodes.Where(n => !nodesWithIncoming.Contains(n.Id)).ToList();
+        }
+        
+        foreach (var triggerNode in triggerNodes)
+        {
+            await ExecuteNodeFromConfig(triggerNode, new Dictionary<string, object> { ["value"] = GenerateSimulatedValueFromConfig(triggerNode) });
+        }
+        
+        AddConsoleMessage("INFO", "System", "Flow execution completed");
+    }
+    
+    private async Task ExecuteNodeFromConfig(FlowNode node, Dictionary<string, object> inputData)
+    {
+        var mappedType = MapNodeType(node.Type);
+        var plugin = NodeRegistry.Get(mappedType);
+        var label = node.Label ?? plugin?.Name ?? node.Type;
+        
+        // Simulate processing delay
+        await Task.Delay(50);
+        
+        object outputValue = inputData.TryGetValue("value", out var val) ? val : 0.0;
+        
+        switch (plugin?.Category)
+        {
+            case "Triggers":
+                outputValue = GenerateSimulatedValueFromConfig(node);
+                AddConsoleMessage("INFO", label, $"Triggered with value: {outputValue}");
+                break;
+                
+            case "Tags":
+                if (mappedType.Contains("input"))
+                {
+                    // Get real value from RealtimeDataService if available
+                    if (node.Properties?.TryGetValue("tagPath", out var tagPath) == true)
+                    {
+                        var tagValue = RealtimeData.GetTagValue(tagPath?.ToString() ?? "");
+                        if (tagValue?.NumericValue != null)
+                        {
+                            outputValue = Math.Round(tagValue.NumericValue.Value, 2);
+                            AddConsoleMessage("INFO", label, $"Read tag '{tagPath}': {outputValue} (Quality: {tagValue.QualityText})");
+                        }
+                        else
+                        {
+                            outputValue = Math.Round(new Random().NextDouble() * 100, 2);
+                            AddConsoleMessage("WARN", label, $"No real data for tag '{tagPath}', using simulated: {outputValue}");
+                        }
+                    }
+                    else
+                    {
+                        outputValue = Math.Round(new Random().NextDouble() * 100, 2);
+                        AddConsoleMessage("INFO", label, $"Read tag value (simulated): {outputValue}");
+                    }
+                }
+                else
+                {
+                    AddConsoleMessage("INFO", label, $"Writing value: {outputValue}");
+                }
+                break;
+                
+            case "Math":
+                var factor = node.Properties?.TryGetValue("factor", out var f) == true ? Convert.ToDouble(f) : 1.0;
+                if (mappedType.Contains("scale")) outputValue = Convert.ToDouble(outputValue) * factor;
+                else if (mappedType.Contains("add")) outputValue = Convert.ToDouble(outputValue) + factor;
+                else if (mappedType.Contains("multiply")) outputValue = Convert.ToDouble(outputValue) * factor;
+                AddConsoleMessage("DEBUG", label, $"Input: {val} → Output: {outputValue}");
+                break;
+                
+            case "Logic":
+                var threshold = node.Properties?.TryGetValue("threshold", out var t) == true ? Convert.ToDouble(t) : 50.0;
+                var result = Convert.ToDouble(outputValue) > threshold;
+                AddConsoleMessage("DEBUG", label, $"Comparing {outputValue} > {threshold} = {result}");
+                outputValue = result;
+                break;
+                
+            case "Output":
+                if (mappedType.Contains("log") || mappedType.Contains("debug"))
+                {
+                    AddConsoleMessage("DEBUG", label, $"► {outputValue}");
+                }
+                else if (mappedType.Contains("notification"))
+                {
+                    AddConsoleMessage("WARN", label, $"Notification: {outputValue}");
+                }
+                break;
+                
+            default:
+                AddConsoleMessage("DEBUG", label, $"Executed with value: {outputValue}");
+                break;
+        }
+        
+        // Find connected nodes and execute them
+        var connectedEdges = CurrentFlow.Edges.Where(e => e.SourceNodeId == node.Id).ToList();
+        foreach (var edge in connectedEdges)
+        {
+            var targetNode = CurrentFlow.Nodes.FirstOrDefault(n => n.Id == edge.TargetNodeId);
+            if (targetNode != null)
+            {
+                await ExecuteNodeFromConfig(targetNode, new Dictionary<string, object> { ["value"] = outputValue });
+            }
+        }
+    }
+    
+    private double GenerateSimulatedValueFromConfig(FlowNode node)
+    {
+        var mappedType = MapNodeType(node.Type);
+        if (mappedType.Contains("inject") || mappedType.Contains("manual"))
+        {
+            return DateTime.Now.Second; // Use current second as trigger value
+        }
+        return Math.Round(new Random().NextDouble() * 100, 2);
     }
     
     private async Task SimulateNodeExecution(Node node, Dictionary<string, object> inputData)
