@@ -537,7 +537,7 @@
         
         // Handle numbered ports: "input1" -> "input-0", "input2" -> "input-1"
         if (portName.StartsWith("input", StringComparison.OrdinalIgnoreCase) && 
-            int.TryParse(portName[5..], out var inputNum))
+            portName.Length > 5 && int.TryParse(portName[5..], out var inputNum))
             return $"input-{inputNum - 1}";
         
         if (portName.StartsWith("output", StringComparison.OrdinalIgnoreCase) && 
