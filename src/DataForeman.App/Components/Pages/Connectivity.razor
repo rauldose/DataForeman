@@ -449,8 +449,43 @@
     public void Dispose() => RealtimeData.OnDataChanged -= HandleDataChanged;
 
     public record ConnectionOption(string Id, string Name);
-    public class ConnectionDisplay { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public string Type { get; set; } = ""; public int TagCount { get; set; } public string StatusText { get; set; } = ""; public string StatusClass { get; set; } = ""; }
-    public class TagDisplay { public string Id { get; set; } = ""; public string ConnectionId { get; set; } = ""; public string ConnectionName { get; set; } = ""; public string Name { get; set; } = ""; public string DataType { get; set; } = ""; public string PollRate { get; set; } = ""; public string Value { get; set; } = ""; public bool? IsGood { get; set; } }
-    private class ConnectionFormModel { public string Name { get; set; } = ""; public string Type { get; set; } = "Simulator"; public bool Enabled { get; set; } = true; }
-    private class TagFormModel { public string Name { get; set; } = ""; public string Address { get; set; } = ""; public string DataType { get; set; } = "Float"; public int PollRateMs { get; set; } = 1000; public string Unit { get; set; } = ""; public bool Enabled { get; set; } = true; }
+    
+    public class ConnectionDisplay 
+    { 
+        public string Id { get; set; } = ""; 
+        public string Name { get; set; } = ""; 
+        public string Type { get; set; } = ""; 
+        public int TagCount { get; set; } 
+        public string StatusText { get; set; } = ""; 
+        public string StatusClass { get; set; } = ""; 
+    }
+    
+    public class TagDisplay 
+    { 
+        public string Id { get; set; } = ""; 
+        public string ConnectionId { get; set; } = ""; 
+        public string ConnectionName { get; set; } = ""; 
+        public string Name { get; set; } = ""; 
+        public string DataType { get; set; } = ""; 
+        public string PollRate { get; set; } = ""; 
+        public string Value { get; set; } = ""; 
+        public bool? IsGood { get; set; } 
+    }
+    
+    private class ConnectionFormModel 
+    { 
+        public string Name { get; set; } = ""; 
+        public string Type { get; set; } = "Simulator"; 
+        public bool Enabled { get; set; } = true; 
+    }
+    
+    private class TagFormModel 
+    { 
+        public string Name { get; set; } = ""; 
+        public string Address { get; set; } = ""; 
+        public string DataType { get; set; } = "Float"; 
+        public int PollRateMs { get; set; } = 1000; 
+        public string Unit { get; set; } = ""; 
+        public bool Enabled { get; set; } = true; 
+    }
 }
