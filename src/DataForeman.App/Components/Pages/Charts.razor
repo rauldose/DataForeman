@@ -1,0 +1,523 @@
+@page "/charts"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject RealtimeDataService DataService
+@inject MqttService MqttService
+@implements IDisposable
+
+<PageTitle>Charts - DataForeman</PageTitle>
+
+<div class="charts-page">
+    <div class="charts-sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-title">Charts</span>
+            <SfButton CssClass="e-small e-primary" IconCss="e-icons e-plus" OnClick="@NewChart"></SfButton>
+        </div>
+
+        <div class="chart-list">
+            @foreach (var chart in ConfigService.Charts)
+            {
+                <div class="chart-item @(SelectedChart?.Id == chart.Id ? "selected" : "")"
+                     @onclick="() => SelectChart(chart)">
+                    <span class="chart-name">@chart.Name</span>
+                    <span class="chart-type">@chart.Type</span>
+                </div>
+            }
+            @if (ConfigService.Charts.Count == 0)
+            {
+                <div class="no-items">No charts. Click + to create one.</div>
+            }
+        </div>
+
+        <div class="sidebar-section">
+            <span class="sidebar-title">Available Tags</span>
+        </div>
+        <div class="tag-list">
+            @foreach (var (conn, tag) in ConfigService.GetAllTags())
+            {
+                <div class="tag-item" @onclick="() => AddTagToChart(conn.Id, tag)"
+                     title="Click to add to chart">
+                    <span class="tag-name">@tag.Name</span>
+                    <span class="tag-conn">@conn.Name</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="charts-main">
+        @if (SelectedChart != null)
+        {
+            <div class="chart-toolbar">
+                <SfTextBox @bind-Value="SelectedChart.Name" Placeholder="Chart name" CssClass="chart-name-input"></SfTextBox>
+                <SfDropDownList TItem="ChartTypeOption" TValue="ChartType" DataSource="@ChartTypes"
+                                @bind-Value="SelectedChart.Type" Width="120px">
+                    <DropDownListFieldSettings Text="Name" Value="Value"></DropDownListFieldSettings>
+                </SfDropDownList>
+                <SfNumericTextBox TValue="int" @bind-Value="SelectedChart.RefreshRateMs"
+                                  Min="100" Max="10000" Step="100" Width="100px"
+                                  Placeholder="Refresh ms"></SfNumericTextBox>
+                <div class="toolbar-spacer"></div>
+                <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="@(IsLive ? "Live" : "Paused")"
+                          OnClick="@ToggleLive"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save"
+                          OnClick="@SaveChart"></SfButton>
+                <SfButton CssClass="e-outline e-danger" IconCss="e-icons e-delete" OnClick="@DeleteChart"></SfButton>
+            </div>
+
+            <div class="chart-container">
+                <SfChart Theme="Syncfusion.Blazor.Theme.Fluent2Dark" @ref="ChartRef"
+                         Background="transparent" Width="100%" Height="100%">
+                    <ChartArea>
+                        <ChartAreaBorder Width="0"></ChartAreaBorder>
+                    </ChartArea>
+                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime"
+                                       LabelFormat="HH:mm:ss"
+                                       IntervalType="IntervalType.Seconds"
+                                       EdgeLabelPlacement="EdgeLabelPlacement.Shift">
+                        <ChartAxisMajorGridLines Width="0.5" Color="#333"></ChartAxisMajorGridLines>
+                    </ChartPrimaryXAxis>
+                    <ChartPrimaryYAxis Title="@(SelectedChart.YAxis.Label ?? "Value")"
+                                       Minimum="@SelectedChart.YAxis.Min"
+                                       Maximum="@SelectedChart.YAxis.Max">
+                        <ChartAxisMajorGridLines Width="0.5" Color="#333"></ChartAxisMajorGridLines>
+                    </ChartPrimaryYAxis>
+                    <ChartTooltipSettings Enable="true" Shared="true"></ChartTooltipSettings>
+                    <ChartLegendSettings Visible="true" Position="LegendPosition.Top"></ChartLegendSettings>
+                    <ChartSeriesCollection>
+                        @foreach (var series in SelectedChart.Series.Where(s => s.Visible))
+                        {
+                            <ChartSeries DataSource="@GetSeriesData(series)"
+                                         XName="Time" YName="Value"
+                                         Name="@series.Name"
+                                         Type="@GetChartSeriesType(SelectedChart.Type)"
+                                         Fill="@series.Color"
+                                         Width="@series.LineWidth">
+                                <ChartMarker Visible="false"></ChartMarker>
+                            </ChartSeries>
+                        }
+                    </ChartSeriesCollection>
+                </SfChart>
+            </div>
+
+            <div class="series-panel">
+                <SfGrid DataSource="@SelectedChart.Series" AllowSelection="true" Height="150">
+                    <GridColumns>
+                        <GridColumn Field="@nameof(ChartSeries.Name)" HeaderText="Series" Width="150"></GridColumn>
+                        <GridColumn Field="@nameof(ChartSeries.TagId)" HeaderText="Tag" Width="100"></GridColumn>
+                        <GridColumn HeaderText="Color" Width="80">
+                            <Template>
+                                @{
+                                    var s = context as ChartSeries;
+                                    <div class="color-cell" style="background: @s?.Color"></div>
+                                }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn HeaderText="Visible" Width="70">
+                            <Template>
+                                @{
+                                    var s = context as ChartSeries;
+                                    <SfCheckBox @bind-Checked="s!.Visible" TChecked="bool"></SfCheckBox>
+                                }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn HeaderText="" Width="60">
+                            <Template>
+                                @{
+                                    var s = context as ChartSeries;
+                                    <SfButton CssClass="e-small e-flat e-danger" IconCss="e-icons e-delete"
+                                              OnClick="() => RemoveSeries(s!)"></SfButton>
+                                }
+                            </Template>
+                        </GridColumn>
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        }
+        else
+        {
+            <div class="no-chart-selected">
+                <p>Select a chart from the sidebar or create a new one.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@if (ShowSeriesDialog)
+{
+    <SfDialog Width="400px" IsModal="true" @bind-Visible="ShowSeriesDialog" ShowCloseIcon="true"
+              Header="Add Series">
+        <DialogTemplates>
+            <Content>
+                <div class="dialog-form">
+                    <div class="form-group">
+                        <label>Series Name</label>
+                        <SfTextBox @bind-Value="NewSeries.Name"></SfTextBox>
+                    </div>
+                    <div class="form-group">
+                        <label>Color</label>
+                        <SfColorPicker @bind-Value="NewSeries.Color" Mode="ColorPickerMode.Palette"></SfColorPicker>
+                    </div>
+                    <div class="form-group">
+                        <label>Line Width</label>
+                        <SfNumericTextBox TValue="int" @bind-Value="NewSeries.LineWidth" Min="1" Max="5"></SfNumericTextBox>
+                    </div>
+                </div>
+            </Content>
+        </DialogTemplates>
+        <DialogButtons>
+            <DialogButton Content="Cancel" OnClick="@(() => ShowSeriesDialog = false)"></DialogButton>
+            <DialogButton Content="Add" IsPrimary="true" OnClick="@ConfirmAddSeries"></DialogButton>
+        </DialogButtons>
+    </SfDialog>
+}
+
+<style>
+    .charts-page {
+        display: flex;
+        height: calc(100vh - 32px);
+        gap: 12px;
+    }
+
+    .charts-sidebar {
+        width: 220px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .sidebar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .sidebar-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .sidebar-section {
+        padding: 8px 10px;
+        border-top: 1px solid var(--border-subtle);
+        margin-top: auto;
+    }
+
+    .chart-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 4px;
+    }
+
+    .chart-item {
+        padding: 8px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-bottom: 2px;
+    }
+
+    .chart-item:hover {
+        background: var(--bg-hover);
+    }
+
+    .chart-item.selected {
+        background: var(--bg-hover);
+        border-left: 2px solid var(--accent-primary);
+        padding-left: 8px;
+    }
+
+    .chart-name {
+        display: block;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .chart-type {
+        font-size: 10px;
+        color: var(--text-muted);
+    }
+
+    .tag-list {
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 4px;
+    }
+
+    .tag-item {
+        padding: 6px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 11px;
+    }
+
+    .tag-item:hover {
+        background: var(--bg-hover);
+    }
+
+    .tag-name {
+        display: block;
+        font-weight: 500;
+    }
+
+    .tag-conn {
+        font-size: 10px;
+        color: var(--text-muted);
+    }
+
+    .no-items {
+        padding: 16px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 11px;
+    }
+
+    .charts-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .chart-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .chart-name-input {
+        width: 200px;
+    }
+
+    .toolbar-spacer {
+        flex: 1;
+    }
+
+    .chart-container {
+        flex: 1;
+        padding: 12px;
+        min-height: 300px;
+    }
+
+    .series-panel {
+        border-top: 1px solid var(--border-subtle);
+        padding: 8px;
+    }
+
+    .no-chart-selected {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-muted);
+    }
+
+    .color-cell {
+        width: 24px;
+        height: 16px;
+        border-radius: 2px;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .dialog-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .form-group label {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+</style>
+
+@code {
+    private SfChart? ChartRef;
+    private ChartConfig? SelectedChart;
+    private bool IsLive = true;
+    private Timer? RefreshTimer;
+
+    private bool ShowSeriesDialog = false;
+    private ChartSeries NewSeries = new();
+    private string PendingConnectionId = "";
+    private TagConfig? PendingTag;
+
+    private List<ChartTypeOption> ChartTypes = new()
+    {
+        new("Line", ChartType.Line),
+        new("Area", ChartType.Area),
+        new("Bar", ChartType.Bar),
+        new("Step", ChartType.StepLine),
+        new("Scatter", ChartType.Scatter)
+    };
+
+    private List<ChartDataPoint> GetSeriesData(ChartSeries series)
+    {
+        var history = DataService.GetTagHistory(series.ConnectionId, series.TagId, 500);
+        return history.Select(p => new ChartDataPoint
+        {
+            Time = DateTimeOffset.FromUnixTimeMilliseconds(p.Timestamp).LocalDateTime,
+            Value = Convert.ToDouble(p.Value ?? 0)
+        }).ToList();
+    }
+
+    protected override void OnInitialized()
+    {
+        DataService.OnDataChanged += HandleDataChanged;
+
+        // Select first chart if available
+        if (ConfigService.Charts.Count > 0)
+        {
+            SelectChart(ConfigService.Charts[0]);
+        }
+    }
+
+    private void SelectChart(ChartConfig chart)
+    {
+        SelectedChart = chart;
+        StartRefreshTimer();
+    }
+
+    private void StartRefreshTimer()
+    {
+        RefreshTimer?.Dispose();
+        if (SelectedChart != null && IsLive)
+        {
+            RefreshTimer = new Timer(_ => InvokeAsync(RefreshChart),
+                null, 0, SelectedChart.RefreshRateMs);
+        }
+    }
+
+    private void RefreshChart()
+    {
+        ChartRef?.RefreshAsync();
+        StateHasChanged();
+    }
+
+    private void HandleDataChanged()
+    {
+        // Data updated from MQTT - chart will refresh on timer
+    }
+
+    private void ToggleLive()
+    {
+        IsLive = !IsLive;
+        if (IsLive)
+            StartRefreshTimer();
+        else
+            RefreshTimer?.Dispose();
+    }
+
+    private void NewChart()
+    {
+        SelectedChart = new ChartConfig
+        {
+            Name = "New Chart",
+            Type = ChartType.Line,
+            RefreshRateMs = 1000
+        };
+        ConfigService.Charts.ToList();  // Trigger refresh
+    }
+
+    private async Task SaveChart()
+    {
+        if (SelectedChart != null)
+        {
+            await ConfigService.SaveChartAsync(SelectedChart);
+        }
+    }
+
+    private async Task DeleteChart()
+    {
+        if (SelectedChart != null)
+        {
+            await ConfigService.DeleteChartAsync(SelectedChart.Id);
+            SelectedChart = ConfigService.Charts.FirstOrDefault();
+        }
+    }
+
+    private void AddTagToChart(string connectionId, TagConfig tag)
+    {
+        if (SelectedChart == null)
+        {
+            // Create new chart for this tag
+            NewChart();
+        }
+
+        PendingConnectionId = connectionId;
+        PendingTag = tag;
+        NewSeries = new ChartSeries
+        {
+            Name = tag.Name,
+            ConnectionId = connectionId,
+            TagId = tag.Id,
+            Color = GetNextColor(),
+            LineWidth = 2,
+            Visible = true
+        };
+        ShowSeriesDialog = true;
+    }
+
+    private void ConfirmAddSeries()
+    {
+        if (SelectedChart != null && PendingTag != null)
+        {
+            NewSeries.ConnectionId = PendingConnectionId;
+            NewSeries.TagId = PendingTag.Id;
+            SelectedChart.Series.Add(NewSeries);
+        }
+        ShowSeriesDialog = false;
+    }
+
+    private void RemoveSeries(ChartSeries series)
+    {
+        SelectedChart?.Series.Remove(series);
+    }
+
+    private string GetNextColor()
+    {
+        var colors = new[] { "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4" };
+        var index = SelectedChart?.Series.Count ?? 0;
+        return colors[index % colors.Length];
+    }
+
+    private ChartSeriesType GetChartSeriesType(ChartType type) => type switch
+    {
+        ChartType.Line => ChartSeriesType.Line,
+        ChartType.Area => ChartSeriesType.Area,
+        ChartType.Bar => ChartSeriesType.Bar,
+        ChartType.StepLine => ChartSeriesType.StepLine,
+        ChartType.Scatter => ChartSeriesType.Scatter,
+        _ => ChartSeriesType.Line
+    };
+
+    public void Dispose()
+    {
+        RefreshTimer?.Dispose();
+        DataService.OnDataChanged -= HandleDataChanged;
+    }
+
+    public class ChartDataPoint
+    {
+        public DateTime Time { get; set; }
+        public double Value { get; set; }
+    }
+
+    public record ChartTypeOption(string Name, ChartType Value);
+}

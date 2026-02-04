@@ -1,10 +1,21 @@
 using DataForeman.App.Services;
+using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Register Syncfusion license (get free community license from syncfusion.com)
+var licenseKey = builder.Configuration.GetValue<string>("SyncfusionLicenseKey");
+if (!string.IsNullOrEmpty(licenseKey))
+{
+    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(licenseKey);
+}
 
 // Add services
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Add Syncfusion Blazor services
+builder.Services.AddSyncfusionBlazor();
 
 // Configuration service (JSON file storage)
 builder.Services.AddSingleton<ConfigService>();

@@ -31,14 +31,13 @@
     @if (DataService.EngineStatus is { } status)
     {
         <div class="engine-panel">
-            <h2>Engine Status</h2>
+            <div class="panel-header">
+                <h2>Engine Status</h2>
+                <span class="status-badge @(status.Running ? "running" : "stopped")">
+                    @(status.Running ? "Running" : "Stopped")
+                </span>
+            </div>
             <div class="info-grid">
-                <div class="info-item">
-                    <span class="info-label">Status</span>
-                    <span class="info-value @(status.Running ? "ok" : "error")">
-                        @(status.Running ? "Running" : "Stopped")
-                    </span>
-                </div>
                 <div class="info-item">
                     <span class="info-label">Active Connections</span>
                     <span class="info-value">@status.ActiveConnections</span>
@@ -59,48 +58,64 @@
                     <span class="info-label">Memory</span>
                     <span class="info-value">@((status.MemoryUsedBytes / 1024.0 / 1024.0).ToString("F1")) MB</span>
                 </div>
+                <div class="info-item">
+                    <span class="info-label">Uptime</span>
+                    <span class="info-value">@FormatUptime(status.StartTime)</span>
+                </div>
             </div>
         </div>
     }
     else
     {
         <div class="engine-panel offline">
-            <h2>Engine Status</h2>
-            <p>Engine is not connected. Start the DataForeman.Engine service.</p>
+            <div class="panel-header">
+                <h2>Engine Status</h2>
+                <span class="status-badge stopped">Offline</span>
+            </div>
+            <p class="offline-message">Engine is not connected. Start the DataForeman.Engine service.</p>
         </div>
     }
 
-    <div class="recent-tags">
+    <div class="recent-tags-panel">
         <h2>Recent Tag Values</h2>
         @if (RecentTags.Any())
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Connection</th>
-                        <th>Tag</th>
-                        <th>Value</th>
-                        <th>Quality</th>
-                        <th>Timestamp</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var tag in RecentTags.Take(10))
-                    {
-                        <tr>
-                            <td>@tag.ConnectionId</td>
-                            <td>@tag.TagId</td>
-                            <td class="value">@FormatValue(tag.Value)</td>
-                            <td class="quality @tag.Quality.ToString().ToLower()">@tag.Quality</td>
-                            <td>@tag.GetDateTime().ToString("HH:mm:ss.fff")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+            <SfGrid DataSource="@RecentTags.Take(15).ToList()" AllowSelection="false">
+                <GridColumns>
+                    <GridColumn Field="@nameof(TagValueMessage.ConnectionId)" HeaderText="Connection" Width="120"></GridColumn>
+                    <GridColumn Field="@nameof(TagValueMessage.TagId)" HeaderText="Tag" Width="100"></GridColumn>
+                    <GridColumn HeaderText="Value" Width="120">
+                        <Template>
+                            @{
+                                var tag = context as TagValueMessage;
+                                <span class="value-cell">@FormatValue(tag?.Value)</span>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn HeaderText="Quality" Width="100">
+                        <Template>
+                            @{
+                                var tag = context as TagValueMessage;
+                                <span class="quality-badge @tag?.Quality.ToString().ToLower()">@tag?.Quality</span>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn HeaderText="Timestamp" Width="120">
+                        <Template>
+                            @{
+                                var tag = context as TagValueMessage;
+                                <span>@tag?.GetDateTime().ToString("HH:mm:ss.fff")</span>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
         }
         else
         {
-            <p class="no-data">No tag data available. Configure connections and start the engine.</p>
+            <div class="no-data">
+                No tag data available. Configure connections and start the engine.
+            </div>
         }
     </div>
 </div>
@@ -151,9 +166,40 @@
         border-color: var(--status-error);
     }
 
-    .engine-panel h2 {
-        margin: 0 0 12px 0;
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .panel-header h2 {
+        margin: 0;
         font-size: 13px;
+    }
+
+    .status-badge {
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-badge.running {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--status-ok);
+    }
+
+    .status-badge.stopped {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--status-error);
+    }
+
+    .offline-message {
+        color: var(--text-muted);
+        font-size: 12px;
+        margin: 0;
     }
 
     .info-grid {
@@ -179,52 +225,51 @@
         font-weight: 500;
     }
 
-    .info-value.ok { color: var(--status-ok); }
-    .info-value.error { color: var(--status-error); }
-
-    .recent-tags {
+    .recent-tags-panel {
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
         border-radius: 4px;
         padding: 16px;
     }
 
-    .recent-tags h2 {
+    .recent-tags-panel h2 {
         margin: 0 0 12px 0;
         font-size: 13px;
     }
 
-    .data-table {
-        width: 100%;
-        border-collapse: collapse;
+    .value-cell {
+        font-family: Consolas, monospace;
         font-size: 11px;
     }
 
-    .data-table th, .data-table td {
-        padding: 6px 8px;
-        text-align: left;
-        border-bottom: 1px solid var(--border-subtle);
-    }
-
-    .data-table th {
-        color: var(--text-muted);
-        font-weight: 500;
-        text-transform: uppercase;
+    .quality-badge {
+        padding: 2px 8px;
+        border-radius: 3px;
         font-size: 10px;
+        font-weight: 500;
     }
 
-    .data-table .value {
-        font-family: Consolas, monospace;
+    .quality-badge.good {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--status-ok);
     }
 
-    .data-table .quality.good { color: var(--status-ok); }
-    .data-table .quality.bad { color: var(--status-error); }
-    .data-table .quality.uncertain { color: var(--status-warn); }
+    .quality-badge.bad {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--status-error);
+    }
+
+    .quality-badge.uncertain {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--status-warn);
+    }
 
     .no-data {
         color: var(--text-muted);
         font-size: 12px;
         font-style: italic;
+        text-align: center;
+        padding: 24px;
     }
 </style>
 
@@ -257,6 +302,18 @@
             null => "-",
             _ => value.ToString() ?? "-"
         };
+    }
+
+    private string FormatUptime(long startTimestamp)
+    {
+        var start = DateTimeOffset.FromUnixTimeMilliseconds(startTimestamp);
+        var uptime = DateTimeOffset.UtcNow - start;
+
+        if (uptime.TotalDays >= 1)
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h";
+        if (uptime.TotalHours >= 1)
+            return $"{(int)uptime.TotalHours}h {uptime.Minutes}m";
+        return $"{(int)uptime.TotalMinutes}m {uptime.Seconds}s";
     }
 
     public void Dispose()

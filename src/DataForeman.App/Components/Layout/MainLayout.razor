@@ -1,42 +1,88 @@
 @inherits LayoutComponentBase
 @inject RealtimeDataService DataService
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
 <div class="app-container">
-    <nav class="sidebar">
-        <div class="sidebar-header">
-            <span class="logo">⚙</span>
-            <span class="app-name">DataForeman</span>
-        </div>
+    <SfSidebar @bind-IsOpen="SidebarOpen" Width="200px" DockSize="56px" EnableDock="true"
+               MediaQuery="(min-width: 600px)" Type="SidebarType.Auto">
+        <ChildContent>
+            <div class="sidebar-content">
+                <div class="sidebar-header">
+                    <span class="logo">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                    <span class="app-name">DataForeman</span>
+                </div>
 
-        <div class="nav-section">
-            <NavLink href="/" Match="NavLinkMatch.All">
-                <span class="nav-icon">📊</span>
-                <span>Dashboard</span>
-            </NavLink>
-            <NavLink href="/connections">
-                <span class="nav-icon">🔌</span>
-                <span>Connections</span>
-            </NavLink>
-            <NavLink href="/charts">
-                <span class="nav-icon">📈</span>
-                <span>Charts</span>
-            </NavLink>
-            <NavLink href="/flows">
-                <span class="nav-icon">🔀</span>
-                <span>Flows</span>
-            </NavLink>
-        </div>
+                <nav class="nav-section">
+                    <NavLink href="/" Match="NavLinkMatch.All" class="nav-item">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                        </span>
+                        <span class="nav-text">Dashboard</span>
+                    </NavLink>
+                    <NavLink href="/connections" class="nav-item">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                            </svg>
+                        </span>
+                        <span class="nav-text">Connections</span>
+                    </NavLink>
+                    <NavLink href="/charts" class="nav-item">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                        </span>
+                        <span class="nav-text">Charts</span>
+                    </NavLink>
+                    <NavLink href="/flows" class="nav-item">
+                        <span class="nav-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="16 3 21 3 21 8"></polyline>
+                                <line x1="4" y1="20" x2="21" y2="3"></line>
+                                <polyline points="21 16 21 21 16 21"></polyline>
+                                <line x1="15" y1="15" x2="21" y2="21"></line>
+                                <line x1="4" y1="4" x2="9" y2="9"></line>
+                            </svg>
+                        </span>
+                        <span class="nav-text">Flows</span>
+                    </NavLink>
+                </nav>
 
-        <div class="sidebar-footer">
-            <div class="engine-status @(DataService.IsEngineRunning ? "running" : "stopped")">
-                <span class="status-dot"></span>
-                <span>Engine @(DataService.IsEngineRunning ? "Running" : "Stopped")</span>
+                <div class="sidebar-footer">
+                    <div class="engine-status @(DataService.IsEngineRunning ? "running" : "stopped")">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Engine @(DataService.IsEngineRunning ? "Running" : "Stopped")</span>
+                    </div>
+                </div>
             </div>
-        </div>
-    </nav>
+        </ChildContent>
+    </SfSidebar>
 
     <main class="main-content">
-        @Body
+        <div class="main-header">
+            <SfButton CssClass="e-flat sidebar-toggle" IconCss="e-icons e-menu"
+                      OnClick="@(() => SidebarOpen = !SidebarOpen)"></SfButton>
+        </div>
+        <div class="main-body">
+            @Body
+        </div>
     </main>
 </div>
 
@@ -47,30 +93,43 @@
         background: var(--bg-dark);
     }
 
-    .sidebar {
-        width: 200px;
-        background: var(--bg-panel);
-        border-right: 1px solid var(--border-subtle);
+    .e-sidebar {
+        background: var(--bg-panel) !important;
+        border-right: 1px solid var(--border-subtle) !important;
+    }
+
+    .sidebar-content {
         display: flex;
         flex-direction: column;
+        height: 100%;
     }
 
     .sidebar-header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 12px;
+        gap: 10px;
+        padding: 14px 16px;
         border-bottom: 1px solid var(--border-subtle);
     }
 
     .logo {
-        font-size: 20px;
+        color: var(--accent-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .app-name {
         font-weight: 600;
         font-size: 14px;
         color: var(--accent-primary);
+        white-space: nowrap;
+    }
+
+    .e-sidebar.e-dock .app-name,
+    .e-sidebar.e-dock .nav-text,
+    .e-sidebar.e-dock .status-text {
+        display: none;
     }
 
     .nav-section {
@@ -81,11 +140,11 @@
         gap: 2px;
     }
 
-    .nav-section a {
+    .nav-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 10px;
+        gap: 10px;
+        padding: 10px 12px;
         border-radius: 4px;
         color: var(--text-secondary);
         text-decoration: none;
@@ -93,54 +152,103 @@
         transition: all 0.15s;
     }
 
-    .nav-section a:hover {
+    .nav-item:hover {
         background: var(--bg-hover);
         color: var(--text-primary);
     }
 
-    .nav-section a.active {
+    .nav-item.active {
         background: var(--bg-surface);
         color: var(--accent-primary);
     }
 
     .nav-icon {
-        font-size: 14px;
-        width: 20px;
-        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        flex-shrink: 0;
+    }
+
+    .nav-text {
+        white-space: nowrap;
     }
 
     .sidebar-footer {
-        padding: 12px;
+        padding: 12px 16px;
         border-top: 1px solid var(--border-subtle);
     }
 
     .engine-status {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         font-size: 10px;
         color: var(--text-muted);
     }
 
     .status-dot {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         background: var(--text-muted);
+        flex-shrink: 0;
     }
 
     .engine-status.running .status-dot {
         background: var(--status-ok);
-        box-shadow: 0 0 4px var(--status-ok);
+        box-shadow: 0 0 6px var(--status-ok);
     }
 
     .engine-status.stopped .status-dot {
         background: var(--status-error);
     }
 
+    .status-text {
+        white-space: nowrap;
+    }
+
     .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .main-header {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--bg-panel);
+    }
+
+    .sidebar-toggle {
+        color: var(--text-secondary) !important;
+    }
+
+    .main-body {
         flex: 1;
         overflow: auto;
         padding: 16px;
     }
 </style>
+
+@code {
+    private bool SidebarOpen = true;
+
+    protected override void OnInitialized()
+    {
+        DataService.OnEngineStatusChanged += HandleStatusChanged;
+    }
+
+    private void HandleStatusChanged(EngineStatusMessage status)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        DataService.OnEngineStatusChanged -= HandleStatusChanged;
+    }
+}
