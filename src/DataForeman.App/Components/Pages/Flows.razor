@@ -328,6 +328,13 @@
     // Node property values storage
     private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
     
+    // Node type mapping (for looking up plugin info)
+    private Dictionary<string, string> _nodeTypes = new();
+    
+    // Pending connectors (added after nodes are rendered)
+    private DiagramObjectCollection<Connector> _pendingConnectors = new();
+    private bool _connectorsAdded = false;
+    
     // Output Console
     private bool ConsoleExpanded = true;
     private List<ConsoleLogMessage> ConsoleMessages = new();
@@ -346,11 +353,9 @@
     protected override async Task OnInitializedAsync()
     {
         await ConfigService.LoadAllAsync();
-    }
-
-    protected override void OnParametersSet()
-    {
-        if (!string.IsNullOrEmpty(FlowId))
+        
+        // Load flow definition if FlowId is set
+        if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
         {
             var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
             if (flow != null)
@@ -358,20 +363,60 @@
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
             }
-            else if (FlowId == "new")
+        }
+        else if (FlowId == "new")
+        {
+            CurrentFlow = new FlowConfig { Name = "New Flow" };
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Handle parameter changes (navigating between flows)
+        if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
+        {
+            var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
+            if (flow != null && CurrentFlow.Id != flow.Id)
             {
-                CurrentFlow = new FlowConfig { Name = "New Flow" };
-                Nodes = new DiagramObjectCollection<Node>();
-                Connectors = new DiagramObjectCollection<Connector>();
+                CurrentFlow = flow;
+                LoadFlowDefinition(flow);
+                _connectorsAdded = false; // Reset to add connectors after render
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Add connectors after nodes are fully rendered
+        if (!_connectorsAdded && !string.IsNullOrEmpty(FlowId) && FlowId != "new" && Diagram != null && _pendingConnectors.Count > 0)
+        {
+            _connectorsAdded = true;
+            
+            // Wait for nodes to be fully rendered
+            await Task.Delay(300);
+            
+            try
+            {
+                // Add connectors using Diagram API
+                var connectorsToAdd = _pendingConnectors.ToList();
+                await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
+                _pendingConnectors.Clear();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to add connectors: {ex.Message}");
             }
         }
     }
 
     private void LoadFlowDefinition(FlowConfig flow)
     {
+        // Create fresh collections
         Nodes = new DiagramObjectCollection<Node>();
         Connectors = new DiagramObjectCollection<Connector>();
+        _pendingConnectors = new DiagramObjectCollection<Connector>();
         NodeProperties.Clear();
+        _nodeTypes.Clear();
         
         foreach (var node in flow.Nodes)
         {
@@ -387,6 +432,12 @@
             );
             Nodes.Add(diagramNode);
             
+            // Store node type mapping
+            if (!string.IsNullOrEmpty(node.Type))
+            {
+                _nodeTypes[node.Id] = node.Type;
+            }
+            
             // Store node properties
             if (node.Properties != null)
             {
@@ -394,9 +445,10 @@
             }
         }
         
+        // Add connectors to pending list - they'll be added after nodes render
         foreach (var edge in flow.Edges)
         {
-            Connectors.Add(CreateFlowConnector(
+            _pendingConnectors.Add(CreateFlowConnector(
                 edge.Id,
                 edge.SourceNodeId,
                 edge.SourcePortId,
@@ -404,6 +456,8 @@
                 edge.TargetPortId
             ));
         }
+        
+        _connectorsAdded = false;
     }
 
     private void CreateNewFlow() => Navigation.NavigateTo("/flows/new");

@@ -801,6 +801,28 @@ html, body {
     background: var(--bg-primary) !important;
 }
 
+.e-diagram .e-diagram-canvas {
+    background: var(--bg-primary) !important;
+}
+
+.e-diagram-scrollable {
+    background: var(--bg-primary) !important;
+}
+
+/* Ensure diagram container has proper dimensions */
+.diagram-container {
+    flex: 1;
+    min-height: 400px;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-primary);
+}
+
+.diagram-container .e-diagram {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 /* Syncfusion Chart Overrides */
 .e-chart {
     background: transparent !important;
