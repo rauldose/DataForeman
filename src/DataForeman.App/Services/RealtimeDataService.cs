@@ -122,51 +122,6 @@ public class RealtimeDataService : IDisposable
         };
     }
 
-    /// <summary>
-    /// Injects a simulated value for testing purposes (when Engine is offline).
-    /// </summary>
-    public void InjectTestValue(string tagId, string tagName, string connectionId, double value)
-    {
-        var key = tagId;
-        var cache = _tagValues.GetOrAdd(key, _ => new TagValueCache
-        {
-            TagId = tagId,
-            TagName = tagName,
-            ConnectionId = connectionId,
-            DataType = "Float"
-        });
-
-        cache.Value = value;
-        cache.Quality = 0; // Good quality
-        cache.Timestamp = DateTime.UtcNow;
-        cache.AddToHistory(DateTime.UtcNow, value);
-
-        OnTagValueChanged?.Invoke(key);
-        OnDataChanged?.Invoke();
-    }
-
-    /// <summary>
-    /// Generates simulated data for all configured tags (for testing when Engine is offline).
-    /// </summary>
-    public void GenerateSimulatedData(IEnumerable<(string TagId, string TagName, string ConnectionId)> tags)
-    {
-        var random = new Random();
-        foreach (var tag in tags)
-        {
-            // Generate a realistic value based on tag name patterns
-            double value = tag.TagName.ToLower() switch
-            {
-                var n when n.Contains("temp") => 20 + random.NextDouble() * 15, // 20-35°C
-                var n when n.Contains("pressure") => 1 + random.NextDouble() * 9, // 1-10 bar
-                var n when n.Contains("level") => random.NextDouble() * 100, // 0-100%
-                var n when n.Contains("flow") => random.NextDouble() * 500, // 0-500 L/min
-                _ => random.NextDouble() * 100
-            };
-            
-            InjectTestValue(tag.TagId, tag.TagName, tag.ConnectionId, Math.Round(value, 2));
-        }
-    }
-
     private void HandleTagValue(TagValueMessage message)
     {
         try

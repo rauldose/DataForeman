@@ -15,7 +15,6 @@ builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<MqttService>();
 builder.Services.AddSingleton<RealtimeDataService>();
 builder.Services.AddSingleton<NodePluginRegistry>();
-builder.Services.AddHostedService<SimulatedDataService>();
 
 var app = builder.Build();
 

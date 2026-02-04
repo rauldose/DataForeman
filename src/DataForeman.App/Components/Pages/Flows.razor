@@ -157,7 +157,7 @@
                     <h3>Properties</h3>
                     @if (SelectedNode != null)
                     {
-                        var plugin = NodeRegistry.Get(GetNodeBaseType(SelectedNode));
+                        var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
                         <div class="property-header">
                             <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
                                 <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
@@ -571,7 +571,7 @@
         CurrentFlow.Nodes = Nodes.Select(n => new FlowNode
         {
             Id = n.ID,
-            Type = GetNodeBaseType(n),
+            Type = GetNodeType(n),
             Label = GetNodeLabel(n),
             X = n.OffsetX,
             Y = n.OffsetY,
@@ -631,7 +631,7 @@
 
     private Node CreateFlowNode(string id, string label, string color, double x, double y, int inputCount, int outputCount)
     {
-        var baseType = GetBaseTypeFromId(id);
+        var baseType = GetNodeType(id);
         var plugin = NodeRegistry.Get(baseType);
         
         var node = new Node
@@ -709,17 +709,20 @@
     }
 
     private string GetNodeLabel(Node node) => node.Annotations?.FirstOrDefault()?.Content ?? node.ID;
-    private string GetNodeType(Node node) => GetBaseTypeFromId(node.ID);
-    private string GetNodeBaseType(Node node) => GetBaseTypeFromId(node.ID);
     
-    private string GetBaseTypeFromId(string id)
+    /// <summary>
+    /// Extracts the plugin type ID from a node ID (e.g., "tag-input-instance-abc123" → "tag-input")
+    /// </summary>
+    private string GetNodeType(string nodeId)
     {
-        if (id.Contains("-instance-")) return id.Split("-instance-")[0];
-        var parts = id.Split('-');
+        if (nodeId.Contains("-instance-")) return nodeId.Split("-instance-")[0];
+        var parts = nodeId.Split('-');
         for (int i = parts.Length; i > 0; i--) { var candidate = string.Join("-", parts.Take(i)); if (NodeRegistry.Get(candidate) != null) return candidate; }
         if (parts.Length > 1 && parts[^1].Length >= 8) return string.Join("-", parts.Take(parts.Length - 1));
-        return id;
+        return nodeId;
     }
+    
+    private string GetNodeType(Node node) => GetNodeType(node.ID);
 
     private RenderFragment RenderPropertyInput(NodePropertyDefinition prop) => builder =>
     {
@@ -762,7 +765,7 @@
         
         var triggerNodes = Nodes.Where(n => 
         {
-            var plugin = NodeRegistry.Get(GetNodeBaseType(n));
+            var plugin = NodeRegistry.Get(GetNodeType(n));
             return plugin?.Category == "Triggers";
         }).ToList();
         
@@ -783,7 +786,7 @@
     private async Task SimulateNodeExecution(Node node, Dictionary<string, object> inputData)
     {
         var label = GetNodeLabel(node);
-        var baseType = GetNodeBaseType(node);
+        var baseType = GetNodeType(node);
         var plugin = NodeRegistry.Get(baseType);
         
         await Task.Delay(50);
@@ -875,7 +878,7 @@
     
     private object GenerateSimulatedValue(Node node)
     {
-        var baseType = GetNodeBaseType(node);
+        var baseType = GetNodeType(node);
         if (baseType.Contains("timer") || baseType.Contains("schedule"))
             return DateTime.Now.ToString("HH:mm:ss");
         if (baseType.Contains("manual"))
@@ -917,7 +920,7 @@
             Nodes = selectedNodes.Select(n => new FlowNode
             {
                 Id = n.ID,
-                Type = GetNodeBaseType(n),
+                Type = GetNodeType(n),
                 Label = GetNodeLabel(n),
                 X = n.OffsetX - minX,
                 Y = n.OffsetY - minY,
@@ -1080,7 +1083,7 @@
         existingSubflow.Nodes = Nodes.Select(n => new FlowNode
         {
             Id = n.ID,
-            Type = _nodeTypes.TryGetValue(n.ID, out var t) ? t : GetNodeBaseType(n),
+            Type = _nodeTypes.TryGetValue(n.ID, out var t) ? t : GetNodeType(n),
             Label = GetNodeLabel(n),
             X = n.OffsetX,
             Y = n.OffsetY,
@@ -1169,7 +1172,7 @@
             Nodes = Nodes.Select(n => new FlowNode
             {
                 Id = n.ID,
-                Type = GetNodeBaseType(n),
+                Type = GetNodeType(n),
                 Label = GetNodeLabel(n),
                 X = n.OffsetX,
                 Y = n.OffsetY,
