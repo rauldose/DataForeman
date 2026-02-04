@@ -177,18 +177,20 @@ html, body {
 .e-accordion .e-acrdn-item {
     background: var(--bg-secondary) !important;
     border: none !important;
-    border-radius: 6px !important;
-    margin-bottom: 0.75rem !important;
+    border-radius: 4px !important;
+    margin-bottom: 0.5rem !important;
 }
 
 .e-accordion .e-acrdn-header {
     background: transparent !important;
     border: none !important;
-    padding: 0.75rem 1rem !important;
+    padding: 0.5rem 0.75rem !important;
+    min-height: 32px !important;
 }
 
 .e-accordion .e-acrdn-header-content {
     color: var(--text-primary) !important;
+    font-size: 0.8rem !important;
 }
 
 .e-accordion .e-acrdn-panel {
@@ -197,7 +199,7 @@ html, body {
 }
 
 .e-accordion .e-acrdn-content {
-    padding: 1rem !important;
+    padding: 0.75rem !important;
 }
 
 .panel-header {
