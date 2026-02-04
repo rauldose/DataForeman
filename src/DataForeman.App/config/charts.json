@@ -1,3 +1,243 @@
 {
-  "charts": []
+  "charts": [
+    {
+      "id": "chart-process-overview",
+      "name": "Process Overview",
+      "chartType": "Line",
+      "series": [
+        {
+          "id": "series-temp-1",
+          "tagId": "sim-temp-1",
+          "displayName": "Temperature",
+          "color": "#ef4444",
+          "lineType": "Solid",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-temp"
+        },
+        {
+          "id": "series-pressure-1",
+          "tagId": "sim-pressure-1",
+          "displayName": "Pressure",
+          "color": "#3b82f6",
+          "lineType": "Solid",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-pressure"
+        }
+      ],
+      "yAxes": [
+        {
+          "id": "axis-temp",
+          "name": "Temperature",
+          "position": "Left",
+          "minimum": 0,
+          "maximum": 50,
+          "unit": "°C",
+          "color": "#ef4444",
+          "autoScale": false,
+          "labelFormat": "0.#"
+        },
+        {
+          "id": "axis-pressure",
+          "name": "Pressure",
+          "position": "Right",
+          "minimum": 0,
+          "maximum": 10,
+          "unit": "bar",
+          "color": "#3b82f6",
+          "autoScale": false,
+          "labelFormat": "0.##"
+        }
+      ],
+      "settings": {
+        "showLegend": true,
+        "legendPosition": "Bottom",
+        "enableZoom": true,
+        "enablePan": true,
+        "mode": "Realtime",
+        "refreshIntervalMs": 500,
+        "realtimeWindowSeconds": 300,
+        "timeRange": "5m"
+      },
+      "createdAt": "2026-02-03T22:00:00Z",
+      "updatedAt": "2026-02-03T22:00:00Z"
+    },
+    {
+      "id": "chart-tank-levels",
+      "name": "Tank Levels & Flow",
+      "chartType": "Area",
+      "series": [
+        {
+          "id": "series-level-1",
+          "tagId": "sim-level-1",
+          "displayName": "Tank Level",
+          "color": "#22c55e",
+          "lineType": "Solid",
+          "lineWidth": 2,
+          "opacity": 0.6,
+          "visible": true,
+          "yAxisId": "axis-level"
+        },
+        {
+          "id": "series-flow-1",
+          "tagId": "sim-flow-1",
+          "displayName": "Flow Rate",
+          "color": "#f59e0b",
+          "lineType": "Dashed",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-flow"
+        }
+      ],
+      "yAxes": [
+        {
+          "id": "axis-level",
+          "name": "Level",
+          "position": "Left",
+          "minimum": 0,
+          "maximum": 100,
+          "unit": "%",
+          "color": "#22c55e",
+          "autoScale": false,
+          "labelFormat": "0"
+        },
+        {
+          "id": "axis-flow",
+          "name": "Flow Rate",
+          "position": "Right",
+          "minimum": 100,
+          "maximum": 200,
+          "unit": "L/min",
+          "color": "#f59e0b",
+          "autoScale": false,
+          "labelFormat": "0.#"
+        }
+      ],
+      "settings": {
+        "showLegend": true,
+        "legendPosition": "Bottom",
+        "enableZoom": true,
+        "enablePan": true,
+        "mode": "Realtime",
+        "refreshIntervalMs": 1000,
+        "realtimeWindowSeconds": 600,
+        "timeRange": "10m"
+      },
+      "createdAt": "2026-02-03T22:00:00Z",
+      "updatedAt": "2026-02-03T22:00:00Z"
+    },
+    {
+      "id": "chart-multi-axis",
+      "name": "Multi-Axis Trend",
+      "chartType": "Line",
+      "series": [
+        {
+          "id": "series-ma-temp",
+          "tagId": "sim-temp-1",
+          "displayName": "Temperature",
+          "color": "#ef4444",
+          "lineType": "Solid",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-ma-temp"
+        },
+        {
+          "id": "series-ma-pressure",
+          "tagId": "sim-pressure-1",
+          "displayName": "Pressure",
+          "color": "#3b82f6",
+          "lineType": "Solid",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-ma-pressure"
+        },
+        {
+          "id": "series-ma-level",
+          "tagId": "sim-level-1",
+          "displayName": "Level",
+          "color": "#22c55e",
+          "lineType": "Solid",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-ma-level"
+        },
+        {
+          "id": "series-ma-flow",
+          "tagId": "sim-flow-1",
+          "displayName": "Flow",
+          "color": "#f59e0b",
+          "lineType": "Dashed",
+          "lineWidth": 2,
+          "opacity": 1.0,
+          "visible": true,
+          "yAxisId": "axis-ma-flow"
+        }
+      ],
+      "yAxes": [
+        {
+          "id": "axis-ma-temp",
+          "name": "Temperature",
+          "position": "Left",
+          "minimum": 0,
+          "maximum": 50,
+          "unit": "°C",
+          "color": "#ef4444",
+          "autoScale": false,
+          "labelFormat": "0.#"
+        },
+        {
+          "id": "axis-ma-pressure",
+          "name": "Pressure",
+          "position": "Left",
+          "minimum": 0,
+          "maximum": 10,
+          "unit": "bar",
+          "color": "#3b82f6",
+          "autoScale": false,
+          "labelFormat": "0.##"
+        },
+        {
+          "id": "axis-ma-level",
+          "name": "Level",
+          "position": "Right",
+          "minimum": 0,
+          "maximum": 100,
+          "unit": "%",
+          "color": "#22c55e",
+          "autoScale": false,
+          "labelFormat": "0"
+        },
+        {
+          "id": "axis-ma-flow",
+          "name": "Flow",
+          "position": "Right",
+          "minimum": 100,
+          "maximum": 200,
+          "unit": "L/min",
+          "color": "#f59e0b",
+          "autoScale": false,
+          "labelFormat": "0.#"
+        }
+      ],
+      "settings": {
+        "showLegend": true,
+        "legendPosition": "Bottom",
+        "enableZoom": true,
+        "enablePan": true,
+        "mode": "Realtime",
+        "refreshIntervalMs": 500,
+        "realtimeWindowSeconds": 300,
+        "timeRange": "5m"
+      },
+      "createdAt": "2026-02-03T22:00:00Z",
+      "updatedAt": "2026-02-03T22:00:00Z"
+    }
+  ]
 }
