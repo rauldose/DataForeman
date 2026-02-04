@@ -412,6 +412,14 @@ html, body {
     flex: 1;
     overflow: hidden;
     background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ensure chart takes full available space */
+.chart-area .e-chart {
+    flex: 1;
+    min-height: 0;
 }
 
 .time-range-bar {

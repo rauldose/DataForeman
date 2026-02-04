@@ -662,7 +662,7 @@
             SourcePortID = sourcePort ?? "output-0",
             TargetID = targetId,
             TargetPortID = targetPort ?? "input-0",
-            Type = ConnectorSegmentType.Bezier,
+            Type = ConnectorSegmentType.Orthogonal,
             Style = new ShapeStyle { StrokeColor = "#6b7280", StrokeWidth = 2 },
             TargetDecorator = new DecoratorSettings
             {
@@ -684,7 +684,7 @@
     {
         if (obj is Connector connector)
         {
-            connector.Type = ConnectorSegmentType.Bezier;
+            connector.Type = ConnectorSegmentType.Orthogonal;
             connector.Style.StrokeColor = "#6b7280";
             connector.Style.StrokeWidth = 2;
             

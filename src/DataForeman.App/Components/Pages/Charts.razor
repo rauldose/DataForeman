@@ -138,7 +138,7 @@
                         </div>
                     }
                     
-                    <SfChart Theme="Syncfusion.Blazor.Theme.TailwindDark" Height="100%">
+                    <SfChart Theme="Syncfusion.Blazor.Theme.TailwindDark" Width="100%" Height="100%">
                         <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
                             <ChartAxisMajorGridLines Width="0.5" Color="#374151"></ChartAxisMajorGridLines>
                         </ChartPrimaryXAxis>
@@ -197,11 +197,13 @@
                                             <div class="series-header">
                                                 <div class="series-color" style="background-color: @series.Color"></div>
                                                 <span class="series-name">@series.DisplayName</span>
-                                                <SfCheckBox TChecked="bool" @bind-Checked="series.Visible" CssClass="e-small"></SfCheckBox>
+                                                <span @onclick:stopPropagation="true">
+                                                    <SfCheckBox TChecked="bool" @bind-Checked="series.Visible" CssClass="e-small"></SfCheckBox>
+                                                </span>
                                             </div>
                                             @if (SelectedSeries?.Id == series.Id)
                                             {
-                                                <div class="series-config">
+                                                <div class="series-config" @onclick:stopPropagation="true">
                                                     <div class="config-row">
                                                         <label>Color</label>
                                                         <SfColorPicker @bind-Value="series.Color" Mode="ColorPickerMode.Palette"></SfColorPicker>
