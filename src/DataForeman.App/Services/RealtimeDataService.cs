@@ -118,6 +118,10 @@ public class RealtimeDataService : IDisposable
             decimal dec => (double)dec,
             bool b => b ? 1.0 : 0.0,
             string s when double.TryParse(s, out var parsed) => parsed,
+            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number => je.GetDouble(),
+            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String && double.TryParse(je.GetString(), out var p) => p,
+            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => 1.0,
+            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => 0.0,
             _ => null
         };
     }
@@ -264,6 +268,10 @@ public class TagValueCache
         bool b => b ? "True" : "False",
         double d => d.ToString("F2"),
         float f => f.ToString("F2"),
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number => je.GetDouble().ToString("F2"),
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString() ?? "N/A",
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => "True",
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => "False",
         _ => Value.ToString() ?? "N/A"
     };
 
@@ -280,6 +288,10 @@ public class TagValueCache
         decimal dec => (double)dec,
         bool b => b ? 1.0 : 0.0,
         string s when double.TryParse(s, out var parsed) => parsed,
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number => je.GetDouble(),
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String && double.TryParse(je.GetString(), out var parsed) => parsed,
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => 1.0,
+        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => 0.0,
         _ => null
     };
 }
