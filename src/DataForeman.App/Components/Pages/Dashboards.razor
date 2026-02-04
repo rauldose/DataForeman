@@ -686,7 +686,8 @@
         builder.OpenComponent<SfChart>(0);
         builder.AddAttribute(1, "Theme", Syncfusion.Blazor.Theme.TailwindDark);
         builder.AddAttribute(2, "Height", "100%");
-        builder.AddAttribute(3, "ChildContent", (RenderFragment)(chartBuilder =>
+        builder.AddAttribute(3, "Width", "100%");
+        builder.AddAttribute(4, "ChildContent", (RenderFragment)(chartBuilder =>
         {
             chartBuilder.OpenComponent<ChartPrimaryXAxis>(0);
             chartBuilder.AddAttribute(1, "ValueType", Syncfusion.Blazor.Charts.ValueType.DateTime);

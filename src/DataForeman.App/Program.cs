@@ -15,6 +15,7 @@ builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<MqttService>();
 builder.Services.AddSingleton<RealtimeDataService>();
 builder.Services.AddSingleton<NodePluginRegistry>();
+builder.Services.AddHostedService<SimulatedDataService>();
 
 var app = builder.Build();
 
@@ -42,5 +43,12 @@ _ = mqttService.ConnectAsync();
 // Load configuration
 var configService = app.Services.GetRequiredService<ConfigService>();
 await configService.LoadAllAsync();
+
+// Register saved subflows with NodePluginRegistry
+var nodeRegistry = app.Services.GetRequiredService<NodePluginRegistry>();
+foreach (var subflow in configService.Subflows)
+{
+    nodeRegistry.RegisterSubflow(subflow);
+}
 
 app.Run();
