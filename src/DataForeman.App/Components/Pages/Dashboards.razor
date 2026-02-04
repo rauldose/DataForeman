@@ -126,7 +126,7 @@
 </div>
 
 <!-- Add Panel Dialog -->
-<SfDialog @bind-Visible="ShowAddPanelDialog" Width="400px" IsModal="true" ShowCloseIcon="true" Header="Add Panel">
+<SfDialog @bind-Visible="ShowAddPanelDialog" Width="400px" IsModal="true" ShowCloseIcon="true" Header="Add Panel" AllowPrerender="false">
     <DialogTemplates>
         <Content>
             <div class="add-panel-form">
@@ -150,7 +150,7 @@
 </SfDialog>
 
 <!-- Panel Config Dialog -->
-<SfDialog @bind-Visible="ShowPanelConfigDialog" Width="600px" IsModal="true" ShowCloseIcon="true" Header="Configure Panel">
+<SfDialog @bind-Visible="ShowPanelConfigDialog" Width="600px" IsModal="true" ShowCloseIcon="true" Header="Configure Panel" AllowPrerender="false">
     <DialogTemplates>
         <Content>
             @if (ConfiguringPanel != null)
@@ -252,7 +252,7 @@
 </SfDialog>
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>

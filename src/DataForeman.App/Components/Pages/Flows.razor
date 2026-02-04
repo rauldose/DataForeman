@@ -238,7 +238,7 @@
 </div>
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>
@@ -253,7 +253,7 @@
 </SfDialog>
 
 <!-- Template Selection Dialog -->
-<SfDialog @bind-Visible="ShowTemplateDialog" Width="500px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowTemplateDialog" Width="500px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header><i class="fa-solid fa-layer-group"></i> Flow Templates</Header>
         <Content>
@@ -285,7 +285,7 @@
 </SfDialog>
 
 <!-- Replace with Subflow Dialog -->
-<SfDialog @bind-Visible="ShowReplaceWithSubflowDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowReplaceWithSubflowDialog" Width="400px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header><i class="fa-solid fa-object-group"></i> Subflow Created</Header>
         <Content>

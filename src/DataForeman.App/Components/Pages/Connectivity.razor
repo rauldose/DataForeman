@@ -132,7 +132,7 @@
 </div>
 
 <!-- Connection Dialog -->
-<SfDialog @bind-Visible="ShowConnectionDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowConnectionDialog" Width="400px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header>@(EditingConnection == null ? "Add Connection" : "Edit Connection")</Header>
         <Content>
@@ -158,7 +158,7 @@
 </SfDialog>
 
 <!-- Tag Dialog -->
-<SfDialog @bind-Visible="ShowTagDialog" Width="450px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowTagDialog" Width="450px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header>@(EditingTag == null ? "Add Tag" : "Edit Tag")</Header>
         <Content>
@@ -205,7 +205,7 @@
 </SfDialog>
 
 <!-- Delete Confirmation Dialog -->
-<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true" AllowPrerender="false">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>
