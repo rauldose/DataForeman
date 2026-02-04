@@ -1,0 +1,217 @@
+{
+  "dashboards": [
+    {
+      "id": "dashboard-overview",
+      "name": "Process Overview",
+      "description": "Overview dashboard with key process metrics",
+      "panels": [
+        {
+          "id": "stat-temp",
+          "title": "Temperature",
+          "type": "Stat",
+          "gridX": 0,
+          "gridY": 0,
+          "gridWidth": 3,
+          "gridHeight": 2,
+          "statConfig": {
+            "tagId": "sim-temp-1",
+            "label": "Temperature",
+            "unit": "\u00B0C",
+            "decimals": 1,
+            "thresholds": [
+              {
+                "value": 0,
+                "color": "#22c55e"
+              },
+              {
+                "value": 30,
+                "color": "#f59e0b"
+              },
+              {
+                "value": 35,
+                "color": "#ef4444"
+              }
+            ],
+            "valueType": "Current",
+            "showSparkline": true,
+            "icon": "fa-solid fa-thermometer-half"
+          }
+        },
+        {
+          "id": "stat-pressure",
+          "title": "Pressure",
+          "type": "Stat",
+          "gridX": 3,
+          "gridY": 0,
+          "gridWidth": 3,
+          "gridHeight": 2,
+          "statConfig": {
+            "tagId": "sim-pressure-1",
+            "label": "Pressure",
+            "unit": "bar",
+            "decimals": 2,
+            "thresholds": [
+              {
+                "value": 0,
+                "color": "#22c55e"
+              },
+              {
+                "value": 6,
+                "color": "#f59e0b"
+              },
+              {
+                "value": 7,
+                "color": "#ef4444"
+              }
+            ],
+            "valueType": "Current",
+            "showSparkline": true,
+            "icon": "fa-solid fa-gauge-high"
+          }
+        },
+        {
+          "id": "stat-flow",
+          "title": "Flow Rate",
+          "type": "Stat",
+          "gridX": 6,
+          "gridY": 0,
+          "gridWidth": 3,
+          "gridHeight": 2,
+          "statConfig": {
+            "tagId": "sim-flow-1",
+            "label": "Flow",
+            "unit": "L/min",
+            "decimals": 1,
+            "thresholds": [
+              {
+                "value": 0,
+                "color": "#3b82f6"
+              }
+            ],
+            "valueType": "Current",
+            "showSparkline": true,
+            "icon": "fa-solid fa-droplet"
+          }
+        },
+        {
+          "id": "gauge-level",
+          "title": "Tank Level",
+          "type": "Gauge",
+          "gridX": 9,
+          "gridY": 0,
+          "gridWidth": 3,
+          "gridHeight": 4,
+          "gaugeConfig": {
+            "tagId": "sim-level-1",
+            "minValue": 0,
+            "maxValue": 100,
+            "unit": "%",
+            "thresholds": [
+              {
+                "value": 0,
+                "color": "#ef4444"
+              },
+              {
+                "value": 20,
+                "color": "#f59e0b"
+              },
+              {
+                "value": 40,
+                "color": "#22c55e"
+              }
+            ],
+            "showValue": true,
+            "decimals": 1,
+            "gaugeType": "Radial"
+          }
+        },
+        {
+          "id": "chart-trends",
+          "title": "Process Trends",
+          "type": "Chart",
+          "gridX": 0,
+          "gridY": 2,
+          "gridWidth": 9,
+          "gridHeight": 5,
+          "chartConfig": {
+            "chartType": "Line",
+            "dataSources": [
+              {
+                "tagId": "sim-temp-1",
+                "displayName": "Temperature",
+                "color": "#ef4444",
+                "yAxisId": "temp-axis",
+                "lineWidth": 2
+              },
+              {
+                "tagId": "sim-pressure-1",
+                "displayName": "Pressure",
+                "color": "#3b82f6",
+                "yAxisId": "pressure-axis",
+                "lineWidth": 2
+              }
+            ],
+            "yAxes": [
+              {
+                "id": "temp-axis",
+                "name": "Temperature",
+                "position": "Left",
+                "unit": "\u00B0C",
+                "color": "#ef4444",
+                "autoScale": true,
+                "labelFormat": "0.##"
+              },
+              {
+                "id": "pressure-axis",
+                "name": "Pressure",
+                "position": "Right",
+                "unit": "bar",
+                "color": "#3b82f6",
+                "autoScale": true,
+                "labelFormat": "0.##"
+              }
+            ],
+            "showLegend": true,
+            "legendPosition": "Bottom",
+            "enableZoom": true,
+            "lineWidth": 2,
+            "fillArea": false
+          }
+        },
+        {
+          "id": "table-values",
+          "title": "All Tag Values",
+          "type": "Table",
+          "gridX": 0,
+          "gridY": 7,
+          "gridWidth": 12,
+          "gridHeight": 3,
+          "tableConfig": {
+            "tagIds": [
+              "sim-temp-1",
+              "sim-pressure-1",
+              "sim-level-1",
+              "sim-flow-1",
+              "sim-status-1"
+            ],
+            "showTimestamp": true,
+            "showQuality": true,
+            "maxRows": 5,
+            "autoRefresh": true
+          }
+        }
+      ],
+      "variables": [],
+      "settings": {
+        "defaultMode": "Realtime",
+        "refreshIntervalMs": 1000,
+        "timeRange": "5m",
+        "autoRefresh": true,
+        "theme": "dark",
+        "editable": true
+      },
+      "createdAt": "2026-02-04T00:38:05.9861095Z",
+      "updatedAt": "2026-02-04T00:38:05.9861096Z"
+    }
+  ]
+}

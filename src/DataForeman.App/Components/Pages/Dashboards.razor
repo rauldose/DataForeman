@@ -1,0 +1,829 @@
+@page "/dashboards"
+@page "/dashboards/{DashboardId}"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject RealtimeDataService RealtimeData
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Dashboards - DataForeman</PageTitle>
+
+<div class="page-container">
+    @if (string.IsNullOrEmpty(DashboardId))
+    {
+        <!-- Dashboard List View -->
+        <div class="page-toolbar">
+            <h2><i class="fa-solid fa-gauge"></i> Dashboards</h2>
+            <div class="toolbar-actions">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewDashboard">New Dashboard</SfButton>
+            </div>
+        </div>
+        
+        @if (!ConfigService.Dashboards.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-gauge"></i>
+                <span>No dashboards configured</span>
+                <SfButton CssClass="e-primary e-small" @onclick="CreateNewDashboard">Create your first dashboard</SfButton>
+            </div>
+        }
+        else
+        {
+            <div class="dashboard-grid">
+                @foreach (var dashboard in ConfigService.Dashboards)
+                {
+                    <div class="dashboard-card" @onclick="() => ViewDashboard(dashboard.Id)">
+                        <div class="dashboard-card-header">
+                            <i class="fa-solid fa-gauge"></i>
+                            <span class="dashboard-name">@dashboard.Name</span>
+                        </div>
+                        <div class="dashboard-card-body">
+                            <span class="dashboard-description">@(dashboard.Description ?? "No description")</span>
+                            <div class="dashboard-stats">
+                                <span><i class="fa-solid fa-table-cells"></i> @dashboard.Panels.Count panels</span>
+                            </div>
+                        </div>
+                        <div class="dashboard-card-actions" @onclick:stopPropagation="true">
+                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
+                            <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <!-- Dashboard View/Edit -->
+        <div class="dashboard-viewer">
+            <!-- Toolbar -->
+            <div class="dashboard-toolbar">
+                <div class="toolbar-left">
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
+                    @if (IsEditMode)
+                    {
+                        <SfTextBox @bind-Value="CurrentDashboard.Name" Placeholder="Dashboard Name" CssClass="dashboard-name-input"></SfTextBox>
+                    }
+                    else
+                    {
+                        <h2 class="dashboard-title">@CurrentDashboard.Name</h2>
+                    }
+                </div>
+                
+                <div class="toolbar-center">
+                    <!-- Time Range Controls -->
+                    <div class="time-controls">
+                        <SfDropDownList TItem="TimeRangeOption" TValue="string" DataSource="@TimeRanges" 
+                                        @bind-Value="SelectedTimeRange" Width="120px" CssClass="time-dropdown">
+                            <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-sync" @onclick="RefreshData"></SfButton>
+                    </div>
+                </div>
+                
+                <div class="toolbar-right">
+                    @if (IsEditMode)
+                    {
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
+                        <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                        <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>
+                    }
+                    else
+                    {
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-expand" @onclick="ToggleFullscreen"></SfButton>
+                    }
+                </div>
+            </div>
+            
+            <!-- Dashboard Grid using SfDashboardLayout -->
+            <div class="dashboard-grid-container @(IsFullscreen ? "fullscreen" : "")">
+                <SfDashboardLayout @ref="DashboardLayout" 
+                                   Columns="12" 
+                                   CellSpacing="@(new double[] { 10, 10 })"
+                                   CellAspectRatio="1.0"
+                                   AllowDragging="@IsEditMode"
+                                   AllowResizing="@IsEditMode">
+                    <DashboardLayoutPanels>
+                        @foreach (var panel in CurrentDashboard.Panels)
+                        {
+                            <DashboardLayoutPanel Id="@panel.Id" 
+                                                  Row="@panel.GridY" 
+                                                  Column="@panel.GridX" 
+                                                  SizeX="@panel.GridWidth" 
+                                                  SizeY="@panel.GridHeight">
+                                <HeaderTemplate>
+                                    <div class="panel-header-content @(SelectedPanel?.Id == panel.Id ? "selected" : "")" @onclick="() => SelectPanel(panel)">
+                                        <span class="panel-title">@panel.Title</span>
+                                        @if (IsEditMode)
+                                        {
+                                            <div class="panel-actions" @onclick:stopPropagation="true">
+                                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-cog" @onclick="() => ConfigurePanel(panel)"></SfButton>
+                                                <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => RemovePanel(panel)"></SfButton>
+                                            </div>
+                                        }
+                                    </div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <div class="panel-content">
+                                        @RenderPanel(panel)
+                                    </div>
+                                </ContentTemplate>
+                            </DashboardLayoutPanel>
+                        }
+                    </DashboardLayoutPanels>
+                </SfDashboardLayout>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Add Panel Dialog -->
+@if (ShowAddPanelDialog)
+{
+    <SfDialog @bind-Visible="ShowAddPanelDialog" Width="400px" IsModal="true" ShowCloseIcon="true" Header="Add Panel">
+        <DialogTemplates>
+            <Content>
+                <div class="add-panel-form">
+                    <div class="form-group">
+                        <label>Panel Type</label>
+                        <SfDropDownList TItem="PanelTypeOption" TValue="PanelType" DataSource="@PanelTypes" @bind-Value="NewPanelType">
+                            <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                    </div>
+                    <div class="form-group">
+                        <label>Title</label>
+                        <SfTextBox @bind-Value="NewPanelTitle"></SfTextBox>
+                    </div>
+                </div>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowAddPanelDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-primary" @onclick="AddPanel">Add</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- Panel Config Dialog -->
+@if (ShowPanelConfigDialog)
+{
+    <SfDialog @bind-Visible="ShowPanelConfigDialog" Width="600px" IsModal="true" ShowCloseIcon="true" Header="Configure Panel">
+        <DialogTemplates>
+            <Content>
+                @if (ConfiguringPanel != null)
+                {
+                    <div class="panel-config-form">
+                        <div class="form-group">
+                            <label>Title</label>
+                            <SfTextBox @bind-Value="ConfiguringPanel.Title"></SfTextBox>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Width (columns)</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="ConfiguringPanel.GridWidth" Min="1" Max="12"></SfNumericTextBox>
+                            </div>
+                            <div class="form-group">
+                                <label>Height (rows)</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="ConfiguringPanel.GridHeight" Min="1" Max="10"></SfNumericTextBox>
+                            </div>
+                        </div>
+                        
+                        @switch (ConfiguringPanel.Type)
+                        {
+                            case PanelType.Stat:
+                                <div class="form-group">
+                                    <label>Tag</label>
+                                    <SfDropDownList TItem="TagOption" TValue="string" DataSource="@AvailableTags" 
+                                                    Value="@(ConfiguringPanel.StatConfig?.TagId)" ValueChanged="@(v => SetStatTag(v))">
+                                        <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                    </SfDropDownList>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Unit</label>
+                                        <SfTextBox Value="@(ConfiguringPanel.StatConfig?.Unit)" ValueChanged="@(v => SetStatUnit(v))"></SfTextBox>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Decimals</label>
+                                        <SfNumericTextBox TValue="int" Value="@(ConfiguringPanel.StatConfig?.Decimals ?? 2)" ValueChanged="@(v => SetStatDecimals(v))"></SfNumericTextBox>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <SfCheckBox TChecked="bool" Checked="@(ConfiguringPanel.StatConfig?.ShowSparkline ?? false)" CheckedChanged="@(v => SetStatSparkline(v))" Label="Show Sparkline"></SfCheckBox>
+                                </div>
+                                break;
+                                
+                            case PanelType.Gauge:
+                                <div class="form-group">
+                                    <label>Tag</label>
+                                    <SfDropDownList TItem="TagOption" TValue="string" DataSource="@AvailableTags" 
+                                                    Value="@(ConfiguringPanel.GaugeConfig?.TagId)" ValueChanged="@(v => SetGaugeTag(v))">
+                                        <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                    </SfDropDownList>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Min Value</label>
+                                        <SfNumericTextBox TValue="double" Value="@(ConfiguringPanel.GaugeConfig?.MinValue ?? 0)" ValueChanged="@(v => SetGaugeMin(v))"></SfNumericTextBox>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Value</label>
+                                        <SfNumericTextBox TValue="double" Value="@(ConfiguringPanel.GaugeConfig?.MaxValue ?? 100)" ValueChanged="@(v => SetGaugeMax(v))"></SfNumericTextBox>
+                                    </div>
+                                </div>
+                                break;
+                                
+                            case PanelType.Chart:
+                                <div class="form-group">
+                                    <label>Data Sources</label>
+                                    @foreach (var tag in AvailableTags)
+                                    {
+                                        var isSelected = ConfiguringPanel.ChartConfig?.DataSources?.Any(d => d.TagId == tag.Id) ?? false;
+                                        <div class="tag-selector">
+                                            <SfCheckBox TChecked="bool" Checked="@isSelected" CheckedChanged="@(v => ToggleChartDataSource(tag.Id, v))" Label="@tag.Name"></SfCheckBox>
+                                        </div>
+                                    }
+                                </div>
+                                break;
+                                
+                            case PanelType.Table:
+                                <div class="form-group">
+                                    <label>Tags</label>
+                                    @foreach (var tag in AvailableTags)
+                                    {
+                                        var isSelected = ConfiguringPanel.TableConfig?.TagIds?.Contains(tag.Id) ?? false;
+                                        <div class="tag-selector">
+                                            <SfCheckBox TChecked="bool" Checked="@isSelected" CheckedChanged="@(v => ToggleTableTag(tag.Id, v))" Label="@tag.Name"></SfCheckBox>
+                                        </div>
+                                    }
+                                </div>
+                                break;
+                        }
+                    </div>
+                }
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowPanelConfigDialog = false">Close</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- Delete Confirmation Dialog -->
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete this dashboard?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDeleteDashboard">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+@code {
+    [Parameter] public string? DashboardId { get; set; }
+    
+    private SfDashboardLayout? DashboardLayout;
+    private DashboardConfig CurrentDashboard = new();
+    private DashboardPanel? SelectedPanel;
+    private DashboardPanel? ConfiguringPanel;
+    private bool IsEditMode;
+    private bool IsFullscreen;
+    private bool ShowDeleteDialog;
+    private bool ShowAddPanelDialog;
+    private bool ShowPanelConfigDialog;
+    private string DeleteDashboardId = "";
+    private string SelectedTimeRange = "5m";
+    private PanelType NewPanelType = PanelType.Stat;
+    private string NewPanelTitle = "";
+    
+    private System.Timers.Timer? _refreshTimer;
+    
+    private List<TimeRangeOption> TimeRanges = new()
+    {
+        new() { Value = "1m", Label = "Last 1m" },
+        new() { Value = "5m", Label = "Last 5m" },
+        new() { Value = "15m", Label = "Last 15m" },
+        new() { Value = "30m", Label = "Last 30m" },
+        new() { Value = "1h", Label = "Last 1h" },
+        new() { Value = "6h", Label = "Last 6h" },
+        new() { Value = "24h", Label = "Last 24h" }
+    };
+    
+    private List<PanelTypeOption> PanelTypes = new()
+    {
+        new() { Value = PanelType.Stat, Label = "Single Stat" },
+        new() { Value = PanelType.Gauge, Label = "Gauge" },
+        new() { Value = PanelType.Chart, Label = "Chart" },
+        new() { Value = PanelType.Table, Label = "Table" }
+    };
+    
+    private List<TagOption> AvailableTags => ConfigService.GetAllTagsWithConnection()
+        .Select(t => new TagOption { Id = t.Tag.Id, Name = $"{t.Connection.Name}/{t.Tag.Name}" })
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(DashboardId))
+        {
+            if (DashboardId == "new")
+            {
+                CurrentDashboard = new DashboardConfig { Name = "New Dashboard" };
+                IsEditMode = true;
+            }
+            else
+            {
+                var dashboard = ConfigService.GetDashboard(DashboardId);
+                if (dashboard != null)
+                {
+                    CurrentDashboard = dashboard;
+                }
+            }
+            StartRefreshTimer();
+        }
+        else
+        {
+            StopRefreshTimer();
+        }
+    }
+
+    private void StartRefreshTimer()
+    {
+        StopRefreshTimer();
+        _refreshTimer = new System.Timers.Timer(CurrentDashboard.Settings.RefreshIntervalMs);
+        _refreshTimer.Elapsed += (s, e) => InvokeAsync(StateHasChanged);
+        _refreshTimer.Start();
+    }
+
+    private void StopRefreshTimer()
+    {
+        _refreshTimer?.Stop();
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+    }
+
+    private void HandleDataChanged() => InvokeAsync(StateHasChanged);
+
+    private void CreateNewDashboard() => Navigation.NavigateTo("/dashboards/new");
+    private void ViewDashboard(string id) => Navigation.NavigateTo($"/dashboards/{id}");
+    private void EditDashboard(string id) { Navigation.NavigateTo($"/dashboards/{id}"); IsEditMode = true; }
+    private void GoBack() => Navigation.NavigateTo("/dashboards");
+    
+    private void EnterEditMode() => IsEditMode = true;
+    private void ExitEditMode() => IsEditMode = false;
+    private void ToggleFullscreen() => IsFullscreen = !IsFullscreen;
+    private void RefreshData() => StateHasChanged();
+    
+    private void SelectPanel(DashboardPanel panel)
+    {
+        if (IsEditMode)
+            SelectedPanel = SelectedPanel?.Id == panel.Id ? null : panel;
+    }
+    
+    private void ShowAddPanel()
+    {
+        NewPanelType = PanelType.Stat;
+        NewPanelTitle = "";
+        ShowAddPanelDialog = true;
+    }
+    
+    private void AddPanel()
+    {
+        var panel = new DashboardPanel
+        {
+            Title = string.IsNullOrEmpty(NewPanelTitle) ? NewPanelType.ToString() : NewPanelTitle,
+            Type = NewPanelType,
+            GridX = 0,
+            GridY = CurrentDashboard.Panels.Count > 0 
+                ? CurrentDashboard.Panels.Max(p => p.GridY + p.GridHeight) 
+                : 0,
+            GridWidth = NewPanelType == PanelType.Table ? 12 : 4,
+            GridHeight = NewPanelType == PanelType.Chart ? 4 : 2
+        };
+        
+        // Initialize panel-specific config
+        switch (NewPanelType)
+        {
+            case PanelType.Stat:
+                panel.StatConfig = new StatPanelConfig();
+                break;
+            case PanelType.Gauge:
+                panel.GaugeConfig = new GaugePanelConfig();
+                break;
+            case PanelType.Chart:
+                panel.ChartConfig = new ChartPanelConfig();
+                break;
+            case PanelType.Table:
+                panel.TableConfig = new TablePanelConfig();
+                break;
+        }
+        
+        CurrentDashboard.Panels.Add(panel);
+        ShowAddPanelDialog = false;
+    }
+    
+    private void ConfigurePanel(DashboardPanel panel)
+    {
+        ConfiguringPanel = panel;
+        ShowPanelConfigDialog = true;
+    }
+    
+    private void RemovePanel(DashboardPanel panel)
+    {
+        CurrentDashboard.Panels.Remove(panel);
+        if (SelectedPanel?.Id == panel.Id)
+            SelectedPanel = null;
+    }
+
+    private async Task SaveDashboard()
+    {
+        // UpdatedAt is set in the service layer
+        if (DashboardId == "new")
+            await ConfigService.AddDashboardAsync(CurrentDashboard);
+        else
+            await ConfigService.UpdateDashboardAsync(CurrentDashboard);
+        
+        Navigation.NavigateTo("/dashboards");
+    }
+
+    private void ConfirmDeleteDashboard(string id)
+    {
+        DeleteDashboardId = id;
+        ShowDeleteDialog = true;
+    }
+
+    private async Task ExecuteDeleteDashboard()
+    {
+        await ConfigService.DeleteDashboardAsync(DeleteDashboardId);
+        ShowDeleteDialog = false;
+    }
+
+    // Panel config helpers
+    private void SetStatTag(string tagId)
+    {
+        if (ConfiguringPanel?.StatConfig != null)
+            ConfiguringPanel.StatConfig.TagId = tagId;
+    }
+    private void SetStatUnit(string unit)
+    {
+        if (ConfiguringPanel?.StatConfig != null)
+            ConfiguringPanel.StatConfig.Unit = unit;
+    }
+    private void SetStatDecimals(int decimals)
+    {
+        if (ConfiguringPanel?.StatConfig != null)
+            ConfiguringPanel.StatConfig.Decimals = decimals;
+    }
+    private void SetStatSparkline(bool show)
+    {
+        if (ConfiguringPanel?.StatConfig != null)
+            ConfiguringPanel.StatConfig.ShowSparkline = show;
+    }
+    private void SetGaugeTag(string tagId)
+    {
+        if (ConfiguringPanel?.GaugeConfig != null)
+            ConfiguringPanel.GaugeConfig.TagId = tagId;
+    }
+    private void SetGaugeMin(double min)
+    {
+        if (ConfiguringPanel?.GaugeConfig != null)
+            ConfiguringPanel.GaugeConfig.MinValue = min;
+    }
+    private void SetGaugeMax(double max)
+    {
+        if (ConfiguringPanel?.GaugeConfig != null)
+            ConfiguringPanel.GaugeConfig.MaxValue = max;
+    }
+    private void ToggleChartDataSource(string tagId, bool include)
+    {
+        if (ConfiguringPanel?.ChartConfig == null) return;
+        ConfiguringPanel.ChartConfig.DataSources ??= new();
+        if (include)
+        {
+            if (!ConfiguringPanel.ChartConfig.DataSources.Any(d => d.TagId == tagId))
+            {
+                var tag = AvailableTags.FirstOrDefault(t => t.Id == tagId);
+                var colors = new[] { "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6" };
+                ConfiguringPanel.ChartConfig.DataSources.Add(new PanelDataSource
+                {
+                    TagId = tagId,
+                    DisplayName = tag?.Name ?? tagId,
+                    Color = colors[ConfiguringPanel.ChartConfig.DataSources.Count % colors.Length]
+                });
+            }
+        }
+        else
+        {
+            ConfiguringPanel.ChartConfig.DataSources.RemoveAll(d => d.TagId == tagId);
+        }
+    }
+    private void ToggleTableTag(string tagId, bool include)
+    {
+        if (ConfiguringPanel?.TableConfig == null) return;
+        ConfiguringPanel.TableConfig.TagIds ??= new();
+        if (include)
+        {
+            if (!ConfiguringPanel.TableConfig.TagIds.Contains(tagId))
+                ConfiguringPanel.TableConfig.TagIds.Add(tagId);
+        }
+        else
+        {
+            ConfiguringPanel.TableConfig.TagIds.Remove(tagId);
+        }
+    }
+
+    // Panel rendering
+    private RenderFragment RenderPanel(DashboardPanel panel) => builder =>
+    {
+        switch (panel.Type)
+        {
+            case PanelType.Stat:
+                RenderStatPanel(builder, panel);
+                break;
+            case PanelType.Gauge:
+                RenderGaugePanel(builder, panel);
+                break;
+            case PanelType.Chart:
+                RenderChartPanel(builder, panel);
+                break;
+            case PanelType.Table:
+                RenderTablePanel(builder, panel);
+                break;
+        }
+    };
+
+    private void RenderStatPanel(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DashboardPanel panel)
+    {
+        var config = panel.StatConfig;
+        if (config == null) return;
+        
+        var tagValue = RealtimeData.GetTagValue(config.TagId);
+        var value = tagValue?.NumericValue ?? 0;
+        var color = GetThresholdColor(config.Thresholds, value);
+        
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "stat-panel");
+        
+        if (!string.IsNullOrEmpty(config.Icon))
+        {
+            builder.OpenElement(2, "i");
+            builder.AddAttribute(3, "class", $"{config.Icon} stat-icon");
+            builder.AddAttribute(4, "style", $"color: {color}");
+            builder.CloseElement();
+        }
+        
+        builder.OpenElement(5, "div");
+        builder.AddAttribute(6, "class", "stat-value");
+        builder.AddAttribute(7, "style", $"color: {color}");
+        builder.AddContent(8, value.ToString($"F{config.Decimals}"));
+        builder.CloseElement();
+        
+        if (!string.IsNullOrEmpty(config.Unit))
+        {
+            builder.OpenElement(9, "div");
+            builder.AddAttribute(10, "class", "stat-unit");
+            builder.AddContent(11, config.Unit);
+            builder.CloseElement();
+        }
+        
+        builder.CloseElement();
+    }
+
+    private void RenderGaugePanel(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DashboardPanel panel)
+    {
+        var config = panel.GaugeConfig;
+        if (config == null) return;
+        
+        var tagValue = RealtimeData.GetTagValue(config.TagId);
+        var value = tagValue?.NumericValue ?? 0;
+        var percent = Math.Clamp((value - config.MinValue) / (config.MaxValue - config.MinValue) * 100, 0, 100);
+        var color = GetThresholdColor(config.Thresholds, value);
+        
+        // Simple SVG-based gauge
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "gauge-panel");
+        
+        // SVG Arc Gauge
+        builder.OpenElement(2, "svg");
+        builder.AddAttribute(3, "viewBox", "0 0 100 60");
+        builder.AddAttribute(4, "class", "gauge-svg");
+        
+        // Background arc
+        builder.OpenElement(5, "path");
+        builder.AddAttribute(6, "d", "M 10 50 A 40 40 0 0 1 90 50");
+        builder.AddAttribute(7, "fill", "none");
+        builder.AddAttribute(8, "stroke", "#374151");
+        builder.AddAttribute(9, "stroke-width", "8");
+        builder.AddAttribute(10, "stroke-linecap", "round");
+        builder.CloseElement();
+        
+        // Value arc
+        var angle = percent * 1.8; // 180 degrees = 100%
+        var radians = (180 - angle) * Math.PI / 180;
+        var endX = 50 + 40 * Math.Cos(radians);
+        var endY = 50 - 40 * Math.Sin(radians);
+        var largeArc = angle > 90 ? 1 : 0;
+        var pathD = $"M 10 50 A 40 40 0 {largeArc} 1 {endX:F1} {endY:F1}";
+        
+        builder.OpenElement(11, "path");
+        builder.AddAttribute(12, "d", pathD);
+        builder.AddAttribute(13, "fill", "none");
+        builder.AddAttribute(14, "stroke", color);
+        builder.AddAttribute(15, "stroke-width", "8");
+        builder.AddAttribute(16, "stroke-linecap", "round");
+        builder.CloseElement();
+        
+        builder.CloseElement(); // svg
+        
+        // Value display
+        builder.OpenElement(17, "div");
+        builder.AddAttribute(18, "class", "gauge-value");
+        builder.AddAttribute(19, "style", $"color: {color}");
+        var format = $"F{config.Decimals}";
+        builder.AddContent(20, $"{value.ToString(format)}{config.Unit}");
+        builder.CloseElement();
+        
+        // Min/Max labels
+        builder.OpenElement(21, "div");
+        builder.AddAttribute(22, "class", "gauge-labels");
+        builder.OpenElement(23, "span");
+        builder.AddContent(24, config.MinValue.ToString());
+        builder.CloseElement();
+        builder.OpenElement(25, "span");
+        builder.AddContent(26, config.MaxValue.ToString());
+        builder.CloseElement();
+        builder.CloseElement();
+        
+        builder.CloseElement(); // div.gauge-panel
+    }
+
+    private void RenderChartPanel(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DashboardPanel panel)
+    {
+        var config = panel.ChartConfig;
+        if (config?.DataSources == null || !config.DataSources.Any()) 
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "empty-panel");
+            builder.AddContent(2, "No data sources configured");
+            builder.CloseElement();
+            return;
+        }
+        
+        builder.OpenComponent<SfChart>(0);
+        builder.AddAttribute(1, "Theme", Syncfusion.Blazor.Theme.TailwindDark);
+        builder.AddAttribute(2, "Height", "100%");
+        builder.AddAttribute(3, "ChildContent", (RenderFragment)(chartBuilder =>
+        {
+            chartBuilder.OpenComponent<ChartPrimaryXAxis>(0);
+            chartBuilder.AddAttribute(1, "ValueType", Syncfusion.Blazor.Charts.ValueType.DateTime);
+            chartBuilder.AddAttribute(2, "LabelFormat", "HH:mm:ss");
+            chartBuilder.CloseComponent();
+            
+            chartBuilder.OpenComponent<ChartSeriesCollection>(0);
+            chartBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(seriesCollBuilder =>
+            {
+                foreach (var ds in config.DataSources)
+                {
+                    var data = GetChartData(ds.TagId);
+                    seriesCollBuilder.OpenComponent<Syncfusion.Blazor.Charts.ChartSeries>(0);
+                    seriesCollBuilder.AddAttribute(1, "DataSource", data);
+                    seriesCollBuilder.AddAttribute(2, "XName", "Timestamp");
+                    seriesCollBuilder.AddAttribute(3, "YName", "Value");
+                    seriesCollBuilder.AddAttribute(4, "Name", ds.DisplayName);
+                    seriesCollBuilder.AddAttribute(5, "Type", ChartSeriesType.Line);
+                    seriesCollBuilder.AddAttribute(6, "Fill", ds.Color);
+                    seriesCollBuilder.AddAttribute(7, "Width", ds.LineWidth);
+                    seriesCollBuilder.CloseComponent();
+                }
+            }));
+            chartBuilder.CloseComponent();
+            
+            chartBuilder.OpenComponent<ChartLegendSettings>(0);
+            chartBuilder.AddAttribute(1, "Visible", config.ShowLegend);
+            chartBuilder.CloseComponent();
+            
+            chartBuilder.OpenComponent<ChartTooltipSettings>(0);
+            chartBuilder.AddAttribute(1, "Enable", true);
+            chartBuilder.CloseComponent();
+        }));
+        builder.CloseComponent();
+    }
+
+    private void RenderTablePanel(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DashboardPanel panel)
+    {
+        var config = panel.TableConfig;
+        if (config?.TagIds == null || !config.TagIds.Any())
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "empty-panel");
+            builder.AddContent(2, "No tags configured");
+            builder.CloseElement();
+            return;
+        }
+        
+        var data = config.TagIds
+            .Select(id => RealtimeData.GetTagValue(id))
+            .Where(v => v != null)
+            .Take(config.MaxRows)
+            .ToList();
+        
+        builder.OpenComponent<SfGrid<DataForeman.App.Services.TagValueCache>>(0);
+        builder.AddAttribute(1, "DataSource", data);
+        builder.AddAttribute(2, "ChildContent", (RenderFragment)(gridBuilder =>
+        {
+            gridBuilder.OpenComponent<GridColumns>(0);
+            gridBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(colsBuilder =>
+            {
+                colsBuilder.OpenComponent<GridColumn>(0);
+                colsBuilder.AddAttribute(1, "Field", "TagName");
+                colsBuilder.AddAttribute(2, "HeaderText", "Tag");
+                colsBuilder.CloseComponent();
+                
+                colsBuilder.OpenComponent<GridColumn>(0);
+                colsBuilder.AddAttribute(1, "Field", "FormattedValue");
+                colsBuilder.AddAttribute(2, "HeaderText", "Value");
+                colsBuilder.CloseComponent();
+                
+                if (config.ShowTimestamp)
+                {
+                    colsBuilder.OpenComponent<GridColumn>(0);
+                    colsBuilder.AddAttribute(1, "Field", "Timestamp");
+                    colsBuilder.AddAttribute(2, "HeaderText", "Timestamp");
+                    colsBuilder.AddAttribute(3, "Format", "HH:mm:ss.fff");
+                    colsBuilder.CloseComponent();
+                }
+                
+                if (config.ShowQuality)
+                {
+                    colsBuilder.OpenComponent<GridColumn>(0);
+                    colsBuilder.AddAttribute(1, "Field", "QualityText");
+                    colsBuilder.AddAttribute(2, "HeaderText", "Quality");
+                    colsBuilder.CloseComponent();
+                }
+            }));
+            gridBuilder.CloseComponent();
+        }));
+        builder.CloseComponent();
+    }
+
+    private string GetThresholdColor(List<GaugeThreshold>? thresholds, double value)
+    {
+        if (thresholds == null || !thresholds.Any())
+            return "#3b82f6";
+        
+        var sorted = thresholds.OrderByDescending(t => t.Value).ToList();
+        foreach (var threshold in sorted)
+        {
+            if (value >= threshold.Value)
+                return threshold.Color;
+        }
+        return sorted.Last().Color;
+    }
+
+    private List<ChartDataPoint> GetChartData(string tagId)
+    {
+        var history = RealtimeData.GetTagHistoryForChart(tagId, GetTimeWindowSeconds());
+        return history.Select(v => new ChartDataPoint
+        {
+            Timestamp = v.Timestamp,
+            Value = v.NumericValue ?? 0
+        }).ToList();
+    }
+
+    private int GetTimeWindowSeconds() => SelectedTimeRange switch
+    {
+        "1m" => 60,
+        "5m" => 300,
+        "15m" => 900,
+        "30m" => 1800,
+        "1h" => 3600,
+        "6h" => 21600,
+        "24h" => 86400,
+        _ => 300
+    };
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+        StopRefreshTimer();
+    }
+
+    public class TimeRangeOption { public string Value { get; set; } = ""; public string Label { get; set; } = ""; }
+    public class PanelTypeOption { public PanelType Value { get; set; } public string Label { get; set; } = ""; }
+    public class TagOption { public string Id { get; set; } = ""; public string Name { get; set; } = ""; }
+    public class ChartDataPoint { public DateTime Timestamp { get; set; } public double Value { get; set; } }
+}

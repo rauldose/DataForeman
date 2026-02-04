@@ -1,0 +1,536 @@
+@page "/charts"
+@page "/charts/{ChartId}"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject RealtimeDataService RealtimeData
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>Charts - DataForeman</PageTitle>
+
+<div class="page-container">
+    @if (string.IsNullOrEmpty(ChartId))
+    {
+        <!-- Chart List View -->
+        <div class="page-toolbar">
+            <h2><i class="fa-solid fa-chart-line"></i> Charts</h2>
+            <div class="toolbar-actions">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewChart">New Chart</SfButton>
+            </div>
+        </div>
+        
+        @if (!ConfigService.Charts.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-chart-area"></i>
+                <span>No charts configured</span>
+                <SfButton CssClass="e-primary e-small" @onclick="CreateNewChart">Create your first chart</SfButton>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@ChartsList" AllowPaging="true">
+                <GridPageSettings PageSize="10"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn Field="@nameof(ChartDisplay.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(ChartDisplay.ChartType)" HeaderText="Type" Width="100"></GridColumn>
+                    <GridColumn Field="@nameof(ChartDisplay.SeriesCount)" HeaderText="Series" Width="80"></GridColumn>
+                    <GridColumn Field="@nameof(ChartDisplay.AxisCount)" HeaderText="Axes" Width="80"></GridColumn>
+                    <GridColumn Field="@nameof(ChartDisplay.Mode)" HeaderText="Mode" Width="100"></GridColumn>
+                    <GridColumn HeaderText="Actions" Width="120">
+                        <Template>
+                            @{
+                                var item = (context as ChartDisplay);
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditChart(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-expand" @onclick="() => ViewChart(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
+                                </div>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        }
+    }
+    else
+    {
+        <!-- Chart Editor View -->
+        <div class="chart-editor">
+            <div class="editor-toolbar">
+                <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentChart.Name" Placeholder="Chart Name" CssClass="chart-name-input"></SfTextBox>
+                <div class="toolbar-spacer"></div>
+                
+                <!-- Mode Toggle -->
+                <div class="mode-toggle">
+                    <SfButton CssClass="@(CurrentChart.Settings.Mode == TrendingMode.Realtime ? "e-primary" : "e-flat")" 
+                              IconCss="fa-solid fa-bolt" Content="Realtime" 
+                              @onclick="() => SetMode(TrendingMode.Realtime)"></SfButton>
+                    <SfButton CssClass="@(CurrentChart.Settings.Mode == TrendingMode.Historical ? "e-primary" : "e-flat")" 
+                              IconCss="fa-solid fa-clock-rotate-left" Content="Historical" 
+                              @onclick="() => SetMode(TrendingMode.Historical)"></SfButton>
+                </div>
+                
+                <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
+            </div>
+            
+            <div class="editor-content">
+                <!-- Left Sidebar - Tags & Axes -->
+                <div class="editor-sidebar">
+                    <SfAccordion>
+                        <AccordionItems>
+                            <AccordionItem Expanded="true">
+                                <HeaderTemplate>
+                                    <div class="panel-header"><i class="fa-solid fa-tags"></i> Available Tags</div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <SfTextBox @bind-Value="TagSearchQuery" Placeholder="Search tags..." CssClass="search-box"></SfTextBox>
+                                    <div class="tag-list">
+                                        @foreach (var tag in FilteredTags)
+                                        {
+                                            <div class="tag-item" @onclick="() => AddTagToChart(tag)">
+                                                <i class="fa-solid fa-tag"></i>
+                                                <span class="tag-name">@tag.Name</span>
+                                                <i class="fa-solid fa-plus add-icon"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                </ContentTemplate>
+                            </AccordionItem>
+                            <AccordionItem Expanded="true">
+                                <HeaderTemplate>
+                                    <div class="panel-header"><i class="fa-solid fa-ruler-vertical"></i> Y-Axes (@CurrentChart.YAxes.Count)</div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <SfButton CssClass="e-small e-outline" IconCss="fa-solid fa-plus" @onclick="AddAxis">Add Axis</SfButton>
+                                    <div class="axis-list">
+                                        @foreach (var axis in CurrentChart.YAxes)
+                                        {
+                                            <div class="axis-item" @onclick="() => SelectAxis(axis)">
+                                                <div class="axis-color" style="background-color: @axis.Color"></div>
+                                                <span class="axis-name">@axis.Name</span>
+                                                <span class="axis-position">@axis.Position</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </ContentTemplate>
+                            </AccordionItem>
+                        </AccordionItems>
+                    </SfAccordion>
+                </div>
+                
+                <!-- Chart Area -->
+                <div class="chart-area">
+                    @if (CurrentChart.Settings.Mode == TrendingMode.Historical)
+                    {
+                        <div class="time-range-bar">
+                            <SfDateTimePicker TValue="DateTime?" @bind-Value="CurrentChart.Settings.HistoricalStartTime" Placeholder="Start Time"></SfDateTimePicker>
+                            <span class="range-separator">to</span>
+                            <SfDateTimePicker TValue="DateTime?" @bind-Value="CurrentChart.Settings.HistoricalEndTime" Placeholder="End Time"></SfDateTimePicker>
+                            <SfButton CssClass="e-primary e-small" IconCss="fa-solid fa-magnifying-glass" @onclick="LoadHistoricalData">Load</SfButton>
+                            <div class="quick-ranges">
+                                <SfButton CssClass="e-flat e-small" @onclick="() => SetTimeRange(TimeSpan.FromHours(1))">1h</SfButton>
+                                <SfButton CssClass="e-flat e-small" @onclick="() => SetTimeRange(TimeSpan.FromHours(6))">6h</SfButton>
+                                <SfButton CssClass="e-flat e-small" @onclick="() => SetTimeRange(TimeSpan.FromDays(1))">24h</SfButton>
+                                <SfButton CssClass="e-flat e-small" @onclick="() => SetTimeRange(TimeSpan.FromDays(7))">7d</SfButton>
+                            </div>
+                        </div>
+                    }
+                    
+                    <SfChart Theme="Syncfusion.Blazor.Theme.TailwindDark" Height="100%">
+                        <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
+                            <ChartAxisMajorGridLines Width="0.5" Color="#374151"></ChartAxisMajorGridLines>
+                        </ChartPrimaryXAxis>
+                        
+                        <!-- Dynamic Y-Axes -->
+                        <ChartAxes>
+                            @foreach (var axis in CurrentChart.YAxes)
+                            {
+                                <Syncfusion.Blazor.Charts.ChartAxis Name="@axis.Id" 
+                                           OpposedPosition="@(axis.Position == "Right")"
+                                           LabelFormat="@axis.LabelFormat"
+                                           Minimum="@axis.Minimum"
+                                           Maximum="@axis.Maximum">
+                                    <ChartAxisLineStyle Color="@axis.Color" Width="2"></ChartAxisLineStyle>
+                                    <ChartAxisLabelStyle Color="@axis.Color"></ChartAxisLabelStyle>
+                                    <ChartAxisMajorGridLines Width="0.3" Color="#374151"></ChartAxisMajorGridLines>
+                                </Syncfusion.Blazor.Charts.ChartAxis>
+                            }
+                        </ChartAxes>
+                        
+                        <!-- Series -->
+                        <ChartSeriesCollection>
+                            @foreach (var series in CurrentChart.Series.Where(s => s.Visible))
+                            {
+                                var data = GetSeriesData(series.TagId);
+                                <Syncfusion.Blazor.Charts.ChartSeries DataSource="@data" 
+                                             XName="Timestamp" 
+                                             YName="Value" 
+                                             Name="@series.DisplayName"
+                                             Type="ChartSeriesType.Line"
+                                             YAxisName="@series.YAxisId"
+                                             Fill="@series.Color"
+                                             Width="@series.LineWidth">
+                                </Syncfusion.Blazor.Charts.ChartSeries>
+                            }
+                        </ChartSeriesCollection>
+                        
+                        <ChartLegendSettings Visible="@CurrentChart.Settings.ShowLegend" Position="@GetLegendPosition()"></ChartLegendSettings>
+                        <ChartZoomSettings EnableSelectionZooming="@CurrentChart.Settings.EnableZoom" EnablePinchZooming="true" EnableMouseWheelZooming="true"></ChartZoomSettings>
+                        <ChartTooltipSettings Enable="true"></ChartTooltipSettings>
+                    </SfChart>
+                </div>
+                
+                <!-- Right Sidebar - Series Config -->
+                <div class="config-sidebar">
+                    <SfAccordion>
+                        <AccordionItems>
+                            <AccordionItem Expanded="true">
+                                <HeaderTemplate>
+                                    <div class="panel-header"><i class="fa-solid fa-layer-group"></i> Series (@CurrentChart.Series.Count)</div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    @foreach (var series in CurrentChart.Series)
+                                    {
+                                        <div class="series-card @(SelectedSeries?.Id == series.Id ? "selected" : "")" @onclick="() => SelectSeries(series)">
+                                            <div class="series-header">
+                                                <div class="series-color" style="background-color: @series.Color"></div>
+                                                <span class="series-name">@series.DisplayName</span>
+                                                <SfCheckBox TChecked="bool" @bind-Checked="series.Visible" CssClass="e-small"></SfCheckBox>
+                                            </div>
+                                            @if (SelectedSeries?.Id == series.Id)
+                                            {
+                                                <div class="series-config">
+                                                    <div class="config-row">
+                                                        <label>Color</label>
+                                                        <SfColorPicker @bind-Value="series.Color" Mode="ColorPickerMode.Palette"></SfColorPicker>
+                                                    </div>
+                                                    <div class="config-row">
+                                                        <label>Y-Axis</label>
+                                                        <SfDropDownList TItem="ChartAxisConfig" TValue="string" DataSource="@CurrentChart.YAxes" @bind-Value="series.YAxisId">
+                                                            <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                                                        </SfDropDownList>
+                                                    </div>
+                                                    <div class="config-row">
+                                                        <label>Line Width</label>
+                                                        <SfNumericTextBox TValue="double" @bind-Value="series.LineWidth" Min="1" Max="5" Step="0.5"></SfNumericTextBox>
+                                                    </div>
+                                                    <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="() => RemoveSeries(series)">Remove</SfButton>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </ContentTemplate>
+                            </AccordionItem>
+                            @if (SelectedAxis != null)
+                            {
+                                <AccordionItem Expanded="true">
+                                    <HeaderTemplate>
+                                        <div class="panel-header"><i class="fa-solid fa-sliders"></i> Axis: @SelectedAxis.Name</div>
+                                    </HeaderTemplate>
+                                    <ContentTemplate>
+                                        <div class="axis-config">
+                                            <div class="config-row">
+                                                <label>Name</label>
+                                                <SfTextBox @bind-Value="SelectedAxis.Name"></SfTextBox>
+                                            </div>
+                                            <div class="config-row">
+                                                <label>Position</label>
+                                                <SfDropDownList TItem="string" TValue="string" DataSource="@AxisPositions" @bind-Value="SelectedAxis.Position"></SfDropDownList>
+                                            </div>
+                                            <div class="config-row">
+                                                <label>Color</label>
+                                                <SfColorPicker @bind-Value="SelectedAxis.Color" Mode="ColorPickerMode.Palette"></SfColorPicker>
+                                            </div>
+                                            <div class="config-row">
+                                                <SfCheckBox TChecked="bool" @bind-Checked="SelectedAxis.AutoScale" Label="Auto Scale"></SfCheckBox>
+                                            </div>
+                                            @if (!SelectedAxis.AutoScale)
+                                            {
+                                                <div class="config-row">
+                                                    <label>Min</label>
+                                                    <SfNumericTextBox TValue="double?" @bind-Value="SelectedAxis.Minimum"></SfNumericTextBox>
+                                                </div>
+                                                <div class="config-row">
+                                                    <label>Max</label>
+                                                    <SfNumericTextBox TValue="double?" @bind-Value="SelectedAxis.Maximum"></SfNumericTextBox>
+                                                </div>
+                                            }
+                                            <div class="config-row">
+                                                <label>Unit</label>
+                                                <SfTextBox @bind-Value="SelectedAxis.Unit" Placeholder="e.g. °C, bar"></SfTextBox>
+                                            </div>
+                                            <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="RemoveAxis">Remove Axis</SfButton>
+                                        </div>
+                                    </ContentTemplate>
+                                </AccordionItem>
+                            }
+                        </AccordionItems>
+                    </SfAccordion>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Delete Confirmation Dialog -->
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete this chart?</p>
+                <p class="text-muted">This action cannot be undone.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDeleteChart">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+@code {
+    [Parameter] public string? ChartId { get; set; }
+    
+    private ChartConfig CurrentChart = new();
+    private ChartSeriesConfig? SelectedSeries;
+    private ChartAxisConfig? SelectedAxis;
+    private string TagSearchQuery = "";
+    private bool ShowDeleteDialog;
+    private string DeleteChartId = "";
+    private System.Timers.Timer? _refreshTimer;
+    
+    private List<string> AxisPositions = new() { "Left", "Right" };
+    
+    private List<ChartDisplay> ChartsList => ConfigService.Charts.Select(c => new ChartDisplay
+    {
+        Id = c.Id,
+        Name = c.Name,
+        ChartType = c.ChartType,
+        SeriesCount = c.Series.Count,
+        AxisCount = c.YAxes.Count,
+        Mode = c.Settings.Mode.ToString()
+    }).ToList();
+    
+    private IEnumerable<TagConfig> FilteredTags
+    {
+        get
+        {
+            var allTags = ConfigService.GetAllTagsWithConnection().Select(t => t.Tag);
+            if (string.IsNullOrEmpty(TagSearchQuery))
+                return allTags;
+            return allTags.Where(t => t.Name.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(ChartId))
+        {
+            var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == ChartId);
+            if (chart != null)
+            {
+                CurrentChart = chart;
+                // Ensure at least one Y-axis exists
+                if (!CurrentChart.YAxes.Any())
+                {
+                    CurrentChart.YAxes.Add(new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" });
+                }
+            }
+            else if (ChartId == "new")
+            {
+                CurrentChart = new ChartConfig 
+                { 
+                    Name = "New Chart",
+                    YAxes = new List<ChartAxisConfig> { new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" } }
+                };
+            }
+            
+            // Start refresh timer for realtime mode
+            if (CurrentChart.Settings.Mode == TrendingMode.Realtime)
+            {
+                StartRefreshTimer();
+            }
+        }
+        else
+        {
+            StopRefreshTimer();
+        }
+    }
+
+    private void StartRefreshTimer()
+    {
+        StopRefreshTimer();
+        _refreshTimer = new System.Timers.Timer(CurrentChart.Settings.RefreshIntervalMs);
+        _refreshTimer.Elapsed += (s, e) => InvokeAsync(StateHasChanged);
+        _refreshTimer.Start();
+    }
+
+    private void StopRefreshTimer()
+    {
+        _refreshTimer?.Stop();
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+    }
+
+    private void HandleDataChanged()
+    {
+        if (CurrentChart.Settings.Mode == TrendingMode.Realtime)
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CreateNewChart() => Navigation.NavigateTo("/charts/new");
+    private void EditChart(string id) => Navigation.NavigateTo($"/charts/{id}");
+    private void ViewChart(string id) => Navigation.NavigateTo($"/charts/{id}");
+    private void GoBack() => Navigation.NavigateTo("/charts");
+
+    private void SetMode(TrendingMode mode)
+    {
+        CurrentChart.Settings.Mode = mode;
+        if (mode == TrendingMode.Realtime)
+            StartRefreshTimer();
+        else
+            StopRefreshTimer();
+    }
+
+    private void SetTimeRange(TimeSpan range)
+    {
+        CurrentChart.Settings.HistoricalEndTime = DateTime.Now;
+        CurrentChart.Settings.HistoricalStartTime = DateTime.Now - range;
+    }
+
+    private void LoadHistoricalData() => StateHasChanged();
+
+    private void AddTagToChart(TagConfig tag)
+    {
+        if (CurrentChart.Series.Any(s => s.TagId == tag.Id)) return;
+        
+        var colors = new[] { "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16" };
+        var colorIndex = CurrentChart.Series.Count % colors.Length;
+        
+        CurrentChart.Series.Add(new ChartSeriesConfig
+        {
+            TagId = tag.Id,
+            DisplayName = tag.Name,
+            Color = colors[colorIndex],
+            YAxisId = CurrentChart.YAxes.FirstOrDefault()?.Id
+        });
+    }
+
+    private void AddAxis()
+    {
+        var colors = new[] { "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6" };
+        var colorIndex = CurrentChart.YAxes.Count % colors.Length;
+        var position = CurrentChart.YAxes.Count % 2 == 0 ? "Left" : "Right";
+        
+        CurrentChart.YAxes.Add(new ChartAxisConfig
+        {
+            Name = $"Axis {CurrentChart.YAxes.Count + 1}",
+            Position = position,
+            Color = colors[colorIndex]
+        });
+    }
+
+    private void SelectAxis(ChartAxisConfig axis) => SelectedAxis = axis;
+    private void SelectSeries(ChartSeriesConfig series) => SelectedSeries = SelectedSeries?.Id == series.Id ? null : series;
+
+    private void RemoveAxis()
+    {
+        if (SelectedAxis != null && CurrentChart.YAxes.Count > 1)
+        {
+            var defaultAxisId = CurrentChart.YAxes.First(a => a.Id != SelectedAxis.Id).Id;
+            foreach (var series in CurrentChart.Series.Where(s => s.YAxisId == SelectedAxis.Id))
+            {
+                series.YAxisId = defaultAxisId;
+            }
+            CurrentChart.YAxes.Remove(SelectedAxis);
+            SelectedAxis = null;
+        }
+    }
+
+    private void RemoveSeries(ChartSeriesConfig series)
+    {
+        CurrentChart.Series.Remove(series);
+        if (SelectedSeries?.Id == series.Id)
+            SelectedSeries = null;
+    }
+
+    private async Task SaveChart()
+    {
+        CurrentChart.UpdatedAt = DateTime.UtcNow;
+        
+        if (ChartId == "new")
+            await ConfigService.AddChartAsync(CurrentChart);
+        else
+            await ConfigService.UpdateChartAsync(CurrentChart);
+        
+        Navigation.NavigateTo("/charts");
+    }
+
+    private void ConfirmDeleteChart(string id)
+    {
+        DeleteChartId = id;
+        ShowDeleteDialog = true;
+    }
+
+    private async Task ExecuteDeleteChart()
+    {
+        await ConfigService.DeleteChartAsync(DeleteChartId);
+        ShowDeleteDialog = false;
+    }
+
+    private List<ChartDataPoint> GetSeriesData(string tagId)
+    {
+        if (CurrentChart.Settings.Mode == TrendingMode.Realtime)
+        {
+            var history = RealtimeData.GetTagHistoryForChart(tagId, CurrentChart.Settings.RealtimeWindowSeconds);
+            return history.Select(v => new ChartDataPoint
+            {
+                Timestamp = v.Timestamp,
+                Value = v.NumericValue ?? 0
+            }).ToList();
+        }
+        return new List<ChartDataPoint>();
+    }
+
+    private LegendPosition GetLegendPosition() => CurrentChart.Settings.LegendPosition switch
+    {
+        "Top" => LegendPosition.Top,
+        "Left" => LegendPosition.Left,
+        "Right" => LegendPosition.Right,
+        _ => LegendPosition.Bottom
+    };
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+        StopRefreshTimer();
+    }
+
+    public class ChartDisplay 
+    { 
+        public string Id { get; set; } = ""; 
+        public string Name { get; set; } = ""; 
+        public string ChartType { get; set; } = ""; 
+        public int SeriesCount { get; set; } 
+        public int AxisCount { get; set; } 
+        public string Mode { get; set; } = ""; 
+    }
+    
+    public class ChartDataPoint 
+    { 
+        public DateTime Timestamp { get; set; } 
+        public double Value { get; set; } 
+    }
+}

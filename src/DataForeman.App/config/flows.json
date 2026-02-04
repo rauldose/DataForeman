@@ -1,0 +1,299 @@
+{
+  "flows": [
+    {
+      "id": "flow-temp-alarm",
+      "name": "Temperature Alarm",
+      "description": "Monitors temperature and triggers alarm when exceeds threshold",
+      "enabled": true,
+      "scanRateMs": 500,
+      "nodes": [
+        {
+          "id": "node-temp-input",
+          "type": "TagInput",
+          "label": "Temperature",
+          "x": 100,
+          "y": 150,
+          "properties": {
+            "tagId": "sim-temp-1",
+            "tagName": "Temperature_001"
+          }
+        },
+        {
+          "id": "node-compare",
+          "type": "Compare",
+          "label": "Check > 30°C",
+          "x": 300,
+          "y": 150,
+          "properties": {
+            "operator": ">",
+            "compareValue": 30
+          }
+        },
+        {
+          "id": "node-debug",
+          "type": "Debug",
+          "label": "Debug Output",
+          "x": 500,
+          "y": 150,
+          "properties": {
+            "showTimestamp": true,
+            "outputFormat": "json"
+          }
+        },
+        {
+          "id": "node-notify",
+          "type": "Notification",
+          "label": "High Temp Alert",
+          "x": 500,
+          "y": 280,
+          "properties": {
+            "title": "Temperature Alert",
+            "message": "Temperature exceeds 30°C threshold",
+            "severity": "warning"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-1",
+          "sourceNodeId": "node-temp-input",
+          "sourcePortId": "output",
+          "targetNodeId": "node-compare",
+          "targetPortId": "input"
+        },
+        {
+          "id": "edge-2",
+          "sourceNodeId": "node-compare",
+          "sourcePortId": "true",
+          "targetNodeId": "node-debug",
+          "targetPortId": "input"
+        },
+        {
+          "id": "edge-3",
+          "sourceNodeId": "node-compare",
+          "sourcePortId": "true",
+          "targetNodeId": "node-notify",
+          "targetPortId": "input"
+        }
+      ],
+      "createdAt": "2026-02-03T22:00:00Z",
+      "updatedAt": "2026-02-03T22:00:00Z"
+    },
+    {
+      "id": "flow-data-calc",
+      "name": "Data Calculation",
+      "description": "Performs calculations on sensor data and outputs results",
+      "enabled": true,
+      "scanRateMs": 1000,
+      "nodes": [
+        {
+          "id": "node-level-input",
+          "type": "TagInput",
+          "label": "Tank Level",
+          "x": 100,
+          "y": 100,
+          "properties": {
+            "tagId": "sim-level-1",
+            "tagName": "Level_001"
+          }
+        },
+        {
+          "id": "node-flow-input",
+          "type": "TagInput",
+          "label": "Flow Rate",
+          "x": 100,
+          "y": 250,
+          "properties": {
+            "tagId": "sim-flow-1",
+            "tagName": "Flow_001"
+          }
+        },
+        {
+          "id": "node-scale",
+          "type": "Scale",
+          "label": "Scale 0-100",
+          "x": 300,
+          "y": 100,
+          "properties": {
+            "inputMin": 0,
+            "inputMax": 100,
+            "outputMin": 0,
+            "outputMax": 1000
+          }
+        },
+        {
+          "id": "node-multiply",
+          "type": "Multiply",
+          "label": "Calculate Volume",
+          "x": 500,
+          "y": 175,
+          "properties": {}
+        },
+        {
+          "id": "node-smooth",
+          "type": "Smooth",
+          "label": "Smooth Value",
+          "x": 700,
+          "y": 175,
+          "properties": {
+            "sampleCount": 10,
+            "algorithm": "MovingAverage"
+          }
+        },
+        {
+          "id": "node-debug-calc",
+          "type": "Debug",
+          "label": "Output",
+          "x": 900,
+          "y": 175,
+          "properties": {
+            "showTimestamp": true,
+            "outputFormat": "value"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-calc-1",
+          "sourceNodeId": "node-level-input",
+          "sourcePortId": "output",
+          "targetNodeId": "node-scale",
+          "targetPortId": "input"
+        },
+        {
+          "id": "edge-calc-2",
+          "sourceNodeId": "node-scale",
+          "sourcePortId": "output",
+          "targetNodeId": "node-multiply",
+          "targetPortId": "input1"
+        },
+        {
+          "id": "edge-calc-3",
+          "sourceNodeId": "node-flow-input",
+          "sourcePortId": "output",
+          "targetNodeId": "node-multiply",
+          "targetPortId": "input2"
+        },
+        {
+          "id": "edge-calc-4",
+          "sourceNodeId": "node-multiply",
+          "sourcePortId": "output",
+          "targetNodeId": "node-smooth",
+          "targetPortId": "input"
+        },
+        {
+          "id": "edge-calc-5",
+          "sourceNodeId": "node-smooth",
+          "sourcePortId": "output",
+          "targetNodeId": "node-debug-calc",
+          "targetPortId": "input"
+        }
+      ],
+      "createdAt": "2026-02-03T22:00:00Z",
+      "updatedAt": "2026-02-03T22:00:00Z"
+    },
+    {
+      "id": "flow-mqtt-bridge",
+      "name": "MQTT Bridge",
+      "description": "Publishes sensor data to MQTT topics",
+      "enabled": false,
+      "scanRateMs": 1000,
+      "nodes": [
+        {
+          "id": "node-timer",
+          "type": "Timer",
+          "label": "Every 5s",
+          "x": 100,
+          "y": 150,
+          "properties": {
+            "intervalMs": 5000,
+            "repeat": true
+          }
+        },
+        {
+          "id": "node-temp-read",
+          "type": "TagInput",
+          "label": "Read Temp",
+          "x": 300,
+          "y": 100,
+          "properties": {
+            "tagId": "sim-temp-1",
+            "tagName": "Temperature_001"
+          }
+        },
+        {
+          "id": "node-pressure-read",
+          "type": "TagInput",
+          "label": "Read Pressure",
+          "x": 300,
+          "y": 200,
+          "properties": {
+            "tagId": "sim-pressure-1",
+            "tagName": "Pressure_001"
+          }
+        },
+        {
+          "id": "node-template",
+          "type": "Template",
+          "label": "JSON Payload",
+          "x": 500,
+          "y": 150,
+          "properties": {
+            "template": "{\"temperature\": {{msg.temp}}, \"pressure\": {{msg.pressure}}, \"timestamp\": \"{{msg.timestamp}}\"}"
+          }
+        },
+        {
+          "id": "node-mqtt-out",
+          "type": "MqttOut",
+          "label": "Publish",
+          "x": 700,
+          "y": 150,
+          "properties": {
+            "topic": "dataforeman/sensors/process",
+            "qos": 1,
+            "retain": false
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-mqtt-1",
+          "sourceNodeId": "node-timer",
+          "sourcePortId": "output",
+          "targetNodeId": "node-temp-read",
+          "targetPortId": "trigger"
+        },
+        {
+          "id": "edge-mqtt-2",
+          "sourceNodeId": "node-timer",
+          "sourcePortId": "output",
+          "targetNodeId": "node-pressure-read",
+          "targetPortId": "trigger"
+        },
+        {
+          "id": "edge-mqtt-3",
+          "sourceNodeId": "node-temp-read",
+          "sourcePortId": "output",
+          "targetNodeId": "node-template",
+          "targetPortId": "temp"
+        },
+        {
+          "id": "edge-mqtt-4",
+          "sourceNodeId": "node-pressure-read",
+          "sourcePortId": "output",
+          "targetNodeId": "node-template",
+          "targetPortId": "pressure"
+        },
+        {
+          "id": "edge-mqtt-5",
+          "sourceNodeId": "node-template",
+          "sourcePortId": "output",
+          "targetNodeId": "node-mqtt-out",
+          "targetPortId": "input"
+        }
+      ],
+      "createdAt": "2026-02-03T22:00:00Z",
+      "updatedAt": "2026-02-03T22:00:00Z"
+    }
+  ]
+}

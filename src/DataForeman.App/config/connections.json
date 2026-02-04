@@ -1,0 +1,99 @@
+{
+  "connections": [
+    {
+      "id": "sim-default",
+      "name": "Default Simulator",
+      "type": "Simulator",
+      "enabled": true,
+      "settings": {},
+      "tags": [
+        {
+          "id": "sim-temp-1",
+          "name": "Temperature_001",
+          "address": "Simulator/Temperature_001",
+          "dataType": "Float",
+          "pollRateMs": 500,
+          "enabled": true,
+          "unit": "\u00B0C",
+          "description": "Simulated temperature sensor",
+          "simulator": {
+            "waveType": "Sine",
+            "baseValue": 25,
+            "amplitude": 10,
+            "periodSeconds": 60,
+            "noiseLevel": 0.5
+          }
+        },
+        {
+          "id": "sim-pressure-1",
+          "name": "Pressure_001",
+          "address": "Simulator/Pressure_001",
+          "dataType": "Float",
+          "pollRateMs": 500,
+          "enabled": true,
+          "unit": "bar",
+          "description": "Simulated pressure sensor",
+          "simulator": {
+            "waveType": "Ramp",
+            "baseValue": 5,
+            "amplitude": 2,
+            "periodSeconds": 30,
+            "noiseLevel": 0.1
+          }
+        },
+        {
+          "id": "sim-level-1",
+          "name": "Level_001",
+          "address": "Simulator/Level_001",
+          "dataType": "Float",
+          "pollRateMs": 1000,
+          "enabled": true,
+          "unit": "%",
+          "description": "Simulated level sensor",
+          "simulator": {
+            "waveType": "Triangle",
+            "baseValue": 50,
+            "amplitude": 30,
+            "periodSeconds": 90,
+            "noiseLevel": 0.2
+          }
+        },
+        {
+          "id": "sim-flow-1",
+          "name": "Flow_001",
+          "address": "Simulator/Flow_001",
+          "dataType": "Float",
+          "pollRateMs": 500,
+          "enabled": true,
+          "unit": "L/min",
+          "description": "Simulated flow sensor",
+          "simulator": {
+            "waveType": "Random",
+            "baseValue": 150,
+            "amplitude": 20,
+            "periodSeconds": 1,
+            "noiseLevel": 5
+          }
+        },
+        {
+          "id": "sim-status-1",
+          "name": "Status_001",
+          "address": "Simulator/Status_001",
+          "dataType": "Boolean",
+          "pollRateMs": 1000,
+          "enabled": true,
+          "description": "Simulated status indicator",
+          "simulator": {
+            "waveType": "Boolean",
+            "baseValue": 50,
+            "amplitude": 25,
+            "periodSeconds": 15,
+            "noiseLevel": 1
+          }
+        }
+      ],
+      "createdAt": "2026-02-03T22:32:21.1226241Z",
+      "updatedAt": "2026-02-03T22:32:21.1226242Z"
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "templates": [
+    {
+      "id": "template-alarm-simple",
+      "name": "Simple Alarm",
+      "description": "Basic alarm flow: reads a tag, compares to threshold, outputs debug",
+      "category": "Alarms",
+      "icon": "fa-solid fa-file-code",
+      "nodes": [
+        {
+          "id": "n1",
+          "type": "tag-input",
+          "label": "Tag Input",
+          "x": 100,
+          "y": 100,
+          "properties": {}
+        },
+        {
+          "id": "n2",
+          "type": "logic-compare",
+          "label": "Compare",
+          "x": 320,
+          "y": 100,
+          "properties": {
+            "operator": "\u003E",
+            "threshold": "50"
+          }
+        },
+        {
+          "id": "n3",
+          "type": "output-debug",
+          "label": "Debug",
+          "x": 540,
+          "y": 100,
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "n1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n2",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "n2",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n3",
+          "targetPortId": "input-0"
+        }
+      ],
+      "createdAt": "2026-02-04T04:35:57.5142316Z"
+    },
+    {
+      "id": "template-data-calc",
+      "name": "Data Calculation",
+      "description": "Reads two tags, performs calculation, outputs result",
+      "category": "Calculations",
+      "icon": "fa-solid fa-file-code",
+      "nodes": [
+        {
+          "id": "n1",
+          "type": "tag-input",
+          "label": "Input A",
+          "x": 100,
+          "y": 80,
+          "properties": {}
+        },
+        {
+          "id": "n2",
+          "type": "tag-input",
+          "label": "Input B",
+          "x": 100,
+          "y": 180,
+          "properties": {}
+        },
+        {
+          "id": "n3",
+          "type": "math-multiply",
+          "label": "Multiply",
+          "x": 320,
+          "y": 130,
+          "properties": {}
+        },
+        {
+          "id": "n4",
+          "type": "tag-output",
+          "label": "Result",
+          "x": 540,
+          "y": 130,
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "n1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n3",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "n2",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n3",
+          "targetPortId": "input-1"
+        },
+        {
+          "id": "e3",
+          "sourceNodeId": "n3",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n4",
+          "targetPortId": "input-0"
+        }
+      ],
+      "createdAt": "2026-02-04T04:35:57.5143996Z"
+    },
+    {
+      "id": "template-mqtt-bridge",
+      "name": "MQTT Bridge",
+      "description": "Reads tags and publishes to MQTT topic",
+      "category": "Integration",
+      "icon": "fa-solid fa-file-code",
+      "nodes": [
+        {
+          "id": "n1",
+          "type": "trigger-timer",
+          "label": "Timer",
+          "x": 100,
+          "y": 100,
+          "properties": {
+            "interval": "5000"
+          }
+        },
+        {
+          "id": "n2",
+          "type": "tag-input",
+          "label": "Read Tag",
+          "x": 320,
+          "y": 100,
+          "properties": {}
+        },
+        {
+          "id": "n3",
+          "type": "comm-mqtt-out",
+          "label": "MQTT Publish",
+          "x": 540,
+          "y": 100,
+          "properties": {
+            "topic": "data/values"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "sourceNodeId": "n1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n2",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "e2",
+          "sourceNodeId": "n2",
+          "sourcePortId": "output-0",
+          "targetNodeId": "n3",
+          "targetPortId": "input-0"
+        }
+      ],
+      "createdAt": "2026-02-04T04:35:57.5144231Z"
+    }
+  ]
+}

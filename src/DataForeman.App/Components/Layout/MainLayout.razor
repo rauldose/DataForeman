@@ -1,0 +1,66 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="app-container">
+    <!-- Minimal Top Menu Bar using SfAppBar -->
+    <SfAppBar ColorMode="AppBarColor.Dark">
+        <span class="brand-icon">⚙</span>
+        <span class="brand-name">DataForeman</span>
+        <AppBarSpacer></AppBarSpacer>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/")'>Home</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/dashboards")'>Dashboards</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/connectivity")'>Connectivity</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
+        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
+        <AppBarSpacer></AppBarSpacer>
+        <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
+            <span class="status-dot">●</span>
+            <span>Engine: @(EngineConnected ? "Online" : "Offline")</span>
+        </div>
+    </SfAppBar>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        @Body
+    </main>
+</div>
+
+@code {
+    [Inject] private Services.RealtimeDataService? RealtimeData { get; set; }
+    
+    private bool EngineConnected => RealtimeData?.GetEngineStatus()?.IsRunning ?? false;
+    
+    protected override void OnInitialized()
+    {
+        if (RealtimeData != null)
+        {
+            RealtimeData.OnEngineStatusChanged += HandleStatusChanged;
+        }
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+    
+    private void HandleStatusChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        StateHasChanged();
+    }
+    
+    private void NavigateTo(string url)
+    {
+        Navigation.NavigateTo(url);
+    }
+    
+    public void Dispose()
+    {
+        if (RealtimeData != null)
+        {
+            RealtimeData.OnEngineStatusChanged -= HandleStatusChanged;
+        }
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

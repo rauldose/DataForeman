@@ -1,0 +1,175 @@
+@page "/"
+@rendermode InteractiveServer
+@inject RealtimeDataService RealtimeData
+@inject ConfigService ConfigService
+@implements IDisposable
+
+<PageTitle>Home - DataForeman</PageTitle>
+
+<div class="dashboard">
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-item">
+            <span class="stat-icon e-icons e-edit"></span>
+            <div class="stat-data">
+                <span class="stat-value">@ConfigService.Connections.Count</span>
+                <span class="stat-label">Connections</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon e-icons e-list-unordered"></span>
+            <div class="stat-data">
+                <span class="stat-value">@TotalTags</span>
+                <span class="stat-label">Tags</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon e-icons e-chart"></span>
+            <div class="stat-data">
+                <span class="stat-value">@ConfigService.Charts.Count</span>
+                <span class="stat-label">Charts</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon e-icons e-flow"></span>
+            <div class="stat-data">
+                <span class="stat-value">@ConfigService.Flows.Count</span>
+                <span class="stat-label">Flows</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collapsible Panels -->
+    <SfAccordion>
+        <AccordionItems>
+            <AccordionItem Expanded="true">
+                <HeaderTemplate>
+                    <div class="panel-header">
+                        <span class="e-icons e-settings"></span>
+                        <span>Engine Status</span>
+                    </div>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    @if (EngineStatus != null)
+                    {
+                        <div class="status-grid">
+                            <div class="status-cell">
+                                <span class="cell-label">Status</span>
+                                <span class="cell-value @(EngineStatus.IsRunning ? "text-success" : "text-danger")">
+                                    @(EngineStatus.IsRunning ? "Running" : "Stopped")
+                                </span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Active Connections</span>
+                                <span class="cell-value">@EngineStatus.ActiveConnections</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Active Tags</span>
+                                <span class="cell-value">@EngineStatus.ActiveTags</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Total Polls</span>
+                                <span class="cell-value">@EngineStatus.TotalPolls.ToString("N0")</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Avg Poll Time</span>
+                                <span class="cell-value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Started</span>
+                                <span class="cell-value">@EngineStatus.StartTime.ToLocalTime().ToString("g")</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <span class="e-icons e-circle-info"></span>
+                            <span>Engine status not available</span>
+                        </div>
+                    }
+                </ContentTemplate>
+            </AccordionItem>
+            <AccordionItem Expanded="true">
+                <HeaderTemplate>
+                    <div class="panel-header">
+                        <span class="e-icons e-clock"></span>
+                        <span>Recent Tag Values</span>
+                    </div>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    @if (RecentValuesList.Any())
+                    {
+                        <SfGrid DataSource="@RecentValuesList" AllowPaging="false">
+                            <GridColumns>
+                                <GridColumn Field="@nameof(TagValueDisplay.TagName)" HeaderText="Tag" Width="200"></GridColumn>
+                                <GridColumn Field="@nameof(TagValueDisplay.FormattedValue)" HeaderText="Value" Width="120"></GridColumn>
+                                <GridColumn HeaderText="Quality" Width="80">
+                                    <Template>
+                                        @{
+                                            var item = (context as TagValueDisplay);
+                                            <span class="quality-indicator @(item?.IsGoodQuality == true ? "good" : "bad")">
+                                                @(item?.IsGoodQuality == true ? "✓" : "✗")
+                                            </span>
+                                        }
+                                    </Template>
+                                </GridColumn>
+                                <GridColumn Field="@nameof(TagValueDisplay.TimestampDisplay)" HeaderText="Timestamp" Width="140"></GridColumn>
+                            </GridColumns>
+                        </SfGrid>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <span class="e-icons e-inbox"></span>
+                            <span>No tag values received yet</span>
+                        </div>
+                    }
+                </ContentTemplate>
+            </AccordionItem>
+        </AccordionItems>
+    </SfAccordion>
+</div>
+
+@code {
+    private DataForeman.Shared.Mqtt.EngineStatusMessage? EngineStatus => RealtimeData.GetEngineStatus();
+    private int TotalTags => ConfigService.Connections.Sum(c => c.Tags.Count);
+    
+    private List<TagValueDisplay> RecentValuesList => RealtimeData.GetAllTagValues().Values
+        .OrderByDescending(v => v.Timestamp)
+        .Take(10)
+        .Select(v => new TagValueDisplay
+        {
+            TagName = v.TagName,
+            FormattedValue = v.FormattedValue,
+            QualityText = v.QualityText,
+            IsGoodQuality = v.IsGoodQuality,
+            TimestampDisplay = v.Timestamp.ToLocalTime().ToString("HH:mm:ss.fff")
+        })
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+    }
+
+    private void HandleDataChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+    }
+    
+    public class TagValueDisplay
+    {
+        public string TagName { get; set; } = "";
+        public string FormattedValue { get; set; } = "";
+        public string QualityText { get; set; } = "";
+        public bool IsGoodQuality { get; set; }
+        public string TimestampDisplay { get; set; } = "";
+    }
+}
