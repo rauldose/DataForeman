@@ -8,6 +8,7 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
+  ConnectionLineType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { nodeTypes as coreNodeTypes, buildNodeTypes } from '../components/FlowEditor/CustomNodes';
@@ -534,9 +535,10 @@ const FlowEditor = () => {
           };
         });
         setNodes(loadedNodes);
-        // Restore edges with markerEnd to ensure arrow display
+        // Restore edges with markerEnd and smoothstep type to ensure proper display
         const restoredEdges = (data.flow.definition.edges || []).map(edge => ({
           ...edge,
+          type: edge.type || 'smoothstep',
           markerEnd: edge.markerEnd || { type: MarkerType.ArrowClosed }
         }));
         setEdges(restoredEdges);
@@ -1151,13 +1153,12 @@ const FlowEditor = () => {
     return true;
   }, []);
 
-  // Validate connection compatibility
+  // Validate connection compatibility (called during drag - should not show errors)
   const isValidConnection = useCallback((connection) => {
     const sourceNode = nodes.find(n => n.id === connection.source);
     const targetNode = nodes.find(n => n.id === connection.target);
     
     if (!sourceNode || !targetNode) {
-      showSnackbar('Cannot connect: nodes not found', 'error');
       return false;
     }
     
@@ -1171,12 +1172,12 @@ const FlowEditor = () => {
     const sourceOutputs = generateOutputs(sourceMetadata, sourceNode.data || {});
     
     if (!sourceOutputs || sourceOutputs.length === 0) {
-      showSnackbar('Cannot connect: source node has no output', 'error');
       return false;
     }
     
     // Get the first output (or use sourceHandle if specified in the future)
-    const sourceOutput = sourceOutputs[0];
+    const sourceHandleIndex = connection.sourceHandle ? parseInt(connection.sourceHandle.split('-')[1]) : 0;
+    const sourceOutput = sourceOutputs[sourceHandleIndex] || sourceOutputs[0];
     
     // Get input type from target using targetHandle (e.g., 'input-0', 'input-1')
     const targetHandleIndex = connection.targetHandle ? parseInt(connection.targetHandle.split('-')[1]) : 0;
@@ -1185,14 +1186,12 @@ const FlowEditor = () => {
     const targetInputs = generateInputs(targetMetadata, targetNode.data || {});
     
     if (!targetInputs || targetInputs.length === 0) {
-      showSnackbar('Cannot connect: target node has no input', 'error');
       return false;
     }
     
     const targetInput = targetInputs[targetHandleIndex];
     
     if (!targetInput) {
-      showSnackbar('Cannot connect: target node has no input', 'error');
       return false;
     }
     
@@ -1200,29 +1199,60 @@ const FlowEditor = () => {
     const sourceType = sourceOutput.type;
     const targetType = targetInput.type;
     
-    const isCompatible = checkTypeCompatibility(sourceType, targetType);
+    return checkTypeCompatibility(sourceType, targetType);
+  }, [nodes, checkTypeCompatibility]);
+
+  // Handle edge connection - show error messages here if connection is invalid
+  const onConnect = useCallback((params) => {
+    const sourceNode = nodes.find(n => n.id === params.source);
+    const targetNode = nodes.find(n => n.id === params.target);
     
-    if (!isCompatible) {
-      if (targetType === 'number' && sourceType !== 'number') {
-        showSnackbar(`Cannot connect: ${sourceNode.data?.name || sourceNode.type} outputs ${sourceType}, but ${targetNode.data?.name || targetNode.type} expects number`, 'error');
-      } else if (targetType === 'boolean' && sourceType !== 'boolean') {
-        showSnackbar(`Cannot connect: ${sourceNode.data?.name || sourceNode.type} outputs ${sourceType}, but ${targetNode.data?.name || targetNode.type} expects boolean`, 'error');
-      } else if (sourceType === 'trigger' && targetType !== 'trigger') {
-        showSnackbar(`Cannot connect: trigger outputs cannot connect to ${targetType} inputs`, 'error');
+    if (!sourceNode || !targetNode) {
+      showSnackbar('Cannot connect: nodes not found', 'error');
+      return;
+    }
+    
+    // Get metadata for both nodes
+    const sourceMetadata = getBackendMetadata(sourceNode.type);
+    const targetMetadata = getBackendMetadata(targetNode.type);
+    
+    // Generate actual outputs based on ioRules and node configuration
+    const sourceOutputs = sourceMetadata ? generateOutputs(sourceMetadata, sourceNode.data || {}) : [];
+    const sourceHandleIndex = params.sourceHandle ? parseInt(params.sourceHandle.split('-')[1]) : 0;
+    const sourceOutput = sourceOutputs[sourceHandleIndex] || sourceOutputs[0];
+    
+    // Generate actual inputs based on ioRules and node configuration
+    const targetInputs = targetMetadata ? generateInputs(targetMetadata, targetNode.data || {}) : [];
+    const targetHandleIndex = params.targetHandle ? parseInt(params.targetHandle.split('-')[1]) : 0;
+    const targetInput = targetInputs[targetHandleIndex];
+    
+    // Check compatibility and show error message if needed
+    if (sourceOutput && targetInput) {
+      const sourceType = sourceOutput.type;
+      const targetType = targetInput.type;
+      const isCompatible = checkTypeCompatibility(sourceType, targetType);
+      
+      if (!isCompatible) {
+        if (targetType === 'number' && sourceType !== 'number') {
+          showSnackbar(`Cannot connect: ${sourceNode.data?.name || sourceNode.type} outputs ${sourceType}, but ${targetNode.data?.name || targetNode.type} expects number`, 'error');
+        } else if (targetType === 'boolean' && sourceType !== 'boolean') {
+          showSnackbar(`Cannot connect: ${sourceNode.data?.name || sourceNode.type} outputs ${sourceType}, but ${targetNode.data?.name || targetNode.type} expects boolean`, 'error');
+        } else if (sourceType === 'trigger' && targetType !== 'trigger') {
+          showSnackbar(`Cannot connect: trigger outputs cannot connect to ${targetType} inputs`, 'error');
+        } else {
+          showSnackbar(`Cannot connect: incompatible types (${sourceType} → ${targetType})`, 'error');
+        }
+        return;
       }
     }
     
-    return isCompatible;
-  }, [nodes, showSnackbar, checkTypeCompatibility]);
-
-  // Handle edge connection
-  const onConnect = useCallback((params) => {
     setEdges((eds) => addEdge({
       ...params,
+      type: 'smoothstep',
       markerEnd: { type: MarkerType.ArrowClosed }
     }, eds));
     setHasUnsavedChanges(true); // Mark as having unsaved changes
-  }, [setEdges]);
+  }, [nodes, setEdges, showSnackbar, checkTypeCompatibility]);
 
   // Handle node deletion
   const onNodesDelete = useCallback((deleted) => {
@@ -1686,6 +1716,11 @@ const FlowEditor = () => {
               onNodeDoubleClick={onNodeDoubleClick}
               onPaneClick={onPaneClick}
               nodeTypes={dynamicNodeTypes}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              defaultEdgeOptions={{
+                type: 'smoothstep',
+                markerEnd: { type: MarkerType.ArrowClosed }
+              }}
               fitView
             >
               <Background />
