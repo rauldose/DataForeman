@@ -228,7 +228,7 @@
                     <div class="console-body" @ref="ConsoleBody">
                         @if (!ConsoleMessages.Any())
                         {
-                            <div class="console-empty">No output yet. Click <i class="fa-solid fa-play"></i> to test the flow.</div>
+                            <div class="console-empty">Waiting for data... Flow executes automatically when tag values change.</div>
                         }
                         else
                         {
@@ -443,8 +443,9 @@
         }
     }
     
-    private void HandleTagValueChanged(string tagId)
+    private async void HandleTagValueChanged(string tagId)
     {
+        // Find nodes that use this tag and trigger execution from them
         foreach (var nodeEntry in NodeProperties)
         {
             if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
@@ -453,9 +454,17 @@
                 var tagValue = RealtimeData.GetTagValue(tagId);
                 if (tagValue != null)
                 {
-                    var nodeLabel = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key)?.Annotations?.FirstOrDefault()?.Content ?? nodeEntry.Key;
-                    AddConsoleMessage("DATA", nodeLabel?.ToString() ?? "Unknown", $"Tag value: {tagValue.FormattedValue} (Quality: {tagValue.QualityText})");
-                    InvokeAsync(StateHasChanged);
+                    var node = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key);
+                    if (node != null)
+                    {
+                        // Auto-execute from this tag input node
+                        var inputData = new Dictionary<string, object>
+                        {
+                            ["value"] = tagValue.NumericValue ?? tagValue.Value ?? 0.0
+                        };
+                        await SimulateNodeExecution(node, inputData);
+                        await InvokeAsync(StateHasChanged);
+                    }
                 }
             }
         }
