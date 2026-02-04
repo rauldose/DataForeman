@@ -337,6 +337,7 @@
     
     // Disposal flag to stop execution when navigating away
     private bool _disposed = false;
+    private CancellationTokenSource? _cts;
     
     // MISSING FIELDS ADDED HERE:
     private string? _editingSubflowId;
@@ -372,6 +373,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _cts = new CancellationTokenSource();
+        _disposed = false; // Reset in case component is reused
         await ConfigService.LoadAllAsync();
         RealtimeData.OnTagValueChanged += HandleTagValueChanged;
     }
@@ -449,38 +452,49 @@
     private async void HandleTagValueChanged(string tagId)
     {
         // Stop if component is disposed (user navigated away)
-        if (_disposed) return;
+        if (_disposed || _cts?.IsCancellationRequested == true) return;
         
-        // Find nodes that use this tag and trigger execution from them
-        foreach (var nodeEntry in NodeProperties)
+        try
         {
-            // Check again in loop in case disposal happens during iteration
-            if (_disposed) return;
-            
-            if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
-                tagPath?.ToString() == tagId)
+            // Find nodes that use this tag and trigger execution from them
+            foreach (var nodeEntry in NodeProperties)
             {
-                var tagValue = RealtimeData.GetTagValue(tagId);
-                if (tagValue != null)
+                // Check again in loop in case disposal happens during iteration
+                if (_disposed || _cts?.IsCancellationRequested == true) return;
+                
+                if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
+                    tagPath?.ToString() == tagId)
                 {
-                    var node = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key);
-                    if (node != null)
+                    var tagValue = RealtimeData.GetTagValue(tagId);
+                    if (tagValue != null)
                     {
-                        // Auto-execute from this tag input node
-                        var inputData = new Dictionary<string, object>
+                        var node = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key);
+                        if (node != null)
                         {
-                            ["value"] = tagValue.NumericValue ?? tagValue.Value ?? 0.0
-                        };
-                        await SimulateNodeExecution(node, inputData);
-                        
-                        // Only update UI if not disposed
-                        if (!_disposed)
-                        {
-                            await InvokeAsync(StateHasChanged);
+                            // Auto-execute from this tag input node
+                            var inputData = new Dictionary<string, object>
+                            {
+                                ["value"] = tagValue.NumericValue ?? tagValue.Value ?? 0.0
+                            };
+                            await SimulateNodeExecution(node, inputData);
+                            
+                            // Only update UI if not disposed
+                            if (!_disposed && _cts?.IsCancellationRequested != true)
+                            {
+                                await InvokeAsync(StateHasChanged);
+                            }
                         }
                     }
                 }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled during navigation
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component was disposed
         }
     }
 
@@ -832,14 +846,25 @@
     private async Task SimulateNodeExecution(Node? node, Dictionary<string, object> inputData)
     {
         // Stop execution if disposed (user navigated away)
-        if (_disposed) return;
+        if (_disposed || _cts?.IsCancellationRequested == true) return;
         if (node == null || string.IsNullOrEmpty(node.ID)) return;
         
         var label = GetNodeLabel(node);
         var baseType = GetNodeType(node);
         var plugin = NodeRegistry.Get(baseType);
         
-        await Task.Delay(50);
+        // Use cancellation-aware delay
+        try
+        {
+            await Task.Delay(50, _cts?.Token ?? CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // Stop if cancelled
+        }
+        
+        // Check again after delay
+        if (_disposed || _cts?.IsCancellationRequested == true) return;
         
         object outputValue = inputData.TryGetValue("value", out var val) ? val : 0.0;
         
@@ -1246,6 +1271,14 @@
     {
         // Set disposed flag first to stop any running execution
         _disposed = true;
+        
+        // Cancel any pending async operations
+        try
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+        }
+        catch { /* Ignore disposal errors */ }
         
         _simulationTimer?.Dispose();
         RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
