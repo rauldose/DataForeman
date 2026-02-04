@@ -568,7 +568,7 @@
 
     private async Task SaveFlow()
     {
-        CurrentFlow.Nodes = Nodes.Select(n => new FlowNode
+        CurrentFlow.Nodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => new FlowNode
         {
             Id = n.ID,
             Type = GetNodeType(n),
@@ -578,7 +578,7 @@
             Properties = NodeProperties.TryGetValue(n.ID, out var props) ? props : new()
         }).ToList();
         
-        CurrentFlow.Edges = Connectors.Select(c => new FlowEdge
+        CurrentFlow.Edges = Connectors.Where(c => !string.IsNullOrEmpty(c.ID)).Select(c => new FlowEdge
         {
             Id = c.ID,
             SourceNodeId = c.SourceID,
@@ -708,13 +708,14 @@
         StateHasChanged();
     }
 
-    private string GetNodeLabel(Node node) => node.Annotations?.FirstOrDefault()?.Content ?? node.ID;
+    private string GetNodeLabel(Node node) => node?.Annotations?.FirstOrDefault()?.Content ?? node?.ID ?? "Unknown";
     
     /// <summary>
     /// Extracts the plugin type ID from a node ID (e.g., "tag-input-instance-abc123" → "tag-input")
     /// </summary>
-    private string GetNodeType(string nodeId)
+    private string GetNodeType(string? nodeId)
     {
+        if (string.IsNullOrEmpty(nodeId)) return "unknown";
         if (nodeId.Contains("-instance-")) return nodeId.Split("-instance-")[0];
         var parts = nodeId.Split('-');
         for (int i = parts.Length; i > 0; i--) { var candidate = string.Join("-", parts.Take(i)); if (NodeRegistry.Get(candidate) != null) return candidate; }
@@ -722,7 +723,31 @@
         return nodeId;
     }
     
-    private string GetNodeType(Node node) => GetNodeType(node.ID);
+    private string GetNodeType(Node? node) => GetNodeType(node?.ID);
+    
+    /// <summary>
+    /// Safely converts an object to double, handling JsonElement and other types.
+    /// </summary>
+    private double ToDouble(object? value, double defaultValue = 0.0)
+    {
+        if (value == null) return defaultValue;
+        if (value is double d) return d;
+        if (value is int i) return i;
+        if (value is float f) return f;
+        if (value is decimal dec) return (double)dec;
+        if (value is long l) return l;
+        if (value is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Number => je.GetDouble(),
+                System.Text.Json.JsonValueKind.String when double.TryParse(je.GetString(), out var parsed) => parsed,
+                _ => defaultValue
+            };
+        }
+        if (value is string s && double.TryParse(s, out var result)) return result;
+        try { return Convert.ToDouble(value); } catch { return defaultValue; }
+    }
 
     private RenderFragment RenderPropertyInput(NodePropertyDefinition prop) => builder =>
     {
@@ -763,16 +788,13 @@
         
         AddConsoleMessage("INFO", "System", $"Starting flow execution: {CurrentFlow.Name}");
         
-        var triggerNodes = Nodes.Where(n => 
-        {
-            var plugin = NodeRegistry.Get(GetNodeType(n));
-            return plugin?.Category == "Triggers";
-        }).ToList();
+        var triggerNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && 
+        (NodeRegistry.Get(GetNodeType(n))?.Category == "Triggers")).ToList();
         
         if (!triggerNodes.Any())
         {
             var nodesWithIncoming = Connectors.Select(c => c.TargetID).ToHashSet();
-            triggerNodes = Nodes.Where(n => !nodesWithIncoming.Contains(n.ID)).ToList();
+            triggerNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && !nodesWithIncoming.Contains(n.ID)).ToList();
         }
         
         foreach (var triggerNode in triggerNodes)
@@ -783,8 +805,10 @@
         AddConsoleMessage("INFO", "System", "Flow execution completed");
     }
     
-    private async Task SimulateNodeExecution(Node node, Dictionary<string, object> inputData)
+    private async Task SimulateNodeExecution(Node? node, Dictionary<string, object> inputData)
     {
+        if (node == null || string.IsNullOrEmpty(node.ID)) return;
+        
         var label = GetNodeLabel(node);
         var baseType = GetNodeType(node);
         var plugin = NodeRegistry.Get(baseType);
@@ -831,16 +855,16 @@
                 break;
                 
             case "Math":
-                var factor = NodeProperties.TryGetValue(node.ID, out var props) && props.TryGetValue("factor", out var f) ? Convert.ToDouble(f) : 1.0;
-                if (baseType.Contains("scale")) outputValue = Convert.ToDouble(outputValue) * factor;
-                else if (baseType.Contains("add")) outputValue = Convert.ToDouble(outputValue) + factor;
-                else if (baseType.Contains("multiply")) outputValue = Convert.ToDouble(outputValue) * factor;
+                var factor = NodeProperties.TryGetValue(node.ID, out var props) && props.TryGetValue("factor", out var f) ? ToDouble(f, 1.0) : 1.0;
+                if (baseType.Contains("scale")) outputValue = ToDouble(outputValue) * factor;
+                else if (baseType.Contains("add")) outputValue = ToDouble(outputValue) + factor;
+                else if (baseType.Contains("multiply")) outputValue = ToDouble(outputValue) * factor;
                 AddConsoleMessage("DEBUG", label, $"Input: {val} → Output: {outputValue}");
                 break;
                 
             case "Logic":
-                var threshold = NodeProperties.TryGetValue(node.ID, out var lprops) && lprops.TryGetValue("threshold", out var t) ? Convert.ToDouble(t) : 50.0;
-                var result = Convert.ToDouble(outputValue) > threshold;
+                var threshold = NodeProperties.TryGetValue(node.ID, out var lprops) && lprops.TryGetValue("threshold", out var t) ? ToDouble(t, 50.0) : 50.0;
+                var result = ToDouble(outputValue) > threshold;
                 AddConsoleMessage("DEBUG", label, $"Comparing {outputValue} > {threshold} = {result}");
                 outputValue = result;
                 break;
@@ -890,7 +914,7 @@
     {
         if (Diagram == null) return;
         
-        var selectedNodes = Nodes.Where(n => Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
+        var selectedNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
         
         if (selectedNodes.Count < 2)
         {
@@ -901,7 +925,7 @@
         var subflowId = $"subflow-{Guid.NewGuid():N}";
         var subflowName = $"Subflow {ConfigService.Subflows.Count + 1}";
         
-        var selectedIds = selectedNodes.Select(n => n.ID).ToHashSet();
+        var selectedIds = selectedNodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => n.ID).ToHashSet();
         var internalConnectors = Connectors.Where(c => selectedIds.Contains(c.SourceID) && selectedIds.Contains(c.TargetID)).ToList();
         
         var inputConnectors = Connectors.Where(c => !selectedIds.Contains(c.SourceID) && selectedIds.Contains(c.TargetID)).ToList();
@@ -948,8 +972,8 @@
     {
         if (Diagram == null || string.IsNullOrEmpty(PendingSubflowId)) return;
         
-        var selectedNodes = Nodes.Where(n => Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
-        var selectedIds = selectedNodes.Select(n => n.ID).ToHashSet();
+        var selectedNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
+        var selectedIds = selectedNodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => n.ID).ToHashSet();
         
         var centerX = selectedNodes.Average(n => n.OffsetX);
         var centerY = selectedNodes.Average(n => n.OffsetY);
@@ -960,7 +984,7 @@
         foreach (var node in selectedNodes)
         {
             Nodes.Remove(node);
-            NodeProperties.Remove(node.ID);
+            if (!string.IsNullOrEmpty(node.ID)) NodeProperties.Remove(node.ID);
         }
         
         var connectorsToRemove = Connectors.Where(c => selectedIds.Contains(c.SourceID) || selectedIds.Contains(c.TargetID)).ToList();
@@ -1080,7 +1104,7 @@
         var existingSubflow = ConfigService.Subflows.FirstOrDefault(s => s.Id == _editingSubflowId);
         if (existingSubflow == null) return;
         
-        existingSubflow.Nodes = Nodes.Select(n => new FlowNode
+        existingSubflow.Nodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => new FlowNode
         {
             Id = n.ID,
             Type = _nodeTypes.TryGetValue(n.ID, out var t) ? t : GetNodeType(n),
@@ -1092,7 +1116,7 @@
                 : new Dictionary<string, object>()
         }).ToList();
         
-        existingSubflow.Edges = Connectors.Select(c => new FlowEdge
+        existingSubflow.Edges = Connectors.Where(c => !string.IsNullOrEmpty(c.ID)).Select(c => new FlowEdge
         {
             Id = c.ID,
             SourceNodeId = c.SourceID,
@@ -1103,8 +1127,8 @@
         
         var nodesWithIncoming = Connectors.Select(c => c.TargetID).ToHashSet();
         var nodesWithOutgoing = Connectors.Select(c => c.SourceID).ToHashSet();
-        existingSubflow.InputCount = Nodes.Count(n => !nodesWithIncoming.Contains(n.ID));
-        existingSubflow.OutputCount = Nodes.Count(n => !nodesWithOutgoing.Contains(n.ID));
+        existingSubflow.InputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && !nodesWithIncoming.Contains(n.ID));
+        existingSubflow.OutputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && !nodesWithOutgoing.Contains(n.ID));
         
         await ConfigService.UpdateSubflowAsync(existingSubflow);
         NodeRegistry.UnregisterSubflow(_editingSubflowId);
