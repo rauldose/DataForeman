@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
+using DataForeman.Shared.Messages;
 using DataForeman.Shared.Mqtt;
 
 namespace DataForeman.App.Services;
@@ -12,12 +14,14 @@ public class RealtimeDataService : IDisposable
     private readonly MqttService _mqttService;
     private readonly ConcurrentDictionary<string, TagValueCache> _tagValues = new();
     private readonly ConcurrentDictionary<string, ConnectionStatusMessage> _connectionStatuses = new();
+    private readonly ConcurrentDictionary<string, List<FlowExecutionMessage>> _flowExecutionCache = new();
     private EngineStatusMessage? _engineStatus;
     
     public event Action? OnDataChanged;
     public event Action<string>? OnTagValueChanged;
     public event Action<string>? OnConnectionStatusChanged;
     public event Action? OnEngineStatusChanged;
+    public event Action<FlowExecutionMessage>? OnFlowExecutionReceived;
 
     public RealtimeDataService(MqttService mqttService, ILogger<RealtimeDataService> logger)
     {
@@ -29,6 +33,7 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnBulkTagValuesReceived += HandleBulkTagValues;
         _mqttService.OnConnectionStatusReceived += HandleConnectionStatus;
         _mqttService.OnEngineStatusReceived += HandleEngineStatus;
+        _mqttService.OnFlowExecutionReceived += HandleFlowExecution;
     }
 
     /// <summary>
@@ -73,6 +78,35 @@ public class RealtimeDataService : IDisposable
     /// Gets the engine status.
     /// </summary>
     public EngineStatusMessage? GetEngineStatus() => _engineStatus;
+
+    /// <summary>
+    /// Gets flow execution traces for a specific flow.
+    /// </summary>
+    public IReadOnlyList<FlowExecutionMessage> GetFlowExecutionTraces(string flowId, int maxTraces = 100)
+    {
+        if (_flowExecutionCache.TryGetValue(flowId, out var traces))
+        {
+            lock (traces)
+            {
+                return traces.TakeLast(maxTraces).ToList();
+            }
+        }
+        return Array.Empty<FlowExecutionMessage>();
+    }
+
+    /// <summary>
+    /// Clears flow execution traces for a specific flow.
+    /// </summary>
+    public void ClearFlowExecutionTraces(string flowId)
+    {
+        if (_flowExecutionCache.TryGetValue(flowId, out var traces))
+        {
+            lock (traces)
+            {
+                traces.Clear();
+            }
+        }
+    }
 
     /// <summary>
     /// Gets historical values for a tag (from memory cache).
@@ -213,12 +247,35 @@ public class RealtimeDataService : IDisposable
         }
     }
 
+    private void HandleFlowExecution(FlowExecutionMessage message)
+    {
+        try
+        {
+            var traces = _flowExecutionCache.GetOrAdd(message.FlowId, _ => new List<FlowExecutionMessage>());
+            lock (traces)
+            {
+                traces.Add(message);
+                // Keep only last 500 traces per flow
+                if (traces.Count > 500)
+                {
+                    traces.RemoveRange(0, traces.Count - 500);
+                }
+            }
+            OnFlowExecutionReceived?.Invoke(message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling flow execution message for flow {FlowId}", message.FlowId);
+        }
+    }
+
     public void Dispose()
     {
         _mqttService.OnTagValueReceived -= HandleTagValue;
         _mqttService.OnBulkTagValuesReceived -= HandleBulkTagValues;
         _mqttService.OnConnectionStatusReceived -= HandleConnectionStatus;
         _mqttService.OnEngineStatusReceived -= HandleEngineStatus;
+        _mqttService.OnFlowExecutionReceived -= HandleFlowExecution;
     }
 }
 

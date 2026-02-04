@@ -379,6 +379,7 @@
         _disposed = false; // Reset in case component is reused
         await ConfigService.LoadAllAsync();
         RealtimeData.OnTagValueChanged += HandleTagValueChanged;
+        RealtimeData.OnFlowExecutionReceived += HandleFlowExecutionReceived;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -486,6 +487,54 @@
                             await InvokeAsync(StateHasChanged);
                         }
                     }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled during navigation
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component was disposed
+        }
+    }
+
+    private async void HandleFlowExecutionReceived(DataForeman.Shared.Messages.FlowExecutionMessage message)
+    {
+        try
+        {
+            if (_disposed || _cts?.IsCancellationRequested == true) return;
+            
+            // Only show messages for the current flow
+            if (CurrentFlow != null && message.FlowId == CurrentFlow.Id)
+            {
+                // Find the node label
+                var nodeLabel = message.NodeId;
+                var node = Nodes.FirstOrDefault(n => n.ID == message.NodeId);
+                if (node != null)
+                {
+                    nodeLabel = GetNodeLabel(node);
+                }
+
+                // Format the message
+                var msgText = message.Message;
+                if (message.InputData?.Any() == true)
+                {
+                    var inputStr = string.Join(", ", message.InputData.Select(kv => $"{kv.Key}={kv.Value}"));
+                    msgText += $" | Input: {inputStr}";
+                }
+                if (message.OutputData?.Any() == true)
+                {
+                    var outputStr = string.Join(", ", message.OutputData.Select(kv => $"{kv.Key}={kv.Value}"));
+                    msgText += $" | Output: {outputStr}";
+                }
+
+                AddConsoleMessage(message.Level, nodeLabel, msgText);
+                
+                if (!_disposed && _cts?.IsCancellationRequested != true)
+                {
+                    await InvokeAsync(StateHasChanged);
                 }
             }
         }
@@ -1141,6 +1190,7 @@
         
         _simulationTimer?.Dispose();
         RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
+        RealtimeData.OnFlowExecutionReceived -= HandleFlowExecutionReceived;
     }
 
     public class FlowDisplay

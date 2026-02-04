@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DataForeman.Shared.Messages;
 using DataForeman.Shared.Mqtt;
 using MQTTnet;
 using MQTTnet.Client;
@@ -25,6 +26,7 @@ public class MqttService : IAsyncDisposable
     public event Action<BulkTagValueMessage>? OnBulkTagValuesReceived;
     public event Action<ConnectionStatusMessage>? OnConnectionStatusReceived;
     public event Action<EngineStatusMessage>? OnEngineStatusReceived;
+    public event Action<FlowExecutionMessage>? OnFlowExecutionReceived;
 
     public MqttService(IConfiguration configuration, ILogger<MqttService> logger)
     {
@@ -71,6 +73,7 @@ public class MqttService : IAsyncDisposable
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllTagsWildcard).Build() });
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllConnectionStatusWildcard).Build() });
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.EngineStatus).Build() });
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic("dataforeman/flows/+/execution").Build() });
 
                 _logger.LogInformation("Subscribed to MQTT topics");
             };
@@ -150,6 +153,14 @@ public class MqttService : IAsyncDisposable
                 if (message != null)
                 {
                     OnEngineStatusReceived?.Invoke(message);
+                }
+            }
+            else if (topic.StartsWith("dataforeman/flows/") && topic.EndsWith("/execution"))
+            {
+                var message = JsonSerializer.Deserialize<FlowExecutionMessage>(payload, _jsonOptions);
+                if (message != null)
+                {
+                    OnFlowExecutionReceived?.Invoke(message);
                 }
             }
         }
