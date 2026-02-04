@@ -19,6 +19,7 @@
     <PackageReference Include="Syncfusion.Blazor.Navigations" Version="28.*" />
     <PackageReference Include="Syncfusion.Blazor.Popups" Version="28.*" />
     <PackageReference Include="Syncfusion.Blazor.Themes" Version="28.*" />
+    <PackageReference Include="Syncfusion.Blazor.Calendars" Version="28.*" />
   </ItemGroup>
 
   <ItemGroup>

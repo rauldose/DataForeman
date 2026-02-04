@@ -3,32 +3,32 @@
 @implements IDisposable
 
 <div class="app-container">
-    <!-- Top Menu Bar using Syncfusion Menu -->
-    <div class="top-header">
+    <!-- Minimal Top Menu Bar -->
+    <header class="top-header">
         <div class="brand-section">
-            <span class="brand-icon">⚙️</span>
+            <i class="fa-solid fa-gear brand-icon"></i>
             <span class="brand-name">DataForeman</span>
         </div>
         
         <SfMenu TValue="MenuItem" CssClass="top-menu">
             <MenuItems>
-                <MenuItem Text="Home" IconCss="e-icons e-home" Url="/"></MenuItem>
-                <MenuItem Text="Connectivity" IconCss="e-icons e-link" Url="/connectivity"></MenuItem>
-                <MenuItem Text="Charts" IconCss="e-icons e-chart" Url="/charts"></MenuItem>
-                <MenuItem Text="Flows" IconCss="e-icons e-flow-chart" Url="/flows"></MenuItem>
+                <MenuItem Text="Home" IconCss="fa-solid fa-house" Url="/"></MenuItem>
+                <MenuItem Text="Connectivity" IconCss="fa-solid fa-plug" Url="/connectivity"></MenuItem>
+                <MenuItem Text="Charts" IconCss="fa-solid fa-chart-line" Url="/charts"></MenuItem>
+                <MenuItem Text="Flows" IconCss="fa-solid fa-diagram-project" Url="/flows"></MenuItem>
             </MenuItems>
             <MenuEvents TValue="MenuItem" ItemSelected="OnMenuItemSelected"></MenuEvents>
         </SfMenu>
         
         <div class="header-right">
-            <div class="engine-status">
-                <span class="status-indicator @(EngineConnected ? "connected" : "disconnected")"></span>
-                <span class="status-text">Engine: @(EngineConnected ? "Connected" : "Disconnected")</span>
+            <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
+                <i class="fa-solid fa-circle status-dot"></i>
+                <span>Engine: @(EngineConnected ? "Online" : "Offline")</span>
             </div>
         </div>
-    </div>
+    </header>
     
-    <!-- Main Content Area -->
+    <!-- Main Content -->
     <main class="main-content">
         @Body
     </main>

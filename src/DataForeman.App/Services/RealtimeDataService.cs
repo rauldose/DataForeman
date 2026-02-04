@@ -86,6 +86,42 @@ public class RealtimeDataService : IDisposable
         return Array.Empty<(DateTime, object?)>();
     }
 
+    /// <summary>
+    /// Gets historical values for a tag within a time window for charting (from memory cache).
+    /// </summary>
+    public IReadOnlyList<TagHistoryPoint> GetTagHistoryForChart(string tagId, int windowSeconds)
+    {
+        if (_tagValues.TryGetValue(tagId, out var cache))
+        {
+            var cutoff = DateTime.UtcNow.AddSeconds(-windowSeconds);
+            return cache.History
+                .Where(h => h.Timestamp >= cutoff)
+                .Select(h => new TagHistoryPoint
+                {
+                    Timestamp = h.Timestamp,
+                    NumericValue = ConvertToDouble(h.Value)
+                })
+                .ToList();
+        }
+        return Array.Empty<TagHistoryPoint>();
+    }
+
+    private static double? ConvertToDouble(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            double d => d,
+            float f => f,
+            int i => i,
+            long l => l,
+            decimal dec => (double)dec,
+            bool b => b ? 1.0 : 0.0,
+            string s when double.TryParse(s, out var parsed) => parsed,
+            _ => null
+        };
+    }
+
     private void HandleTagValue(TagValueMessage message)
     {
         try
@@ -230,4 +266,26 @@ public class TagValueCache
 
     public string QualityText => Quality == 0 ? "Good" : "Bad";
     public bool IsGoodQuality => Quality == 0;
+
+    public double? NumericValue => Value switch
+    {
+        null => null,
+        double d => d,
+        float f => f,
+        int i => i,
+        long l => l,
+        decimal dec => (double)dec,
+        bool b => b ? 1.0 : 0.0,
+        string s when double.TryParse(s, out var parsed) => parsed,
+        _ => null
+    };
+}
+
+/// <summary>
+/// Historical data point for charts.
+/// </summary>
+public class TagHistoryPoint
+{
+    public DateTime Timestamp { get; set; }
+    public double? NumericValue { get; set; }
 }

@@ -2,119 +2,105 @@
 @page "/flows/{FlowId}"
 @rendermode InteractiveServer
 @inject ConfigService ConfigService
+@inject NodePluginRegistry NodeRegistry
 @inject NavigationManager Navigation
-@implements IDisposable
+@inject IJSRuntime JSRuntime
 
-<PageTitle>Flow Studio - DataForeman</PageTitle>
+<PageTitle>Flows - DataForeman</PageTitle>
 
-<div class="flows-page">
+<div class="page-container">
     @if (string.IsNullOrEmpty(FlowId))
     {
-        @* Flow List View *@
-        <div class="page-header">
-            <h1>Flow Studio</h1>
-            <div class="page-actions">
-                <button class="btn btn-primary" @onclick="CreateNewFlow">
-                    ➕ New Flow
-                </button>
+        <!-- Flow List View -->
+        <div class="page-toolbar">
+            <h2><i class="fa-solid fa-diagram-project"></i> Flows</h2>
+            <div class="toolbar-actions">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewFlow">New Flow</SfButton>
             </div>
         </div>
-
-        @if (IsLoading)
+        
+        @if (!ConfigService.Flows.Any())
         {
-            <div class="loading-indicator">Loading flows...</div>
-        }
-        else if (!ConfigService.Flows.Any())
-        {
-            <div class="no-data">
-                <p>No flows configured yet.</p>
-                <p>Flows allow you to process and transform data between tags.</p>
-                <button class="btn btn-primary" @onclick="CreateNewFlow">Create your first flow</button>
+            <div class="empty-state">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>No flows configured</span>
+                <SfButton CssClass="e-primary e-small" @onclick="CreateNewFlow">Create your first flow</SfButton>
             </div>
         }
         else
         {
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                        <th>Status</th>
-                        <th>Nodes</th>
-                        <th>Scan Rate</th>
-                        <th>Last Updated</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var flow in ConfigService.Flows)
-                    {
-                        <tr>
-                            <td>@flow.Name</td>
-                            <td>@(flow.Description ?? "-")</td>
-                            <td>
-                                <span class="status-badge @(flow.Enabled ? "enabled" : "disabled")">
-                                    @(flow.Enabled ? "Enabled" : "Disabled")
+            <SfGrid DataSource="@FlowsList" AllowPaging="true">
+                <GridPageSettings PageSize="10"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn Field="@nameof(FlowDisplay.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(FlowDisplay.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(FlowDisplay.NodeCount)" HeaderText="Nodes" Width="80"></GridColumn>
+                    <GridColumn HeaderText="Status" Width="100">
+                        <Template>
+                            @{
+                                var item = (context as FlowDisplay);
+                                <span class="status-indicator @(item?.Enabled == true ? "enabled" : "disabled")">
+                                    <i class="fa-solid fa-circle"></i> @(item?.Enabled == true ? "Enabled" : "Disabled")
                                 </span>
-                            </td>
-                            <td>@flow.Nodes.Count</td>
-                            <td>@flow.ScanRateMs ms</td>
-                            <td>@flow.UpdatedAt.ToLocalTime().ToString("g")</td>
-                            <td class="actions-cell">
-                                <button class="btn btn-icon" title="Edit" @onclick="@(() => EditFlow(flow.Id))">✏️</button>
-                                <button class="btn btn-icon @(flow.Enabled ? "btn-warning" : "btn-success")" 
-                                        title="@(flow.Enabled ? "Disable" : "Enable")" 
-                                        @onclick="@(() => ToggleFlowEnabled(flow))">
-                                    @(flow.Enabled ? "⏹️" : "▶️")
-                                </button>
-                                <button class="btn btn-icon btn-danger" title="Delete" @onclick="@(() => ConfirmDeleteFlow(flow))">🗑️</button>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn HeaderText="Actions" Width="120">
+                        <Template>
+                            @{
+                                var item = (context as FlowDisplay);
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditFlow(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteFlow(item!.Id)"></SfButton>
+                                </div>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
         }
     }
     else
     {
-        @* Flow Editor View *@
+        <!-- Flow Editor View -->
         <div class="flow-editor">
             <div class="editor-toolbar">
-                <button class="btn" @onclick="GoBack">⬅️ Back</button>
-                <input type="text" class="form-input flow-name-input" @bind="CurrentFlow.Name" placeholder="Flow Name" />
+                <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
-                @if (ShowSaveMessage)
-                {
-                    <span class="save-message">@SaveMessage</span>
-                }
-                <button class="btn @(CurrentFlow.Enabled ? "btn-warning" : "btn-success")" @onclick="ToggleEnabled">
-                    @(CurrentFlow.Enabled ? "⏹️ Disable" : "▶️ Enable")
-                </button>
-                <button class="btn btn-primary" @onclick="SaveFlow">💾 Save</button>
+                <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
+                          IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
+                          Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
+                          @onclick="ToggleEnabled"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
             </div>
-
-            <div class="editor-container">
-                @* Node Palette *@
+            
+            <div class="editor-content">
+                <!-- Node Palette (Custom HTML5 - not hardcoded, from NodeRegistry) -->
                 <div class="node-palette">
                     <div class="palette-header">NODE PALETTE</div>
-                    
-                    @foreach (var category in NodeCategories)
+                    @foreach (var category in NodeRegistry.Categories)
                     {
+                        var plugins = NodeRegistry.GetByCategory(category);
+                        if (!plugins.Any()) continue;
+                        
                         <div class="palette-category">
-                            <div class="category-header" @onclick="@(() => ToggleCategory(category.Key))">
-                                <span class="toggle-icon">@(ExpandedCategories.Contains(category.Key) ? "▼" : "▶")</span>
-                                @category.Key.ToUpperInvariant()
+                            <div class="category-header" @onclick="() => ToggleCategory(category)">
+                                <span class="toggle-icon">@(ExpandedCategories.Contains(category) ? "▼" : "▶")</span>
+                                @category.ToUpperInvariant()
                             </div>
-                            @if (ExpandedCategories.Contains(category.Key))
+                            @if (ExpandedCategories.Contains(category))
                             {
                                 <div class="category-nodes">
-                                    @foreach (var nodeType in category.Value)
+                                    @foreach (var plugin in plugins)
                                     {
                                         <div class="palette-node" 
-                                             style="border-left-color: @nodeType.Color"
-                                             @onclick="@(() => AddNode(nodeType))">
-                                            <span class="node-icon" style="color: @nodeType.Color">@nodeType.Icon</span>
-                                            <span class="node-label">@nodeType.Label</span>
+                                             draggable="true"
+                                             style="border-left-color: @plugin.Color"
+                                             @ondragstart="() => OnPaletteDragStart(plugin)"
+                                             @onclick="() => AddNodeFromPalette(plugin)">
+                                            <span class="node-icon"><i class="@plugin.Icon" style="color: @plugin.Color"></i></span>
+                                            <span class="node-label">@plugin.ShortLabel</span>
                                         </div>
                                     }
                                 </div>
@@ -122,373 +108,234 @@
                         </div>
                     }
                 </div>
-
-                @* Flow Canvas *@
-                <div class="flow-canvas">
-                    @if (!CurrentFlow.Nodes.Any())
-                    {
-                        <div class="canvas-placeholder">
-                            <p>Click nodes from the palette to add them to your flow</p>
-                        </div>
-                    }
-                    else
-                    {
-                        <svg class="flow-diagram" viewBox="0 0 1000 600">
-                            @* Draw edges *@
-                            @foreach (var edge in CurrentFlow.Edges)
-                            {
-                                var sourceNode = CurrentFlow.Nodes.FirstOrDefault(n => n.Id == edge.SourceNodeId);
-                                var targetNode = CurrentFlow.Nodes.FirstOrDefault(n => n.Id == edge.TargetNodeId);
-                                if (sourceNode != null && targetNode != null)
-                                {
-                                    var x1 = sourceNode.X + 80;
-                                    var y1 = sourceNode.Y + 25;
-                                    var x2 = targetNode.X;
-                                    var y2 = targetNode.Y + 25;
-                                    <path d="M @x1 @y1 C @((x1 + x2) / 2) @y1 @((x1 + x2) / 2) @y2 @x2 @y2" 
-                                          stroke="#6b7280" stroke-width="2" fill="none" />
-                                }
-                            }
-                            
-                            @* Draw nodes *@
-                            @foreach (var node in CurrentFlow.Nodes)
-                            {
-                                var nodeType = GetNodeType(node.Type);
-                                var isSelected = SelectedNode?.Id == node.Id;
-                                <g transform="translate(@node.X, @node.Y)" 
-                                   class="flow-node @(isSelected ? "selected" : "")"
-                                   @onclick="@(() => SelectNode(node))"
-                                   @onclick:stopPropagation="true">
-                                    <rect x="0" y="0" width="160" height="50" rx="5" 
-                                          fill="#1f2937" stroke="@(isSelected ? "#3b82f6" : nodeType.Color)" stroke-width="2" />
-                                    <text x="10" y="20" fill="@nodeType.Color" font-size="14">@nodeType.Icon</text>
-                                    <text x="30" y="20" fill="#e5e7eb" font-size="12">@node.Label</text>
-                                    <text x="10" y="40" fill="#9ca3af" font-size="10">@nodeType.Label</text>
-                                    @* Input port *@
-                                    <circle cx="0" cy="25" r="6" fill="#374151" stroke="#6b7280" stroke-width="1" />
-                                    @* Output port *@
-                                    <circle cx="160" cy="25" r="6" fill="#374151" stroke="#6b7280" stroke-width="1" />
-                                </g>
-                            }
-                        </svg>
-                    }
+                
+                <!-- Diagram Canvas -->
+                <div class="diagram-container" 
+                     id="diagram-space"
+                     @ondragover="OnDiagramDragOver"
+                     @ondragover:preventDefault="true"
+                     @ondrop="OnDiagramDrop"
+                     @ondrop:preventDefault="true">
+                    <SfDiagramComponent @ref="Diagram" 
+                                        ID="diagram"
+                                        Width="100%" 
+                                        Height="100%"
+                                        Nodes="@Nodes"
+                                        Connectors="@Connectors"
+                                        NodeCreating="@OnNodeCreating"
+                                        ConnectorCreating="@OnConnectorCreating"
+                                        SelectionChanged="@OnSelectionChanged">
+                        <SnapSettings>
+                            <HorizontalGridLines LineColor="#3a4049" LineDashArray="2,4"></HorizontalGridLines>
+                            <VerticalGridLines LineColor="#3a4049" LineDashArray="2,4"></VerticalGridLines>
+                        </SnapSettings>
+                        <ScrollSettings ScrollLimit="ScrollLimitMode.Diagram"></ScrollSettings>
+                    </SfDiagramComponent>
                 </div>
-
-                @* Properties Panel *@
+                
+                <!-- Properties Panel -->
                 <div class="properties-panel">
                     <h3>Properties</h3>
                     @if (SelectedNode != null)
                     {
-                        var nodeType = GetNodeType(SelectedNode.Type);
-                        <div class="node-type-badge" style="border-color: @nodeType.Color">
-                            <span class="badge-icon">@nodeType.Icon</span>
-                            @nodeType.Label
+                        var plugin = NodeRegistry.Get(GetNodeBaseType(SelectedNode));
+                        <div class="property-header">
+                            <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
+                                <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
+                                @(plugin?.Name ?? GetNodeType(SelectedNode))
+                            </span>
                         </div>
-
+                        
+                        @if (plugin != null)
+                        {
+                            <p class="plugin-description">@plugin.Description</p>
+                        }
+                        
                         <div class="property-group">
                             <label>Label</label>
-                            <input type="text" class="form-input" @bind="SelectedNode.Label" />
+                            <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
                         </div>
-
-                        <div class="property-group">
-                            <label>Position X</label>
-                            <input type="number" class="form-input" @bind="SelectedNode.X" />
-                        </div>
-
-                        <div class="property-group">
-                            <label>Position Y</label>
-                            <input type="number" class="form-input" @bind="SelectedNode.Y" />
-                        </div>
-
-                        @if (nodeType.Properties.Any())
+                        
+                        @if (plugin != null)
                         {
-                            <h4>Node Settings</h4>
-                            @foreach (var prop in nodeType.Properties)
+                            @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
                             {
-                                var propName = prop.Name;
                                 <div class="property-group">
-                                    <label>@prop.Label</label>
-                                    @if (prop.Type == "select")
+                                    <label>@prop.Label @(prop.Required ? "*" : "")</label>
+                                    @RenderPropertyInput(prop)
+                                    @if (!string.IsNullOrEmpty(prop.HelpText))
                                     {
-                                        <select class="form-select" 
-                                                value="@GetPropertyValue(propName)"
-                                                @onchange="(e) => SetPropertyValue(propName, e.Value)">
-                                            @foreach (var opt in prop.Options ?? Array.Empty<string>())
-                                            {
-                                                <option value="@opt">@opt</option>
-                                            }
-                                        </select>
-                                    }
-                                    else if (prop.Type == "number")
-                                    {
-                                        <input type="number" class="form-input"
-                                               value="@GetPropertyValue(propName)"
-                                               @onchange="(e) => SetPropertyValue(propName, e.Value)" />
-                                    }
-                                    else
-                                    {
-                                        <input type="text" class="form-input"
-                                               value="@GetPropertyValue(propName)"
-                                               @onchange="(e) => SetPropertyValue(propName, e.Value)" />
+                                        <span class="property-hint">@prop.HelpText</span>
                                     }
                                 </div>
                             }
                         }
-
+                        
                         <div class="property-actions">
-                            <button class="btn btn-danger" @onclick="DeleteSelectedNode">🗑️ Delete Node</button>
+                            <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
                         </div>
                     }
                     else
                     {
-                        <p class="no-selection">Select a node to view its properties</p>
-
+                        <p class="no-selection">Select a node to view properties</p>
+                    }
+                    
+                    <div class="flow-settings">
                         <h4>Flow Settings</h4>
                         <div class="property-group">
                             <label>Description</label>
-                            <textarea class="form-input" @bind="CurrentFlow.Description" rows="3"></textarea>
+                            <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
                         </div>
                         <div class="property-group">
                             <label>Scan Rate (ms)</label>
-                            <input type="number" class="form-input" @bind="CurrentFlow.ScanRateMs" min="10" max="60000" />
+                            <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
                         </div>
-                    }
+                    </div>
                 </div>
             </div>
         </div>
     }
 </div>
 
-@* Delete Confirmation Dialog *@
-@if (ShowDeleteDialog)
-{
-    <div class="modal-backdrop" @onclick="CloseDialogs"></div>
-    <div class="modal">
-        <div class="modal-header">
-            <h3>Confirm Delete</h3>
-            <button class="btn-close" @onclick="CloseDialogs">×</button>
-        </div>
-        <div class="modal-body">
-            <p>Are you sure you want to delete flow "@DeletingFlow?.Name"?</p>
-            <p class="warning">This action cannot be undone.</p>
-        </div>
-        <div class="modal-footer">
-            <button class="btn" @onclick="CloseDialogs">Cancel</button>
-            <button class="btn btn-danger" @onclick="DeleteFlow">Delete</button>
-        </div>
-    </div>
-}
+<!-- Delete Confirmation Dialog -->
+<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>Confirm Delete</Header>
+        <Content>
+            <p>Delete this flow?</p>
+            <p class="text-muted">This action cannot be undone.</p>
+        </Content>
+        <FooterTemplate>
+            <SfButton @onclick="() => ShowDeleteDialog = false">Cancel</SfButton>
+            <SfButton CssClass="e-danger" @onclick="ExecuteDeleteFlow">Delete</SfButton>
+        </FooterTemplate>
+    </DialogTemplates>
+</SfDialog>
 
 @code {
     [Parameter] public string? FlowId { get; set; }
-
-    private bool IsLoading = true;
-    private DataForeman.Shared.Models.FlowConfig CurrentFlow = new();
-    private DataForeman.Shared.Models.FlowNode? SelectedNode;
-    private HashSet<string> ExpandedCategories = new() { "Tags", "Math" };
-    private bool ShowSaveMessage;
-    private string SaveMessage = "";
+    
+    private SfDiagramComponent? Diagram;
+    private DiagramObjectCollection<Node> Nodes = new();
+    private DiagramObjectCollection<Connector> Connectors = new();
+    private Node? SelectedNode;
+    private string SelectedNodeLabel = "";
+    
+    // Palette state
+    private HashSet<string> ExpandedCategories = new() { "Triggers", "Tags" };
+    private NodePluginDefinition? _draggingPlugin;
+    
+    private FlowConfig CurrentFlow = new();
     private bool ShowDeleteDialog;
-    private DataForeman.Shared.Models.FlowConfig? DeletingFlow;
+    private string DeleteFlowId = "";
+    
+    // Node property values storage
+    private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
 
-    private int NodeXOffset = 50;
-    private int NodeYOffset = 50;
-
-    // Node type definitions
-    private Dictionary<string, List<NodeTypeDefinition>> NodeCategories = new()
+    private List<FlowDisplay> FlowsList => ConfigService.Flows.Select(f => new FlowDisplay
     {
-        ["Tags"] = new()
-        {
-            new("TagInput", "Tag Input", "📥", "#22c55e", new[]
-            {
-                new PropertyDefinition("tagId", "Tag", "select"),
-            }),
-            new("TagOutput", "Tag Output", "📤", "#ef4444", new[]
-            {
-                new PropertyDefinition("tagId", "Tag", "select"),
-            }),
-        },
-        ["Math"] = new()
-        {
-            new("Math", "Math", "🔢", "#3b82f6", new[]
-            {
-                new PropertyDefinition("operation", "Operation", "select", new[] { "Add", "Subtract", "Multiply", "Divide" }),
-                new PropertyDefinition("value", "Value", "number"),
-            }),
-            new("Clamp", "Clamp", "📏", "#8b5cf6", new[]
-            {
-                new PropertyDefinition("min", "Minimum", "number"),
-                new PropertyDefinition("max", "Maximum", "number"),
-            }),
-            new("Round", "Round", "⭕", "#06b6d4", new[]
-            {
-                new PropertyDefinition("decimals", "Decimals", "number"),
-            }),
-        },
-        ["Logic"] = new()
-        {
-            new("Gate", "Gate", "🚪", "#f59e0b", new[]
-            {
-                new PropertyDefinition("condition", "Condition", "select", new[] { "GreaterThan", "LessThan", "Equal", "NotEqual" }),
-                new PropertyDefinition("threshold", "Threshold", "number"),
-            }),
-            new("Switch", "Switch", "🔀", "#ec4899", new[]
-            {
-                new PropertyDefinition("cases", "Cases", "text"),
-            }),
-        },
-        ["Utility"] = new()
-        {
-            new("Constant", "Constant", "📌", "#9ca3af", new[]
-            {
-                new PropertyDefinition("value", "Value", "text"),
-            }),
-            new("Delay", "Delay", "⏱️", "#84cc16", new[]
-            {
-                new PropertyDefinition("delayMs", "Delay (ms)", "number"),
-            }),
-            new("Debug", "Debug Log", "🐛", "#6366f1", new[]
-            {
-                new PropertyDefinition("prefix", "Prefix", "text"),
-            }),
-        }
-    };
+        Id = f.Id,
+        Name = f.Name,
+        Description = f.Description ?? "",
+        NodeCount = f.Nodes.Count,
+        Enabled = f.Enabled
+    }).ToList();
 
     protected override async Task OnInitializedAsync()
     {
         await ConfigService.LoadAllAsync();
-        IsLoading = false;
     }
 
     protected override void OnParametersSet()
     {
-        if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
+        if (!string.IsNullOrEmpty(FlowId))
         {
             var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
             if (flow != null)
             {
                 CurrentFlow = flow;
+                LoadFlowDefinition(flow);
+            }
+            else if (FlowId == "new")
+            {
+                CurrentFlow = new FlowConfig { Name = "New Flow" };
+                Nodes = new DiagramObjectCollection<Node>();
+                Connectors = new DiagramObjectCollection<Connector>();
             }
         }
-        else if (FlowId == "new")
+    }
+
+    private void LoadFlowDefinition(FlowConfig flow)
+    {
+        Nodes = new DiagramObjectCollection<Node>();
+        Connectors = new DiagramObjectCollection<Connector>();
+        NodeProperties.Clear();
+        
+        foreach (var node in flow.Nodes)
         {
-            CurrentFlow = new DataForeman.Shared.Models.FlowConfig
+            var plugin = NodeRegistry.Get(node.Type);
+            var diagramNode = CreateFlowNode(
+                node.Id,
+                node.Label ?? plugin?.Name ?? node.Type,
+                plugin?.Color ?? "#9ca3af",
+                node.X,
+                node.Y,
+                plugin?.InputCount ?? 1,
+                plugin?.OutputCount ?? 1
+            );
+            Nodes.Add(diagramNode);
+            
+            // Store node properties
+            if (node.Properties != null)
             {
-                Name = "New Flow",
-                ScanRateMs = 1000
-            };
+                NodeProperties[node.Id] = new Dictionary<string, object>(node.Properties);
+            }
+        }
+        
+        foreach (var edge in flow.Edges)
+        {
+            Connectors.Add(CreateFlowConnector(
+                edge.Id,
+                edge.SourceNodeId,
+                edge.SourcePortId,
+                edge.TargetNodeId,
+                edge.TargetPortId
+            ));
         }
     }
 
-    private void CreateNewFlow()
-    {
-        Navigation.NavigateTo("/flows/new");
-    }
-
-    private void EditFlow(string flowId)
-    {
-        Navigation.NavigateTo($"/flows/{flowId}");
-    }
-
-    private void GoBack()
-    {
-        Navigation.NavigateTo("/flows");
-    }
-
-    private void ToggleCategory(string category)
-    {
-        if (ExpandedCategories.Contains(category))
-        {
-            ExpandedCategories.Remove(category);
-        }
-        else
-        {
-            ExpandedCategories.Add(category);
-        }
-    }
-
-    private void AddNode(NodeTypeDefinition nodeType)
-    {
-        var node = new DataForeman.Shared.Models.FlowNode
-        {
-            Type = nodeType.Type,
-            Label = nodeType.Label,
-            X = NodeXOffset,
-            Y = NodeYOffset
-        };
-
-        CurrentFlow.Nodes.Add(node);
-        SelectedNode = node;
-
-        // Offset next node position
-        NodeXOffset += 200;
-        if (NodeXOffset > 600)
-        {
-            NodeXOffset = 50;
-            NodeYOffset += 80;
-        }
-    }
-
-    private void SelectNode(DataForeman.Shared.Models.FlowNode node)
-    {
-        SelectedNode = node;
-    }
-
-    private void DeleteSelectedNode()
-    {
-        if (SelectedNode == null) return;
-
-        // Remove connected edges
-        CurrentFlow.Edges.RemoveAll(e => e.SourceNodeId == SelectedNode.Id || e.TargetNodeId == SelectedNode.Id);
-        CurrentFlow.Nodes.Remove(SelectedNode);
-        SelectedNode = null;
-    }
-
-    private NodeTypeDefinition GetNodeType(string type)
-    {
-        foreach (var category in NodeCategories.Values)
-        {
-            var nodeType = category.FirstOrDefault(n => n.Type == type);
-            if (nodeType != null) return nodeType;
-        }
-        return new NodeTypeDefinition(type, type, "❓", "#6b7280", Array.Empty<PropertyDefinition>());
-    }
-
-    private string GetPropertyValue(string name)
-    {
-        if (SelectedNode?.Properties.TryGetValue(name, out var value) == true)
-        {
-            return value?.ToString() ?? "";
-        }
-        return "";
-    }
-
-    private void SetPropertyValue(string name, object? value)
-    {
-        if (SelectedNode != null)
-        {
-            SelectedNode.Properties[name] = value!;
-        }
-    }
-
-    private async Task ToggleFlowEnabled(DataForeman.Shared.Models.FlowConfig flow)
-    {
-        flow.Enabled = !flow.Enabled;
-        flow.UpdatedAt = DateTime.UtcNow;
-        await ConfigService.UpdateFlowAsync(flow);
-    }
-
-    private void ToggleEnabled()
-    {
-        CurrentFlow.Enabled = !CurrentFlow.Enabled;
-    }
+    private void CreateNewFlow() => Navigation.NavigateTo("/flows/new");
+    private void EditFlow(string id) => Navigation.NavigateTo($"/flows/{id}");
+    private void GoBack() => Navigation.NavigateTo("/flows");
+    
+    private void ToggleEnabled() => CurrentFlow.Enabled = !CurrentFlow.Enabled;
 
     private async Task SaveFlow()
     {
+        // Convert diagram nodes to flow nodes
+        CurrentFlow.Nodes = Nodes.Select(n => new FlowNode
+        {
+            Id = n.ID,
+            Type = GetNodeBaseType(n),
+            Label = GetNodeLabel(n),
+            X = n.OffsetX,
+            Y = n.OffsetY,
+            Properties = NodeProperties.TryGetValue(n.ID, out var props) ? props : new()
+        }).ToList();
+        
+        // Convert connectors to edges
+        CurrentFlow.Edges = Connectors.Select(c => new FlowEdge
+        {
+            Id = c.ID,
+            SourceNodeId = c.SourceID,
+            SourcePortId = c.SourcePortID,
+            TargetNodeId = c.TargetID,
+            TargetPortId = c.TargetPortID
+        }).ToList();
+        
         CurrentFlow.UpdatedAt = DateTime.UtcNow;
         
-        var existing = ConfigService.Flows.FirstOrDefault(f => f.Id == CurrentFlow.Id);
-        if (existing == null)
+        if (FlowId == "new")
         {
             await ConfigService.AddFlowAsync(CurrentFlow);
         }
@@ -496,43 +343,350 @@
         {
             await ConfigService.UpdateFlowAsync(CurrentFlow);
         }
-
-        ShowSaveMessage = true;
-        SaveMessage = "Flow saved!";
-        StateHasChanged();
-
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(2000);
-            ShowSaveMessage = false;
-            await InvokeAsync(StateHasChanged);
-        });
+        
+        Navigation.NavigateTo("/flows");
     }
 
-    private void ConfirmDeleteFlow(DataForeman.Shared.Models.FlowConfig flow)
+    private void ConfirmDeleteFlow(string id)
     {
-        DeletingFlow = flow;
+        DeleteFlowId = id;
         ShowDeleteDialog = true;
     }
 
-    private async Task DeleteFlow()
+    private async Task ExecuteDeleteFlow()
     {
-        if (DeletingFlow == null) return;
-
-        await ConfigService.DeleteFlowAsync(DeletingFlow.Id);
-        CloseDialogs();
-    }
-
-    private void CloseDialogs()
-    {
+        await ConfigService.DeleteFlowAsync(DeleteFlowId);
         ShowDeleteDialog = false;
-        DeletingFlow = null;
     }
 
-    public void Dispose()
+    // Palette interactions
+    private void ToggleCategory(string category)
     {
+        if (ExpandedCategories.Contains(category))
+            ExpandedCategories.Remove(category);
+        else
+            ExpandedCategories.Add(category);
     }
 
-    private record NodeTypeDefinition(string Type, string Label, string Icon, string Color, PropertyDefinition[] Properties);
-    private record PropertyDefinition(string Name, string Label, string Type, string[]? Options = null);
+    private void OnPaletteDragStart(NodePluginDefinition plugin)
+    {
+        _draggingPlugin = plugin;
+    }
+
+    private void OnDiagramDragOver(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
+    {
+        e.DataTransfer.DropEffect = "copy";
+    }
+
+    private async Task OnDiagramDrop(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
+    {
+        if (_draggingPlugin == null || Diagram == null) return;
+        
+        try
+        {
+            var diagramRect = await JSRuntime.InvokeAsync<Dictionary<string, double>>(
+                "eval", 
+                "(() => { const rect = document.getElementById('diagram-space').getBoundingClientRect(); return { left: rect.left, top: rect.top }; })()");
+            
+            double diagramX = e.ClientX - diagramRect["left"];
+            double diagramY = e.ClientY - diagramRect["top"];
+            
+            await AddNodeFromPalette(_draggingPlugin, diagramX, diagramY);
+        }
+        finally
+        {
+            _draggingPlugin = null;
+        }
+    }
+
+    private async Task AddNodeFromPalette(NodePluginDefinition plugin, double? x = null, double? y = null)
+    {
+        if (Diagram == null) return;
+        
+        double offsetX = x ?? (400 + (Nodes.Count % 4) * 220);
+        double offsetY = y ?? (150 + (Nodes.Count / 4) * 120);
+        
+        var nodeId = $"{plugin.Id}-{Guid.NewGuid():N}";
+        var node = CreateFlowNode(
+            nodeId,
+            plugin.Name,
+            plugin.Color,
+            offsetX, offsetY,
+            plugin.InputCount, plugin.OutputCount
+        );
+        
+        // Initialize default properties (cast to object)
+        NodeProperties[nodeId] = plugin.Properties
+            .Where(p => !string.IsNullOrEmpty(p.DefaultValue))
+            .ToDictionary(p => p.Key, p => (object)p.DefaultValue);
+        
+        Nodes.Add(node);
+        StateHasChanged();
+    }
+
+    private Node CreateFlowNode(string id, string label, string color, double x, double y, int inputCount, int outputCount)
+    {
+        var baseType = GetBaseTypeFromId(id);
+        var plugin = NodeRegistry.Get(baseType);
+        
+        var node = new Node
+        {
+            ID = id,
+            OffsetX = x,
+            OffsetY = y,
+            Width = 180,
+            Height = 70,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
+            Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
+            Ports = new DiagramObjectCollection<PointPort>(),
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        // Main label
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = label,
+            Style = new TextStyle { Color = "#ffffff", FontSize = 13, Bold = true },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.35 },
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        
+        // Category subtitle
+        var category = plugin?.Category ?? "Node";
+        node.Annotations.Add(new ShapeAnnotation
+        {
+            Content = category,
+            Style = new TextStyle { Color = "#9d9d9d", FontSize = 10, Italic = true },
+            Offset = new DiagramPoint { X = 0.5, Y = 0.7 },
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        
+        // Input ports
+        for (int i = 0; i < inputCount; i++)
+        {
+            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"input-{i}",
+                Offset = new DiagramPoint { X = 0, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 12, Height = 12,
+                Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        // Output ports
+        for (int i = 0; i < outputCount; i++)
+        {
+            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            node.Ports.Add(new PointPort
+            {
+                ID = $"output-{i}",
+                Offset = new DiagramPoint { X = 1, Y = yOffset },
+                Visibility = PortVisibility.Visible,
+                Shape = PortShapes.Circle,
+                Width = 12, Height = 12,
+                Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#ffffff", StrokeWidth = 2 },
+                Constraints = PortConstraints.Default | PortConstraints.Draw
+            });
+        }
+        
+        return node;
+    }
+
+    private Connector CreateFlowConnector(string id, string sourceId, string? sourcePort, string targetId, string? targetPort)
+    {
+        return new Connector
+        {
+            ID = id,
+            SourceID = sourceId,
+            SourcePortID = sourcePort ?? "output-0",
+            TargetID = targetId,
+            TargetPortID = targetPort ?? "input-0",
+            Type = ConnectorSegmentType.Bezier,
+            Style = new ShapeStyle { StrokeColor = "#6b7280", StrokeWidth = 2 },
+            TargetDecorator = new DecoratorSettings
+            {
+                Shape = DecoratorShape.Arrow,
+                Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = "#6b7280" }
+            }
+        };
+    }
+
+    private void OnNodeCreating(IDiagramObject obj)
+    {
+        if (obj is Node node)
+        {
+            node.Style.Fill = "#2a2a2a";
+        }
+    }
+
+    private void OnConnectorCreating(IDiagramObject obj)
+    {
+        if (obj is Connector connector)
+        {
+            connector.Type = ConnectorSegmentType.Bezier;
+            connector.Style.StrokeColor = "#6b7280";
+            connector.Style.StrokeWidth = 2;
+        }
+    }
+
+    private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
+    {
+        if (args.NewValue?.Count > 0 && args.NewValue[0] is Node node)
+        {
+            SelectedNode = node;
+            SelectedNodeLabel = GetNodeLabel(node);
+        }
+        else
+        {
+            SelectedNode = null;
+            SelectedNodeLabel = "";
+        }
+    }
+
+    private async Task OnLabelChanged(string newLabel)
+    {
+        if (SelectedNode == null || Diagram == null) return;
+        
+        SelectedNodeLabel = newLabel;
+        if (SelectedNode.Annotations.Count > 0)
+        {
+            SelectedNode.Annotations[0].Content = newLabel;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteSelectedNode()
+    {
+        if (SelectedNode == null || Diagram == null) return;
+        
+        var nodeId = SelectedNode.ID;
+        Nodes.Remove(SelectedNode);
+        NodeProperties.Remove(nodeId);
+        
+        // Remove connected connectors
+        var connectedConnectors = Connectors.Where(c => c.SourceID == nodeId || c.TargetID == nodeId).ToList();
+        foreach (var conn in connectedConnectors)
+        {
+            Connectors.Remove(conn);
+        }
+        
+        SelectedNode = null;
+        StateHasChanged();
+    }
+
+    private string GetNodeLabel(Node node) => node.Annotations?.FirstOrDefault()?.Content ?? node.ID;
+    private string GetNodeType(Node node) => GetBaseTypeFromId(node.ID);
+    private string GetNodeBaseType(Node node) => GetBaseTypeFromId(node.ID);
+    
+    private string GetBaseTypeFromId(string id)
+    {
+        // Handle IDs like "trigger-manual-abc123" or "math-add-instance-xyz"
+        if (id.Contains("-instance-"))
+            return id.Split("-instance-")[0];
+        
+        // Try to match against known plugin IDs
+        var parts = id.Split('-');
+        for (int i = parts.Length; i > 0; i--)
+        {
+            var candidate = string.Join("-", parts.Take(i));
+            if (NodeRegistry.Get(candidate) != null)
+                return candidate;
+        }
+        
+        // Fallback: remove last segment if it looks like a GUID
+        if (parts.Length > 1 && parts[^1].Length >= 8)
+            return string.Join("-", parts.Take(parts.Length - 1));
+        
+        return id;
+    }
+
+    private RenderFragment RenderPropertyInput(NodePropertyDefinition prop) => builder =>
+    {
+        var nodeId = SelectedNode?.ID;
+        if (nodeId == null) return;
+        
+        if (!NodeProperties.ContainsKey(nodeId))
+            NodeProperties[nodeId] = new();
+        
+        var currentValue = NodeProperties[nodeId].TryGetValue(prop.Key, out var v) ? v?.ToString() : prop.DefaultValue;
+        
+        switch (prop.Type)
+        {
+            case PropertyType.Text:
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", currentValue ?? "");
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
+                builder.AddAttribute(3, "Placeholder", prop.Placeholder);
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Integer:
+                builder.OpenComponent<SfNumericTextBox<int>>(0);
+                builder.AddAttribute(1, "Value", int.TryParse(currentValue, out var intVal) ? intVal : 0);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<int>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString())));
+                builder.AddAttribute(3, "Min", (int)(prop.Min ?? int.MinValue));
+                builder.AddAttribute(4, "Max", (int)(prop.Max ?? int.MaxValue));
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Decimal:
+                builder.OpenComponent<SfNumericTextBox<double>>(0);
+                builder.AddAttribute(1, "Value", double.TryParse(currentValue, out var dblVal) ? dblVal : 0);
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString())));
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Boolean:
+                builder.OpenComponent<SfCheckBox<bool>>(0);
+                builder.AddAttribute(1, "Checked", currentValue?.ToLower() == "true");
+                builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString().ToLower())));
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.Select:
+                // For select, just render a simple text input for now (complex dropdowns need different handling)
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", currentValue?.ToString() ?? "");
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
+                builder.AddAttribute(3, "Placeholder", string.Join(", ", prop.Options.Select(o => o.Label)));
+                builder.CloseComponent();
+                break;
+                
+            case PropertyType.TextArea:
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", currentValue?.ToString() ?? "");
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
+                builder.AddAttribute(3, "Multiline", true);
+                builder.CloseComponent();
+                break;
+                
+            default:
+                builder.OpenComponent<SfTextBox>(0);
+                builder.AddAttribute(1, "Value", currentValue?.ToString() ?? "");
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
+                builder.CloseComponent();
+                break;
+        }
+    };
+
+    private void SetPropertyValue(string nodeId, string key, object value)
+    {
+        if (!NodeProperties.ContainsKey(nodeId))
+            NodeProperties[nodeId] = new();
+        NodeProperties[nodeId][key] = value;
+    }
+
+    public class FlowDisplay
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public int NodeCount { get; set; }
+        public bool Enabled { get; set; }
+    }
 }

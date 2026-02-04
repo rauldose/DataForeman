@@ -7,254 +7,219 @@
 
 <PageTitle>Connectivity - DataForeman</PageTitle>
 
-<div class="connectivity-page">
-    <div class="page-header">
-        <h1>Connectivity</h1>
-        <div class="page-actions">
-            <button class="btn btn-primary" @onclick="ShowAddConnectionDialog">
-                ➕ Add Connection
-            </button>
+<div class="page-container">
+    <div class="page-toolbar">
+        <h2><i class="fa-solid fa-plug"></i> Connectivity</h2>
+        <div class="toolbar-actions">
+            <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="ShowAddConnectionDialog">Add Connection</SfButton>
         </div>
     </div>
 
-    <div class="tabs">
-        <button class="tab @(ActiveTab == "connections" ? "active" : "")" @onclick="@(() => ActiveTab = "connections")">
-            Connections (@ConfigService.Connections.Count)
-        </button>
-        <button class="tab @(ActiveTab == "tags" ? "active" : "")" @onclick="@(() => ActiveTab = "tags")">
-            Tags (@TotalTags)
-        </button>
-    </div>
-
-    @if (ActiveTab == "connections")
-    {
-        <div class="tab-content">
-            @if (!ConfigService.Connections.Any())
-            {
-                <div class="no-data">No connections configured. Click "Add Connection" to create one.</div>
-            }
-            else
-            {
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Tags</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var conn in ConfigService.Connections)
+    <SfTab>
+        <TabItems>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="@ConnectionsTabText"></TabHeader>
+                </ChildContent>
+                <ContentTemplate>
+                    <div class="tab-panel">
+                        @if (!ConnectionsList.Any())
                         {
-                            var status = RealtimeData.GetConnectionStatus(conn.Id);
-                            <tr>
-                                <td>@conn.Name</td>
-                                <td>@conn.Type</td>
-                                <td>
-                                    <span class="status-badge @GetStatusClass(status, conn.Enabled)">
-                                        @GetStatusText(status, conn.Enabled)
-                                    </span>
-                                </td>
-                                <td>@conn.Tags.Count</td>
-                                <td class="actions-cell">
-                                    <button class="btn btn-icon" title="Edit" @onclick="@(() => EditConnection(conn))">✏️</button>
-                                    <button class="btn btn-icon" title="View Tags" @onclick="@(() => ViewTags(conn))">🏷️</button>
-                                    <button class="btn btn-icon btn-danger" title="Delete" @onclick="@(() => ConfirmDeleteConnection(conn))">🗑️</button>
-                                </td>
-                            </tr>
+                            <div class="empty-state">
+                                <i class="fa-solid fa-plug"></i>
+                                <span>No connections configured</span>
+                            </div>
                         }
-                    </tbody>
-                </table>
-            }
-        </div>
-    }
-    else if (ActiveTab == "tags")
-    {
-        <div class="tab-content">
-            <div class="toolbar">
-                <select class="form-select" @bind="SelectedConnectionId">
-                    <option value="">All Connections</option>
-                    @foreach (var conn in ConfigService.Connections)
-                    {
-                        <option value="@conn.Id">@conn.Name</option>
-                    }
-                </select>
-                <input type="text" class="form-input" placeholder="Search tags..." @bind="TagSearchQuery" @bind:event="oninput" />
-                <button class="btn btn-primary" @onclick="ShowAddTagDialog">➕ Add Tag</button>
-            </div>
-
-            @if (!FilteredTags.Any())
-            {
-                <div class="no-data">No tags found. Add tags to your connections to get started.</div>
-            }
-            else
-            {
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Connection</th>
-                            <th>Data Type</th>
-                            <th>Poll Rate</th>
-                            <th>Current Value</th>
-                            <th>Quality</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in FilteredTags)
+                        else
                         {
-                            var tagValue = RealtimeData.GetTagValue(item.Tag.Id);
-                            <tr>
-                                <td>@item.Tag.Name</td>
-                                <td>@item.Connection.Name</td>
-                                <td>@item.Tag.DataType</td>
-                                <td>@item.Tag.PollRateMs ms</td>
-                                <td class="value-cell">@(tagValue?.FormattedValue ?? "N/A")</td>
-                                <td>
-                                    <span class="quality-badge @(tagValue?.IsGoodQuality == true ? "good" : "unknown")">
-                                        @(tagValue?.QualityText ?? "N/A")
-                                    </span>
-                                </td>
-                                <td class="actions-cell">
-                                    <button class="btn btn-icon" title="Edit" @onclick="@(() => EditTag(item.Connection, item.Tag))">✏️</button>
-                                    <button class="btn btn-icon btn-danger" title="Delete" @onclick="@(() => ConfirmDeleteTag(item.Connection, item.Tag))">🗑️</button>
-                                </td>
-                            </tr>
+                            <SfGrid DataSource="@ConnectionsList" AllowPaging="true">
+                                <GridPageSettings PageSize="10"></GridPageSettings>
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(ConnectionDisplay.Name)" HeaderText="Name" Width="200"></GridColumn>
+                                    <GridColumn Field="@nameof(ConnectionDisplay.Type)" HeaderText="Type" Width="120"></GridColumn>
+                                    <GridColumn HeaderText="Status" Width="100">
+                                        <Template>
+                                            @{
+                                                var item = (context as ConnectionDisplay);
+                                                <span class="status-indicator @item?.StatusClass">
+                                                    <i class="fa-solid fa-circle"></i> @item?.StatusText
+                                                </span>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="@nameof(ConnectionDisplay.TagCount)" HeaderText="Tags" Width="80"></GridColumn>
+                                    <GridColumn HeaderText="Actions" Width="120">
+                                        <Template>
+                                            @{
+                                                var item = (context as ConnectionDisplay);
+                                                <div class="action-buttons">
+                                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditConnectionById(item!.Id)"></SfButton>
+                                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-tags" @onclick="() => ViewTagsById(item!.Id)"></SfButton>
+                                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteConnectionById(item!.Id)"></SfButton>
+                                                </div>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </SfGrid>
                         }
-                    </tbody>
-                </table>
-            }
-        </div>
-    }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="@TagsTabText"></TabHeader>
+                </ChildContent>
+                <ContentTemplate>
+                    <div class="tab-panel">
+                        <div class="filter-bar">
+                            <SfDropDownList TItem="ConnectionOption" TValue="string" 
+                                            DataSource="@ConnectionOptions" 
+                                            @bind-Value="SelectedConnectionId"
+                                            Placeholder="All Connections">
+                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                            </SfDropDownList>
+                            <SfTextBox @bind-Value="TagSearchQuery" Placeholder="Search tags..." CssClass="search-box"></SfTextBox>
+                            <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="ShowAddTagDialog">Add Tag</SfButton>
+                        </div>
+                        
+                        @if (!TagsList.Any())
+                        {
+                            <div class="empty-state">
+                                <i class="fa-solid fa-tags"></i>
+                                <span>No tags found</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@TagsList" AllowPaging="true">
+                                <GridPageSettings PageSize="15"></GridPageSettings>
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(TagDisplay.Name)" HeaderText="Name" Width="180"></GridColumn>
+                                    <GridColumn Field="@nameof(TagDisplay.ConnectionName)" HeaderText="Connection" Width="140"></GridColumn>
+                                    <GridColumn Field="@nameof(TagDisplay.DataType)" HeaderText="Type" Width="80"></GridColumn>
+                                    <GridColumn Field="@nameof(TagDisplay.PollRate)" HeaderText="Poll Rate" Width="90"></GridColumn>
+                                    <GridColumn Field="@nameof(TagDisplay.Value)" HeaderText="Value" Width="100"></GridColumn>
+                                    <GridColumn HeaderText="Quality" Width="70">
+                                        <Template>
+                                            @{
+                                                var item = (context as TagDisplay);
+                                                <span class="quality-indicator @(item?.IsGood == true ? "good" : "unknown")">
+                                                    <i class="fa-solid @(item?.IsGood == true ? "fa-check" : "fa-question")"></i>
+                                                </span>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn HeaderText="Actions" Width="100">
+                                        <Template>
+                                            @{
+                                                var item = (context as TagDisplay);
+                                                <div class="action-buttons">
+                                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditTagById(item!.ConnectionId, item.Id)"></SfButton>
+                                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteTagById(item!.ConnectionId, item.Id)"></SfButton>
+                                                </div>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+        </TabItems>
+    </SfTab>
 </div>
 
-@* Connection Dialog *@
-@if (ShowConnectionDialog)
-{
-    <div class="modal-backdrop" @onclick="CloseDialogs"></div>
-    <div class="modal">
-        <div class="modal-header">
-            <h3>@(EditingConnection == null ? "Add Connection" : "Edit Connection")</h3>
-            <button class="btn-close" @onclick="CloseDialogs">×</button>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>Name</label>
-                <input type="text" class="form-input" @bind="ConnectionForm.Name" />
-            </div>
-            <div class="form-group">
-                <label>Type</label>
-                <select class="form-select" @bind="ConnectionForm.Type">
-                    <option value="Simulator">Simulator</option>
-                    <option value="OpcUa">OPC UA</option>
-                    <option value="S7">Siemens S7</option>
-                    <option value="Modbus">Modbus</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" @bind="ConnectionForm.Enabled" /> Enabled
-                </label>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn" @onclick="CloseDialogs">Cancel</button>
-            <button class="btn btn-primary" @onclick="SaveConnection">Save</button>
-        </div>
-    </div>
-}
-
-@* Tag Dialog *@
-@if (ShowTagDialog)
-{
-    <div class="modal-backdrop" @onclick="CloseDialogs"></div>
-    <div class="modal">
-        <div class="modal-header">
-            <h3>@(EditingTag == null ? "Add Tag" : "Edit Tag")</h3>
-            <button class="btn-close" @onclick="CloseDialogs">×</button>
-        </div>
-        <div class="modal-body">
-            @if (EditingTag == null)
-            {
-                <div class="form-group">
-                    <label>Connection</label>
-                    <select class="form-select" @bind="TagConnectionId">
-                        @foreach (var conn in ConfigService.Connections)
-                        {
-                            <option value="@conn.Id">@conn.Name</option>
-                        }
-                    </select>
+<!-- Connection Dialog -->
+<SfDialog @bind-Visible="ShowConnectionDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>@(EditingConnection == null ? "Add Connection" : "Edit Connection")</Header>
+        <Content>
+            <div class="dialog-form">
+                <div class="form-row">
+                    <label>Name</label>
+                    <SfTextBox @bind-Value="ConnectionForm.Name" Placeholder="Connection name"></SfTextBox>
                 </div>
-            }
-            <div class="form-group">
-                <label>Name</label>
-                <input type="text" class="form-input" @bind="TagForm.Name" />
+                <div class="form-row">
+                    <label>Type</label>
+                    <SfDropDownList TItem="string" TValue="string" DataSource="@ConnectionTypes" @bind-Value="ConnectionForm.Type"></SfDropDownList>
+                </div>
+                <div class="form-row">
+                    <SfCheckBox @bind-Checked="ConnectionForm.Enabled" Label="Enabled"></SfCheckBox>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Address</label>
-                <input type="text" class="form-input" @bind="TagForm.Address" />
-            </div>
-            <div class="form-group">
-                <label>Data Type</label>
-                <select class="form-select" @bind="TagForm.DataType">
-                    <option value="Boolean">Boolean</option>
-                    <option value="Int16">Int16</option>
-                    <option value="Int32">Int32</option>
-                    <option value="Float">Float</option>
-                    <option value="Double">Double</option>
-                    <option value="String">String</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Poll Rate (ms)</label>
-                <input type="number" class="form-input" @bind="TagForm.PollRateMs" min="10" max="60000" />
-            </div>
-            <div class="form-group">
-                <label>Unit</label>
-                <input type="text" class="form-input" @bind="TagForm.Unit" />
-            </div>
-            <div class="form-group">
-                <label>Description</label>
-                <input type="text" class="form-input" @bind="TagForm.Description" />
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" @bind="TagForm.Enabled" /> Enabled
-                </label>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn" @onclick="CloseDialogs">Cancel</button>
-            <button class="btn btn-primary" @onclick="SaveTag">Save</button>
-        </div>
-    </div>
-}
+        </Content>
+        <FooterTemplate>
+            <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+            <SfButton CssClass="e-primary" @onclick="SaveConnection">Save</SfButton>
+        </FooterTemplate>
+    </DialogTemplates>
+</SfDialog>
 
-@* Delete Confirmation Dialog *@
-@if (ShowDeleteDialog)
-{
-    <div class="modal-backdrop" @onclick="CloseDialogs"></div>
-    <div class="modal">
-        <div class="modal-header">
-            <h3>Confirm Delete</h3>
-            <button class="btn-close" @onclick="CloseDialogs">×</button>
-        </div>
-        <div class="modal-body">
-            <p>Are you sure you want to delete "@DeleteItemName"?</p>
-            <p class="warning">This action cannot be undone.</p>
-        </div>
-        <div class="modal-footer">
-            <button class="btn" @onclick="CloseDialogs">Cancel</button>
-            <button class="btn btn-danger" @onclick="ExecuteDelete">Delete</button>
-        </div>
-    </div>
-}
+<!-- Tag Dialog -->
+<SfDialog @bind-Visible="ShowTagDialog" Width="450px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>@(EditingTag == null ? "Add Tag" : "Edit Tag")</Header>
+        <Content>
+            <div class="dialog-form">
+                @if (EditingTag == null)
+                {
+                    <div class="form-row">
+                        <label>Connection</label>
+                        <SfDropDownList TItem="ConnectionOption" TValue="string" DataSource="@ConnectionOptionsNoAll" @bind-Value="TagConnectionId">
+                            <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                    </div>
+                }
+                <div class="form-row">
+                    <label>Name</label>
+                    <SfTextBox @bind-Value="TagForm.Name" Placeholder="Tag name"></SfTextBox>
+                </div>
+                <div class="form-row">
+                    <label>Address</label>
+                    <SfTextBox @bind-Value="TagForm.Address" Placeholder="Tag address"></SfTextBox>
+                </div>
+                <div class="form-row">
+                    <label>Data Type</label>
+                    <SfDropDownList TItem="string" TValue="string" DataSource="@DataTypes" @bind-Value="TagForm.DataType"></SfDropDownList>
+                </div>
+                <div class="form-row">
+                    <label>Poll Rate (ms)</label>
+                    <SfNumericTextBox TValue="int" @bind-Value="TagForm.PollRateMs" Min="10" Max="60000"></SfNumericTextBox>
+                </div>
+                <div class="form-row">
+                    <label>Unit</label>
+                    <SfTextBox @bind-Value="TagForm.Unit" Placeholder="e.g. °C, bar"></SfTextBox>
+                </div>
+                <div class="form-row">
+                    <SfCheckBox @bind-Checked="TagForm.Enabled" Label="Enabled"></SfCheckBox>
+                </div>
+            </div>
+        </Content>
+        <FooterTemplate>
+            <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+            <SfButton CssClass="e-primary" @onclick="SaveTag">Save</SfButton>
+        </FooterTemplate>
+    </DialogTemplates>
+</SfDialog>
+
+<!-- Delete Confirmation Dialog -->
+<SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>Confirm Delete</Header>
+        <Content>
+            <p>Delete "@DeleteItemName"?</p>
+            <p class="text-muted">This action cannot be undone.</p>
+        </Content>
+        <FooterTemplate>
+            <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+            <SfButton CssClass="e-danger" @onclick="ExecuteDelete">Delete</SfButton>
+        </FooterTemplate>
+    </DialogTemplates>
+</SfDialog>
 
 @code {
-    private string ActiveTab = "connections";
     private string SelectedConnectionId = "";
     private string TagSearchQuery = "";
     
@@ -273,27 +238,50 @@
     private string DeleteItemName = "";
     private Func<Task>? DeleteAction;
 
+    private List<string> ConnectionTypes = new() { "Simulator", "OpcUa", "S7", "Modbus" };
+    private List<string> DataTypes = new() { "Boolean", "Int16", "Int32", "Float", "Double", "String" };
+    
     private int TotalTags => ConfigService.Connections.Sum(c => c.Tags.Count);
-
-    private IEnumerable<(DataForeman.Shared.Models.ConnectionConfig Connection, DataForeman.Shared.Models.TagConfig Tag)> FilteredTags
-    {
-        get
-        {
+    private string ConnectionsTabText => $"Connections ({ConfigService.Connections.Count})";
+    private string TagsTabText => $"Tags ({TotalTags})";
+    
+    private List<ConnectionOption> ConnectionOptions => new List<ConnectionOption> { new("", "All Connections") }
+        .Concat(ConfigService.Connections.Select(c => new ConnectionOption(c.Id, c.Name))).ToList();
+    
+    private List<ConnectionOption> ConnectionOptionsNoAll => ConfigService.Connections.Select(c => new ConnectionOption(c.Id, c.Name)).ToList();
+    
+    private List<ConnectionDisplay> ConnectionsList => ConfigService.Connections.Select(c => {
+        var status = RealtimeData.GetConnectionStatus(c.Id);
+        return new ConnectionDisplay {
+            Id = c.Id,
+            Name = c.Name,
+            Type = c.Type,
+            TagCount = c.Tags.Count,
+            StatusText = GetStatusText(status, c.Enabled),
+            StatusClass = GetStatusClass(status, c.Enabled)
+        };
+    }).ToList();
+    
+    private List<TagDisplay> TagsList {
+        get {
             var query = ConfigService.GetAllTagsWithConnection().AsEnumerable();
-            
             if (!string.IsNullOrEmpty(SelectedConnectionId))
-            {
                 query = query.Where(x => x.Connection.Id == SelectedConnectionId);
-            }
-            
             if (!string.IsNullOrEmpty(TagSearchQuery))
-            {
-                query = query.Where(x => 
-                    x.Tag.Name.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase) ||
-                    x.Tag.Address.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase));
-            }
-            
-            return query;
+                query = query.Where(x => x.Tag.Name.Contains(TagSearchQuery, StringComparison.OrdinalIgnoreCase));
+            return query.Select(x => {
+                var tv = RealtimeData.GetTagValue(x.Tag.Id);
+                return new TagDisplay {
+                    Id = x.Tag.Id,
+                    ConnectionId = x.Connection.Id,
+                    ConnectionName = x.Connection.Name,
+                    Name = x.Tag.Name,
+                    DataType = x.Tag.DataType,
+                    PollRate = $"{x.Tag.PollRateMs}ms",
+                    Value = tv?.FormattedValue ?? "N/A",
+                    IsGood = tv?.IsGoodQuality
+                };
+            }).ToList();
         }
     }
 
@@ -303,17 +291,13 @@
         RealtimeData.OnDataChanged += HandleDataChanged;
     }
 
-    private void HandleDataChanged()
-    {
-        InvokeAsync(StateHasChanged);
-    }
+    private void HandleDataChanged() => InvokeAsync(StateHasChanged);
 
     private string GetStatusClass(DataForeman.Shared.Mqtt.ConnectionStatusMessage? status, bool enabled)
     {
         if (!enabled) return "disabled";
         if (status == null) return "unknown";
-        return status.State switch
-        {
+        return status.State switch {
             DataForeman.Shared.Mqtt.ConnectionState.Connected => "connected",
             DataForeman.Shared.Mqtt.ConnectionState.Connecting => "connecting",
             DataForeman.Shared.Mqtt.ConnectionState.Error => "error",
@@ -335,31 +319,24 @@
         ShowConnectionDialog = true;
     }
 
-    private void EditConnection(DataForeman.Shared.Models.ConnectionConfig connection)
+    private void EditConnectionById(string id)
     {
-        EditingConnection = connection;
-        ConnectionForm = new ConnectionFormModel
-        {
-            Name = connection.Name,
-            Type = connection.Type,
-            Enabled = connection.Enabled
-        };
+        var conn = ConfigService.GetConnection(id);
+        if (conn == null) return;
+        EditingConnection = conn;
+        ConnectionForm = new ConnectionFormModel { Name = conn.Name, Type = conn.Type, Enabled = conn.Enabled };
         ShowConnectionDialog = true;
     }
 
     private async Task SaveConnection()
     {
         if (string.IsNullOrWhiteSpace(ConnectionForm.Name)) return;
-
         if (EditingConnection == null)
         {
-            var newConnection = new DataForeman.Shared.Models.ConnectionConfig
-            {
-                Name = ConnectionForm.Name,
-                Type = ConnectionForm.Type,
-                Enabled = ConnectionForm.Enabled
+            var newConn = new DataForeman.Shared.Models.ConnectionConfig {
+                Name = ConnectionForm.Name, Type = ConnectionForm.Type, Enabled = ConnectionForm.Enabled
             };
-            await ConfigService.AddConnectionAsync(newConnection);
+            await ConfigService.AddConnectionAsync(newConn);
         }
         else
         {
@@ -368,26 +345,25 @@
             EditingConnection.Enabled = ConnectionForm.Enabled;
             await ConfigService.UpdateConnectionAsync(EditingConnection);
         }
-
         await MqttService.PublishConfigReloadAsync("connections");
         CloseDialogs();
     }
 
-    private void ConfirmDeleteConnection(DataForeman.Shared.Models.ConnectionConfig connection)
+    private void ConfirmDeleteConnectionById(string id)
     {
-        DeleteItemName = connection.Name;
-        DeleteAction = async () =>
-        {
-            await ConfigService.DeleteConnectionAsync(connection.Id);
+        var conn = ConfigService.GetConnection(id);
+        if (conn == null) return;
+        DeleteItemName = conn.Name;
+        DeleteAction = async () => {
+            await ConfigService.DeleteConnectionAsync(id);
             await MqttService.PublishConfigReloadAsync("connections");
         };
         ShowDeleteDialog = true;
     }
 
-    private void ViewTags(DataForeman.Shared.Models.ConnectionConfig connection)
+    private void ViewTagsById(string id)
     {
-        SelectedConnectionId = connection.Id;
-        ActiveTab = "tags";
+        SelectedConnectionId = id;
     }
 
     private void ShowAddTagDialog()
@@ -395,25 +371,20 @@
         EditingTag = null;
         EditingTagConnectionId = null;
         TagForm = new TagFormModel();
-        TagConnectionId = string.IsNullOrEmpty(SelectedConnectionId) 
-            ? ConfigService.Connections.FirstOrDefault()?.Id ?? "" 
-            : SelectedConnectionId;
+        TagConnectionId = string.IsNullOrEmpty(SelectedConnectionId) ? ConfigService.Connections.FirstOrDefault()?.Id ?? "" : SelectedConnectionId;
         ShowTagDialog = true;
     }
 
-    private void EditTag(DataForeman.Shared.Models.ConnectionConfig connection, DataForeman.Shared.Models.TagConfig tag)
+    private void EditTagById(string connId, string tagId)
     {
+        var conn = ConfigService.GetConnection(connId);
+        var tag = conn?.Tags.FirstOrDefault(t => t.Id == tagId);
+        if (tag == null) return;
         EditingTag = tag;
-        EditingTagConnectionId = connection.Id;
-        TagForm = new TagFormModel
-        {
-            Name = tag.Name,
-            Address = tag.Address,
-            DataType = tag.DataType,
-            PollRateMs = tag.PollRateMs,
-            Unit = tag.Unit ?? "",
-            Description = tag.Description ?? "",
-            Enabled = tag.Enabled
+        EditingTagConnectionId = connId;
+        TagForm = new TagFormModel {
+            Name = tag.Name, Address = tag.Address, DataType = tag.DataType,
+            PollRateMs = tag.PollRateMs, Unit = tag.Unit ?? "", Enabled = tag.Enabled
         };
         ShowTagDialog = true;
     }
@@ -421,19 +392,12 @@
     private async Task SaveTag()
     {
         if (string.IsNullOrWhiteSpace(TagForm.Name)) return;
-
         if (EditingTag == null)
         {
             if (string.IsNullOrEmpty(TagConnectionId)) return;
-            
-            var newTag = new DataForeman.Shared.Models.TagConfig
-            {
-                Name = TagForm.Name,
-                Address = TagForm.Address,
-                DataType = TagForm.DataType,
-                PollRateMs = TagForm.PollRateMs,
-                Unit = string.IsNullOrWhiteSpace(TagForm.Unit) ? null : TagForm.Unit,
-                Description = string.IsNullOrWhiteSpace(TagForm.Description) ? null : TagForm.Description,
+            var newTag = new DataForeman.Shared.Models.TagConfig {
+                Name = TagForm.Name, Address = TagForm.Address, DataType = TagForm.DataType,
+                PollRateMs = TagForm.PollRateMs, Unit = string.IsNullOrWhiteSpace(TagForm.Unit) ? null : TagForm.Unit,
                 Enabled = TagForm.Enabled
             };
             await ConfigService.AddTagAsync(TagConnectionId, newTag);
@@ -445,21 +409,21 @@
             EditingTag.DataType = TagForm.DataType;
             EditingTag.PollRateMs = TagForm.PollRateMs;
             EditingTag.Unit = string.IsNullOrWhiteSpace(TagForm.Unit) ? null : TagForm.Unit;
-            EditingTag.Description = string.IsNullOrWhiteSpace(TagForm.Description) ? null : TagForm.Description;
             EditingTag.Enabled = TagForm.Enabled;
             await ConfigService.UpdateTagAsync(EditingTagConnectionId!, EditingTag);
         }
-
         await MqttService.PublishConfigReloadAsync("connections");
         CloseDialogs();
     }
 
-    private void ConfirmDeleteTag(DataForeman.Shared.Models.ConnectionConfig connection, DataForeman.Shared.Models.TagConfig tag)
+    private void ConfirmDeleteTagById(string connId, string tagId)
     {
+        var conn = ConfigService.GetConnection(connId);
+        var tag = conn?.Tags.FirstOrDefault(t => t.Id == tagId);
+        if (tag == null) return;
         DeleteItemName = tag.Name;
-        DeleteAction = async () =>
-        {
-            await ConfigService.DeleteTagAsync(connection.Id, tag.Id);
+        DeleteAction = async () => {
+            await ConfigService.DeleteTagAsync(connId, tagId);
             await MqttService.PublishConfigReloadAsync("connections");
         };
         ShowDeleteDialog = true;
@@ -467,10 +431,7 @@
 
     private async Task ExecuteDelete()
     {
-        if (DeleteAction != null)
-        {
-            await DeleteAction();
-        }
+        if (DeleteAction != null) await DeleteAction();
         CloseDialogs();
     }
 
@@ -485,26 +446,11 @@
         DeleteAction = null;
     }
 
-    public void Dispose()
-    {
-        RealtimeData.OnDataChanged -= HandleDataChanged;
-    }
+    public void Dispose() => RealtimeData.OnDataChanged -= HandleDataChanged;
 
-    private class ConnectionFormModel
-    {
-        public string Name { get; set; } = "";
-        public string Type { get; set; } = "Simulator";
-        public bool Enabled { get; set; } = true;
-    }
-
-    private class TagFormModel
-    {
-        public string Name { get; set; } = "";
-        public string Address { get; set; } = "";
-        public string DataType { get; set; } = "Float";
-        public int PollRateMs { get; set; } = 1000;
-        public string Unit { get; set; } = "";
-        public string Description { get; set; } = "";
-        public bool Enabled { get; set; } = true;
-    }
+    public record ConnectionOption(string Id, string Name);
+    public class ConnectionDisplay { public string Id { get; set; } = ""; public string Name { get; set; } = ""; public string Type { get; set; } = ""; public int TagCount { get; set; } public string StatusText { get; set; } = ""; public string StatusClass { get; set; } = ""; }
+    public class TagDisplay { public string Id { get; set; } = ""; public string ConnectionId { get; set; } = ""; public string ConnectionName { get; set; } = ""; public string Name { get; set; } = ""; public string DataType { get; set; } = ""; public string PollRate { get; set; } = ""; public string Value { get; set; } = ""; public bool? IsGood { get; set; } }
+    private class ConnectionFormModel { public string Name { get; set; } = ""; public string Type { get; set; } = "Simulator"; public bool Enabled { get; set; } = true; }
+    private class TagFormModel { public string Name { get; set; } = ""; public string Address { get; set; } = ""; public string DataType { get; set; } = "Float"; public int PollRateMs { get; set; } = 1000; public string Unit { get; set; } = ""; public bool Enabled { get; set; } = true; }
 }

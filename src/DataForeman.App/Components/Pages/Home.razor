@@ -6,129 +6,129 @@
 
 <PageTitle>Home - DataForeman</PageTitle>
 
-<div class="home-page">
-    <h1>DataForeman Dashboard</h1>
-    
-    <!-- Stats Cards using Syncfusion Card -->
-    <div class="stats-grid">
-        <SfCard CssClass="stat-card">
-            <CardContent>
-                <div class="stat-content">
-                    <div class="stat-icon">🔌</div>
-                    <div class="stat-info">
-                        <div class="stat-value">@ConfigService.Connections.Count</div>
-                        <div class="stat-label">Connections</div>
-                    </div>
-                </div>
-            </CardContent>
-        </SfCard>
-        <SfCard CssClass="stat-card">
-            <CardContent>
-                <div class="stat-content">
-                    <div class="stat-icon">🏷️</div>
-                    <div class="stat-info">
-                        <div class="stat-value">@TotalTags</div>
-                        <div class="stat-label">Tags</div>
-                    </div>
-                </div>
-            </CardContent>
-        </SfCard>
-        <SfCard CssClass="stat-card">
-            <CardContent>
-                <div class="stat-content">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-info">
-                        <div class="stat-value">@ConfigService.Charts.Count</div>
-                        <div class="stat-label">Charts</div>
-                    </div>
-                </div>
-            </CardContent>
-        </SfCard>
-        <SfCard CssClass="stat-card">
-            <CardContent>
-                <div class="stat-content">
-                    <div class="stat-icon">🔀</div>
-                    <div class="stat-info">
-                        <div class="stat-value">@ConfigService.Flows.Count</div>
-                        <div class="stat-label">Flows</div>
-                    </div>
-                </div>
-            </CardContent>
-        </SfCard>
+<div class="dashboard">
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-item">
+            <i class="fa-solid fa-plug stat-icon"></i>
+            <div class="stat-data">
+                <span class="stat-value">@ConfigService.Connections.Count</span>
+                <span class="stat-label">Connections</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-tags stat-icon"></i>
+            <div class="stat-data">
+                <span class="stat-value">@TotalTags</span>
+                <span class="stat-label">Tags</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-chart-line stat-icon"></i>
+            <div class="stat-data">
+                <span class="stat-value">@ConfigService.Charts.Count</span>
+                <span class="stat-label">Charts</span>
+            </div>
+        </div>
+        <div class="stat-item">
+            <i class="fa-solid fa-diagram-project stat-icon"></i>
+            <div class="stat-data">
+                <span class="stat-value">@ConfigService.Flows.Count</span>
+                <span class="stat-label">Flows</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Engine Status Panel -->
-    <SfCard CssClass="status-panel">
-        <CardHeader Title="Engine Status" />
-        <CardContent>
-            @if (EngineStatus != null)
-            {
-                <div class="status-grid">
-                    <div class="status-item">
-                        <span class="label">Status:</span>
-                        <span class="value @(EngineStatus.IsRunning ? "running" : "stopped")">
-                            @(EngineStatus.IsRunning ? "Running" : "Stopped")
-                        </span>
+    <!-- Collapsible Panels -->
+    <SfAccordion>
+        <AccordionItems>
+            <AccordionItem Expanded="true">
+                <HeaderTemplate>
+                    <div class="panel-header">
+                        <i class="fa-solid fa-server"></i>
+                        <span>Engine Status</span>
                     </div>
-                    <div class="status-item">
-                        <span class="label">Active Connections:</span>
-                        <span class="value">@EngineStatus.ActiveConnections</span>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    @if (EngineStatus != null)
+                    {
+                        <div class="status-grid">
+                            <div class="status-cell">
+                                <span class="cell-label">Status</span>
+                                <span class="cell-value @(EngineStatus.IsRunning ? "text-success" : "text-danger")">
+                                    @(EngineStatus.IsRunning ? "Running" : "Stopped")
+                                </span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Active Connections</span>
+                                <span class="cell-value">@EngineStatus.ActiveConnections</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Active Tags</span>
+                                <span class="cell-value">@EngineStatus.ActiveTags</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Total Polls</span>
+                                <span class="cell-value">@EngineStatus.TotalPolls.ToString("N0")</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Avg Poll Time</span>
+                                <span class="cell-value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
+                            </div>
+                            <div class="status-cell">
+                                <span class="cell-label">Started</span>
+                                <span class="cell-value">@EngineStatus.StartTime.ToLocalTime().ToString("g")</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                            <span>Engine status not available</span>
+                        </div>
+                    }
+                </ContentTemplate>
+            </AccordionItem>
+            <AccordionItem Expanded="true">
+                <HeaderTemplate>
+                    <div class="panel-header">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>Recent Tag Values</span>
                     </div>
-                    <div class="status-item">
-                        <span class="label">Active Tags:</span>
-                        <span class="value">@EngineStatus.ActiveTags</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="label">Total Polls:</span>
-                        <span class="value">@EngineStatus.TotalPolls.ToString("N0")</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="label">Avg Poll Time:</span>
-                        <span class="value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="label">Started:</span>
-                        <span class="value">@EngineStatus.StartTime.ToLocalTime().ToString("g")</span>
-                    </div>
-                </div>
-            }
-            else
-            {
-                <p class="no-data">Engine status not available. Make sure the DataForeman.Engine is running.</p>
-            }
-        </CardContent>
-    </SfCard>
-
-    <!-- Recent Tag Values using Syncfusion Grid -->
-    <SfCard CssClass="values-panel">
-        <CardHeader Title="Recent Tag Values" />
-        <CardContent>
-            @if (RecentValuesList.Any())
-            {
-                <SfGrid DataSource="@RecentValuesList" AllowPaging="false" CssClass="dark-grid">
-                    <GridColumns>
-                        <GridColumn Field="@nameof(TagValueDisplay.TagName)" HeaderText="Tag" Width="200"></GridColumn>
-                        <GridColumn Field="@nameof(TagValueDisplay.FormattedValue)" HeaderText="Value" Width="150"></GridColumn>
-                        <GridColumn Field="@nameof(TagValueDisplay.QualityText)" HeaderText="Quality" Width="100">
-                            <Template>
-                                @{
-                                    var item = (context as TagValueDisplay);
-                                    <span class="quality-badge @(item?.IsGoodQuality == true ? "good" : "bad")">
-                                        @item?.QualityText
-                                    </span>
-                                }
-                            </Template>
-                        </GridColumn>
-                        <GridColumn Field="@nameof(TagValueDisplay.TimestampDisplay)" HeaderText="Timestamp" Width="150"></GridColumn>
-                    </GridColumns>
-                </SfGrid>
-            }
-            else
-            {
-                <p class="no-data">No tag values received yet. Make sure the DataForeman.Engine is running and polling tags.</p>
-            }
-        </CardContent>
-    </SfCard>
+                </HeaderTemplate>
+                <ContentTemplate>
+                    @if (RecentValuesList.Any())
+                    {
+                        <SfGrid DataSource="@RecentValuesList" AllowPaging="false">
+                            <GridColumns>
+                                <GridColumn Field="@nameof(TagValueDisplay.TagName)" HeaderText="Tag" Width="200"></GridColumn>
+                                <GridColumn Field="@nameof(TagValueDisplay.FormattedValue)" HeaderText="Value" Width="120"></GridColumn>
+                                <GridColumn HeaderText="Quality" Width="80">
+                                    <Template>
+                                        @{
+                                            var item = (context as TagValueDisplay);
+                                            <span class="quality-indicator @(item?.IsGoodQuality == true ? "good" : "bad")">
+                                                <i class="fa-solid @(item?.IsGoodQuality == true ? "fa-check" : "fa-xmark")"></i>
+                                            </span>
+                                        }
+                                    </Template>
+                                </GridColumn>
+                                <GridColumn Field="@nameof(TagValueDisplay.TimestampDisplay)" HeaderText="Timestamp" Width="140"></GridColumn>
+                            </GridColumns>
+                        </SfGrid>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <i class="fa-solid fa-inbox"></i>
+                            <span>No tag values received yet</span>
+                        </div>
+                    }
+                </ContentTemplate>
+            </AccordionItem>
+        </AccordionItems>
+    </SfAccordion>
 </div>
 
 @code {

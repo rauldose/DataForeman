@@ -14,6 +14,7 @@ builder.Services.AddSyncfusionBlazor();
 builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<MqttService>();
 builder.Services.AddSingleton<RealtimeDataService>();
+builder.Services.AddSingleton<NodePluginRegistry>();
 
 var app = builder.Build();
 
