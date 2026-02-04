@@ -97,11 +97,11 @@
             </div>
             
             <!-- Dashboard Grid using SfDashboardLayout -->
-            <div class="dashboard-grid-container @(IsFullscreen ? "fullscreen" : "")">
+            <div class="dashboard-grid-container @(IsFullscreen ? "fullscreen" : "")" style="height: calc(100vh - 150px); width: 100%;">
                 <SfDashboardLayout @ref="DashboardLayout" 
                                    Columns="12" 
                                    CellSpacing="@(new double[] { 10, 10 })"
-                                   CellAspectRatio="1.0"
+                                   CellAspectRatio="0.6"
                                    AllowDragging="@IsEditMode"
                                    AllowResizing="@IsEditMode">
                     <DashboardLayoutPanels>

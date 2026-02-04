@@ -834,6 +834,17 @@ html, body {
 /* Syncfusion Chart Overrides */
 .e-chart {
     background: transparent !important;
+    font-family: inherit !important;
+}
+
+/* Syncfusion Component Font Override */
+.e-control,
+.e-lib,
+.e-dashboardlayout,
+.e-grid,
+.e-chart,
+.e-dialog {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 /* ============================================
@@ -954,6 +965,33 @@ html, body {
 .dashboard-grid-container {
     flex: 1;
     overflow: auto;
+    min-height: 500px;
+}
+
+/* Syncfusion Dashboard Layout Overrides */
+.e-dashboardlayout {
+    background: transparent !important;
+    height: 100% !important;
+}
+
+.e-dashboardlayout .e-panel {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 4px !important;
+}
+
+.e-dashboardlayout .e-panel .e-panel-header {
+    background: var(--bg-tertiary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0.5rem 0.75rem !important;
+    min-height: 36px !important;
+    font-family: inherit !important;
+}
+
+.e-dashboardlayout .e-panel .e-panel-content {
+    height: calc(100% - 36px) !important;
+    overflow: hidden !important;
+    font-family: inherit !important;
 }
 
 .dashboard-grid-container.fullscreen {
@@ -1020,6 +1058,16 @@ html, body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Ensure charts in panels take full height */
+.panel-content .e-chart {
+    flex: 1;
+    min-height: 0;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .empty-panel {
