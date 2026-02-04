@@ -5,6 +5,7 @@
 @inject NodePluginRegistry NodeRegistry
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject RealtimeDataService RealtimeData
 @implements IDisposable
 
 <PageTitle>Flows - DataForeman</PageTitle>
@@ -324,6 +325,7 @@
     private FlowConfig CurrentFlow = new();
     private bool ShowDeleteDialog;
     private string DeleteFlowId = "";
+    private string? _lastLoadedFlowId; // Track to detect navigation changes
     
     // Node property values storage
     private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
@@ -354,9 +356,13 @@
     {
         await ConfigService.LoadAllAsync();
         
+        // Subscribe to real-time data events
+        RealtimeData.OnTagValueChanged += HandleTagValueChanged;
+        
         // Load flow definition if FlowId is set
         if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
         {
+            _lastLoadedFlowId = FlowId;
             var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
             if (flow != null)
             {
@@ -368,20 +374,53 @@
         else if (FlowId == "new")
         {
             CurrentFlow = new FlowConfig { Name = "New Flow" };
+            _lastLoadedFlowId = "new";
         }
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         // Handle parameter changes (navigating between flows)
-        if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
+        if (FlowId != _lastLoadedFlowId)
         {
-            var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
-            if (flow != null && CurrentFlow.Id != flow.Id)
+            _lastLoadedFlowId = FlowId;
+            
+            if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
             {
-                CurrentFlow = flow;
-                LoadFlowDefinition(flow);
-                _connectorsAdded = false; // Reset to add connectors after render
+                var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
+                if (flow != null)
+                {
+                    CurrentFlow = flow;
+                    
+                    // Clear existing collections before loading new flow
+                    Nodes.Clear();
+                    Connectors.Clear();
+                    _pendingConnectors.Clear();
+                    
+                    LoadFlowDefinition(flow);
+                    _connectorsAdded = false;
+                    ConsoleMessages.Clear();
+                    AddConsoleMessage("INFO", "System", $"Loaded flow: {flow.Name}");
+                    StateHasChanged();
+                }
+            }
+            else if (FlowId == "new")
+            {
+                CurrentFlow = new FlowConfig { Name = "New Flow" };
+                Nodes.Clear();
+                Connectors.Clear();
+                _pendingConnectors.Clear();
+                NodeProperties.Clear();
+                _nodeTypes.Clear();
+                ConsoleMessages.Clear();
+                StateHasChanged();
+            }
+            else
+            {
+                // Returning to flow list - clear state
+                Nodes.Clear();
+                Connectors.Clear();
+                _pendingConnectors.Clear();
             }
         }
     }
@@ -410,6 +449,25 @@
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to add connectors: {ex.Message}");
+            }
+        }
+    }
+    
+    private void HandleTagValueChanged(string tagId)
+    {
+        // Check if any node in the current flow uses this tag
+        foreach (var nodeEntry in NodeProperties)
+        {
+            if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
+                tagPath?.ToString() == tagId)
+            {
+                var tagValue = RealtimeData.GetTagValue(tagId);
+                if (tagValue != null)
+                {
+                    var nodeLabel = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key)?.Annotations?.FirstOrDefault()?.Content ?? nodeEntry.Key;
+                    AddConsoleMessage("DATA", nodeLabel?.ToString() ?? "Unknown", $"Tag value: {tagValue.FormattedValue} (Quality: {tagValue.QualityText})");
+                    InvokeAsync(StateHasChanged);
+                }
             }
         }
     }
@@ -1055,8 +1113,28 @@
             case "Tags":
                 if (baseType.Contains("input"))
                 {
-                    outputValue = Math.Round(new Random().NextDouble() * 100, 2);
-                    AddConsoleMessage("INFO", label, $"Read tag value: {outputValue}");
+                    // Try to get real tag value from RealtimeDataService
+                    if (NodeProperties.TryGetValue(node.ID, out var tagProps) && 
+                        tagProps.TryGetValue("tagPath", out var tagPath))
+                    {
+                        var tagValue = RealtimeData.GetTagValue(tagPath?.ToString() ?? "");
+                        if (tagValue != null && tagValue.NumericValue.HasValue)
+                        {
+                            outputValue = Math.Round(tagValue.NumericValue.Value, 2);
+                            AddConsoleMessage("INFO", label, $"Read tag '{tagPath}': {outputValue} (Quality: {tagValue.QualityText})");
+                        }
+                        else
+                        {
+                            // Fallback to simulated value if no real data available
+                            outputValue = Math.Round(new Random().NextDouble() * 100, 2);
+                            AddConsoleMessage("WARN", label, $"No real data for tag '{tagPath}', using simulated: {outputValue}");
+                        }
+                    }
+                    else
+                    {
+                        outputValue = Math.Round(new Random().NextDouble() * 100, 2);
+                        AddConsoleMessage("INFO", label, $"Read tag value (simulated): {outputValue}");
+                    }
                 }
                 else
                 {
@@ -1337,6 +1415,7 @@
     public void Dispose()
     {
         _simulationTimer?.Dispose();
+        RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
     }
 
     public class FlowDisplay
