@@ -683,7 +683,7 @@
                     seriesCollBuilder.AddAttribute(4, "Name", ds.DisplayName);
                     seriesCollBuilder.AddAttribute(5, "Type", ChartSeriesType.Line);
                     seriesCollBuilder.AddAttribute(6, "Fill", ds.Color);
-                    seriesCollBuilder.AddAttribute(7, "Width", ds.LineWidth);
+                    seriesCollBuilder.AddAttribute(7, "Width", (double)ds.LineWidth);
                     seriesCollBuilder.CloseComponent();
                 }
             }));
@@ -718,7 +718,7 @@
             .Take(config.MaxRows)
             .ToList();
         
-        builder.OpenComponent<SfGrid<DataForeman.Shared.Mqtt.TagValueMessage>>(0);
+        builder.OpenComponent<SfGrid<DataForeman.App.Services.TagValueCache>>(0);
         builder.AddAttribute(1, "DataSource", data);
         builder.AddAttribute(2, "ChildContent", (RenderFragment)(gridBuilder =>
         {
