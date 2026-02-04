@@ -19,12 +19,9 @@ builder.Services.AddSingleton<NodePluginRegistry>();
 var app = builder.Build();
 
 // Register Syncfusion license (optional - for licensed use)
-var syncfusionKey = builder.Configuration["SyncfusionLicenseKey"];
-if (!string.IsNullOrEmpty(syncfusionKey))
-{
-    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(syncfusionKey);
-}
-
+ 
+    Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(@"Ngo9BigBOggjHTQxAR8/V1JGaF5cXGpCf1FpRmJGdld5fUVHYVZUTXxaS00DNHVRdkdmWH1dcXRcQ2lcUUR0XkZWYEs=");
+ 
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())
 {
