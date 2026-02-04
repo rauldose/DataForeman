@@ -663,11 +663,14 @@
             TargetID = targetId,
             TargetPortID = targetPort ?? "input-0",
             Type = ConnectorSegmentType.Orthogonal,
-            Style = new ShapeStyle { StrokeColor = "#6b7280", StrokeWidth = 2 },
+            Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+            CornerRadius = 5,
             TargetDecorator = new DecoratorSettings
             {
                 Shape = DecoratorShape.Arrow,
-                Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = "#6b7280" }
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" }
             }
         };
     }
@@ -677,6 +680,18 @@
         if (obj is Node node)
         {
             node.Style.Fill = "#2a2a2a";
+            
+            // Ensure ports are visible and properly configured for port-to-port connections
+            if (node.Ports != null)
+            {
+                foreach (var port in node.Ports)
+                {
+                    port.Visibility = PortVisibility.Visible;
+                    port.Width = 12;
+                    port.Height = 12;
+                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
+                }
+            }
         }
     }
 
@@ -685,14 +700,16 @@
         if (obj is Connector connector)
         {
             connector.Type = ConnectorSegmentType.Orthogonal;
-            connector.Style.StrokeColor = "#6b7280";
-            connector.Style.StrokeWidth = 2;
+            connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
+            connector.CornerRadius = 5;
             
             // Set arrow decorator
             connector.TargetDecorator = new DecoratorSettings
             {
                 Shape = DecoratorShape.Arrow,
-                Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = "#6b7280" }
+                Width = 10,
+                Height = 10,
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" }
             };
         }
     }
