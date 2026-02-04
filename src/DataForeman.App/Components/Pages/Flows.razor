@@ -416,10 +416,10 @@
 
     private void LoadFlowDefinition(FlowConfig flow)
     {
-        // Create fresh collections
-        Nodes = new DiagramObjectCollection<Node>();
-        Connectors = new DiagramObjectCollection<Connector>();
-        _pendingConnectors = new DiagramObjectCollection<Connector>();
+        // Clear existing collections (instead of creating new ones to maintain binding)
+        Nodes.Clear();
+        Connectors.Clear();
+        _pendingConnectors.Clear();
         NodeProperties.Clear();
         _nodeTypes.Clear();
         
@@ -1001,6 +1001,8 @@
     
     private async Task SimulateExecution()
     {
+        Console.WriteLine($"SimulateExecution called. Nodes.Count={Nodes.Count}");
+        
         if (!Nodes.Any())
         {
             AddConsoleMessage("WARN", "System", "No nodes to execute");
