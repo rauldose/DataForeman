@@ -397,10 +397,11 @@ public sealed class CompareRuntime : NodeRuntimeBase
             }
         }
 
+        const double FloatEpsilon = 0.0001; // Tolerance for floating-point equality comparison
         var result = config.Operator switch
         {
-            "eq" => Math.Abs(value - config.Threshold) < 0.0001,
-            "neq" => Math.Abs(value - config.Threshold) >= 0.0001,
+            "eq" => Math.Abs(value - config.Threshold) < FloatEpsilon,
+            "neq" => Math.Abs(value - config.Threshold) >= FloatEpsilon,
             "gt" => value > config.Threshold,
             "gte" => value >= config.Threshold,
             "lt" => value < config.Threshold,

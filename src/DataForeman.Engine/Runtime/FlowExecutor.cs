@@ -369,6 +369,7 @@ internal sealed class NodeLogger : INodeLogger
 public sealed class InMemoryExecutionTracer : IExecutionTracer
 {
     private readonly List<NodeExecutionResult> _traces = new();
+    private readonly Dictionary<string, List<NodeExecutionResult>> _tracesByRunId = new();
     private readonly object _lock = new();
 
     public void RecordTrace(NodeExecutionResult trace)
@@ -376,6 +377,14 @@ public sealed class InMemoryExecutionTracer : IExecutionTracer
         lock (_lock)
         {
             _traces.Add(trace);
+            
+            // Index by runId for O(1) lookup
+            if (!_tracesByRunId.TryGetValue(trace.RunId, out var runTraces))
+            {
+                runTraces = new List<NodeExecutionResult>();
+                _tracesByRunId[trace.RunId] = runTraces;
+            }
+            runTraces.Add(trace);
         }
     }
 
@@ -383,7 +392,9 @@ public sealed class InMemoryExecutionTracer : IExecutionTracer
     {
         lock (_lock)
         {
-            return _traces.Where(t => t.RunId == runId).ToList();
+            return _tracesByRunId.TryGetValue(runId, out var traces) 
+                ? traces.ToList() 
+                : Array.Empty<NodeExecutionResult>();
         }
     }
 
@@ -400,6 +411,17 @@ public sealed class InMemoryExecutionTracer : IExecutionTracer
         lock (_lock)
         {
             _traces.RemoveAll(t => t.EndUtc < beforeUtc);
+            
+            // Also clear from index
+            var emptyRunIds = new List<string>();
+            foreach (var kvp in _tracesByRunId)
+            {
+                kvp.Value.RemoveAll(t => t.EndUtc < beforeUtc);
+                if (kvp.Value.Count == 0)
+                    emptyRunIds.Add(kvp.Key);
+            }
+            foreach (var runId in emptyRunIds)
+                _tracesByRunId.Remove(runId);
         }
     }
 
@@ -408,6 +430,7 @@ public sealed class InMemoryExecutionTracer : IExecutionTracer
         lock (_lock)
         {
             _traces.Clear();
+            _tracesByRunId.Clear();
         }
     }
 }
