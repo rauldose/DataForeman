@@ -70,15 +70,24 @@
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
                 <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
-                <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
-                <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
-                <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
-                <span class="toolbar-separator"></span>
-                <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
-                          IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
-                          Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
-                          @onclick="ToggleEnabled"></SfButton>
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                @if (!string.IsNullOrEmpty(_editingSubflowId))
+                {
+                    <span class="editing-subflow-badge"><i class="fa-solid fa-object-group"></i> Editing Subflow</span>
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveSubflow">Save Subflow</SfButton>
+                    <SfButton CssClass="e-flat" @onclick="CancelSubflowEdit">Cancel</SfButton>
+                }
+                else
+                {
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
+                    <span class="toolbar-separator"></span>
+                    <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
+                              IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
+                              Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
+                              @onclick="ToggleEnabled"></SfButton>
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                }
             </div>
             
             <div class="editor-content">
@@ -107,6 +116,14 @@
                                              @onclick="() => AddNodeFromPalette(plugin)">
                                             <span class="node-icon"><i class="@plugin.Icon" style="color: @plugin.Color"></i></span>
                                             <span class="node-label">@plugin.ShortLabel</span>
+                                            @if (category == "Subflows")
+                                            {
+                                                <span class="subflow-actions" @onclick:stopPropagation="true">
+                                                    <button class="subflow-edit-btn" @onclick="() => EditSubflow(plugin.Id)" title="Edit Subflow">
+                                                        <i class="fa-solid fa-pen-to-square"></i>
+                                                    </button>
+                                                </span>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -1333,6 +1350,145 @@
         ShowReplaceWithSubflowDialog = false;
         PendingSubflowId = "";
         StateHasChanged();
+    }
+    
+    private void EditSubflow(string subflowId)
+    {
+        var subflow = ConfigService.Subflows.FirstOrDefault(s => s.Id == subflowId);
+        if (subflow == null)
+        {
+            AddConsoleMessage("ERROR", "System", $"Subflow '{subflowId}' not found");
+            return;
+        }
+        
+        // Clear current flow and load subflow for editing
+        Nodes.Clear();
+        Connectors.Clear();
+        _pendingConnectors.Clear();
+        NodeProperties.Clear();
+        _nodeTypes.Clear();
+        ConsoleMessages.Clear();
+        
+        // Set current flow to a temporary editing state for the subflow
+        CurrentFlow = new FlowConfig
+        {
+            Id = subflowId,
+            Name = $"Editing Subflow: {subflow.Name}",
+            Description = subflow.Description,
+            Enabled = false,
+            ScanRateMs = 1000
+        };
+        
+        // Load subflow nodes
+        foreach (var node in subflow.Nodes)
+        {
+            var mappedType = MapNodeType(node.Type);
+            var plugin = NodeRegistry.Get(mappedType);
+            var diagramNode = CreateFlowNode(
+                node.Id,
+                node.Label ?? plugin?.Name ?? node.Type,
+                plugin?.Color ?? "#9ca3af",
+                node.X,
+                node.Y,
+                plugin?.InputCount ?? 1,
+                plugin?.OutputCount ?? 1
+            );
+            Nodes.Add(diagramNode);
+            _nodeTypes[node.Id] = mappedType;
+            
+            if (node.Properties != null)
+            {
+                NodeProperties[node.Id] = new Dictionary<string, object>(node.Properties);
+            }
+        }
+        
+        // Load subflow edges as pending connectors
+        foreach (var edge in subflow.Edges)
+        {
+            var mappedSourcePort = MapPortName(edge.SourcePortId, "output");
+            var mappedTargetPort = MapPortName(edge.TargetPortId, "input");
+            
+            _pendingConnectors.Add(CreateFlowConnector(
+                edge.Id,
+                edge.SourceNodeId,
+                mappedSourcePort,
+                edge.TargetNodeId,
+                mappedTargetPort
+            ));
+        }
+        
+        _connectorsAdded = false;
+        _editingSubflowId = subflowId;
+        AddConsoleMessage("INFO", "System", $"Editing subflow: {subflow.Name}");
+        StateHasChanged();
+    }
+    
+    private string? _editingSubflowId;
+    
+    private async Task SaveSubflow()
+    {
+        if (string.IsNullOrEmpty(_editingSubflowId))
+        {
+            AddConsoleMessage("ERROR", "System", "No subflow being edited");
+            return;
+        }
+        
+        var existingSubflow = ConfigService.Subflows.FirstOrDefault(s => s.Id == _editingSubflowId);
+        if (existingSubflow == null)
+        {
+            AddConsoleMessage("ERROR", "System", "Original subflow not found");
+            return;
+        }
+        
+        // Update subflow with current diagram state
+        existingSubflow.Nodes = Nodes.Select(n => new FlowNode
+        {
+            Id = n.ID,
+            Type = _nodeTypes.TryGetValue(n.ID, out var t) ? t : GetNodeBaseType(n),
+            Label = GetNodeLabel(n),
+            X = n.OffsetX,
+            Y = n.OffsetY,
+            Properties = NodeProperties.TryGetValue(n.ID, out var props) 
+                ? props.ToDictionary(kv => kv.Key, kv => kv.Value)
+                : new Dictionary<string, object>()
+        }).ToList();
+        
+        existingSubflow.Edges = Connectors.Select(c => new FlowEdge
+        {
+            Id = c.ID,
+            SourceNodeId = c.SourceID,
+            SourcePortId = c.SourcePortID,
+            TargetNodeId = c.TargetID,
+            TargetPortId = c.TargetPortID
+        }).ToList();
+        
+        // Calculate input/output counts
+        var nodesWithIncoming = Connectors.Select(c => c.TargetID).ToHashSet();
+        var nodesWithOutgoing = Connectors.Select(c => c.SourceID).ToHashSet();
+        existingSubflow.InputCount = Nodes.Count(n => !nodesWithIncoming.Contains(n.ID));
+        existingSubflow.OutputCount = Nodes.Count(n => !nodesWithOutgoing.Contains(n.ID));
+        
+        await ConfigService.UpdateSubflowAsync(existingSubflow);
+        NodeRegistry.UnregisterSubflow(_editingSubflowId);
+        NodeRegistry.RegisterSubflow(existingSubflow);
+        
+        AddConsoleMessage("INFO", "System", $"Saved subflow: {existingSubflow.Name}");
+        _editingSubflowId = null;
+        
+        // Navigate back to flows list
+        Navigation.NavigateTo("/flows");
+    }
+    
+    private void CancelSubflowEdit()
+    {
+        _editingSubflowId = null;
+        Nodes.Clear();
+        Connectors.Clear();
+        _pendingConnectors.Clear();
+        NodeProperties.Clear();
+        _nodeTypes.Clear();
+        ConsoleMessages.Clear();
+        Navigation.NavigateTo("/flows");
     }
     
     // Template methods

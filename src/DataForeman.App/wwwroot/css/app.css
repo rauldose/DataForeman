@@ -378,6 +378,17 @@ html, body {
     border-radius: 6px 6px 0 0;
 }
 
+.editing-subflow-badge {
+    background: var(--accent-purple);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .chart-name-input, .flow-name-input {
     width: 200px;
 }
@@ -633,6 +644,32 @@ html, body {
 
 .node-label {
     flex: 1;
+}
+
+.subflow-actions {
+    display: flex;
+    margin-left: auto;
+}
+
+.subflow-edit-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+.palette-node:hover .subflow-edit-btn {
+    opacity: 1;
+}
+
+.subflow-edit-btn:hover {
+    color: var(--accent-blue);
+    background: var(--bg-tertiary);
 }
 
 /* Properties Panel */
