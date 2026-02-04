@@ -220,7 +220,6 @@
                     <span class="console-badge">@ConsoleMessages.Count</span>
                     <div class="console-actions">
                         <button class="console-btn" @onclick:stopPropagation="true" @onclick="ClearConsole" title="Clear"><i class="fa-solid fa-trash"></i></button>
-                        <button class="console-btn" @onclick:stopPropagation="true" @onclick="SimulateExecution" title="Test Run"><i class="fa-solid fa-play"></i></button>
                     </div>
                 </div>
                 @if (ConsoleExpanded)
@@ -228,7 +227,10 @@
                     <div class="console-body" @ref="ConsoleBody">
                         @if (!ConsoleMessages.Any())
                         {
-                            <div class="console-empty">Waiting for data... Flow executes automatically when tag values change.</div>
+                            <div class="console-empty">
+                                <div>📡 Monitoring real-time tag values</div>
+                                <div class="text-muted mt-1">Flows are executed on the Engine. This console shows tag data received via MQTT.</div>
+                            </div>
                         }
                         else
                         {
@@ -456,10 +458,12 @@
         
         try
         {
-            // Find nodes that use this tag and trigger execution from them
+            // NOTE: Flow execution happens on the ENGINE, not here.
+            // This handler only updates the visual display when tag values change.
+            
+            // Find nodes that use this tag and update their display
             foreach (var nodeEntry in NodeProperties)
             {
-                // Check again in loop in case disposal happens during iteration
                 if (_disposed || _cts?.IsCancellationRequested == true) return;
                 
                 if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
@@ -468,21 +472,18 @@
                     var tagValue = RealtimeData.GetTagValue(tagId);
                     if (tagValue != null)
                     {
+                        // Just show the value in console - no execution on frontend
                         var node = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key);
                         if (node != null)
                         {
-                            // Auto-execute from this tag input node
-                            var inputData = new Dictionary<string, object>
-                            {
-                                ["value"] = tagValue.NumericValue ?? tagValue.Value ?? 0.0
-                            };
-                            await SimulateNodeExecution(node, inputData);
-                            
-                            // Only update UI if not disposed
-                            if (!_disposed && _cts?.IsCancellationRequested != true)
-                            {
-                                await InvokeAsync(StateHasChanged);
-                            }
+                            var label = GetNodeLabel(node);
+                            var value = tagValue.NumericValue ?? tagValue.Value ?? 0.0;
+                            AddConsoleMessage("DATA", label, $"Value: {value:F2} (Quality: {tagValue.Quality})");
+                        }
+                        
+                        if (!_disposed && _cts?.IsCancellationRequested != true)
+                        {
+                            await InvokeAsync(StateHasChanged);
                         }
                     }
                 }
@@ -815,151 +816,9 @@
     private void ClearConsole() { ConsoleMessages.Clear(); StateHasChanged(); }
     private void AddConsoleMessage(string level, string nodeLabel, string message) { ConsoleMessages.Add(new ConsoleLogMessage { Timestamp = DateTime.Now, Level = level, NodeLabel = nodeLabel, Message = message }); if (ConsoleMessages.Count > 500) ConsoleMessages.RemoveAt(0); InvokeAsync(StateHasChanged); }
     
-    private async Task SimulateExecution()
-    {
-        if (!Nodes.Any())
-        {
-            AddConsoleMessage("WARN", "System", "No nodes to execute");
-            return;
-        }
-        
-        AddConsoleMessage("INFO", "System", $"Starting flow execution: {CurrentFlow.Name}");
-        
-        var triggerNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && 
-        (NodeRegistry.Get(GetNodeType(n))?.Category == "Triggers")).ToList();
-        
-        if (!triggerNodes.Any())
-        {
-            var nodesWithIncoming = Connectors.Select(c => c.TargetID).ToHashSet();
-            triggerNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && !nodesWithIncoming.Contains(n.ID)).ToList();
-        }
-        
-        foreach (var triggerNode in triggerNodes)
-        {
-            if (_disposed) return; // Stop if disposed during execution
-            await SimulateNodeExecution(triggerNode, new Dictionary<string, object> { ["value"] = GenerateSimulatedValue(triggerNode) });
-        }
-        
-        AddConsoleMessage("INFO", "System", "Flow execution completed");
-    }
-    
-    private async Task SimulateNodeExecution(Node? node, Dictionary<string, object> inputData)
-    {
-        // Stop execution if disposed (user navigated away)
-        if (_disposed || _cts?.IsCancellationRequested == true) return;
-        if (node == null || string.IsNullOrEmpty(node.ID)) return;
-        
-        var label = GetNodeLabel(node);
-        var baseType = GetNodeType(node);
-        var plugin = NodeRegistry.Get(baseType);
-        
-        // Use cancellation-aware delay
-        try
-        {
-            await Task.Delay(50, _cts?.Token ?? CancellationToken.None);
-        }
-        catch (OperationCanceledException)
-        {
-            return; // Stop if cancelled
-        }
-        
-        // Check again after delay
-        if (_disposed || _cts?.IsCancellationRequested == true) return;
-        
-        object outputValue = inputData.TryGetValue("value", out var val) ? val : 0.0;
-        
-        switch (plugin?.Category)
-        {
-            case "Triggers":
-                outputValue = GenerateSimulatedValue(node);
-                AddConsoleMessage("INFO", label, $"Triggered with value: {outputValue}");
-                break;
-                
-            case "Tags":
-                if (baseType.Contains("input"))
-                {
-                    if (NodeProperties.TryGetValue(node.ID, out var tagProps) && 
-                        tagProps.TryGetValue("tagPath", out var tagPath))
-                    {
-                        var tagValue = RealtimeData.GetTagValue(tagPath?.ToString() ?? "");
-                        if (tagValue != null && tagValue.NumericValue.HasValue)
-                        {
-                            outputValue = Math.Round(tagValue.NumericValue.Value, 2);
-                            AddConsoleMessage("INFO", label, $"Read tag '{tagPath}': {outputValue} (Quality: {tagValue.QualityText})");
-                        }
-                        else
-                        {
-                            outputValue = Math.Round(new Random().NextDouble() * 100, 2);
-                            AddConsoleMessage("WARN", label, $"No real data for tag '{tagPath}', using simulated: {outputValue}");
-                        }
-                    }
-                    else
-                    {
-                        outputValue = Math.Round(new Random().NextDouble() * 100, 2);
-                        AddConsoleMessage("INFO", label, $"Read tag value (simulated): {outputValue}");
-                    }
-                }
-                else
-                {
-                    AddConsoleMessage("INFO", label, $"Writing value: {outputValue}");
-                }
-                break;
-                
-            case "Math":
-                var factor = NodeProperties.TryGetValue(node.ID, out var props) && props.TryGetValue("factor", out var f) ? ToDouble(f, 1.0) : 1.0;
-                if (baseType.Contains("scale")) outputValue = ToDouble(outputValue) * factor;
-                else if (baseType.Contains("add")) outputValue = ToDouble(outputValue) + factor;
-                else if (baseType.Contains("multiply")) outputValue = ToDouble(outputValue) * factor;
-                AddConsoleMessage("DEBUG", label, $"Input: {val} → Output: {outputValue}");
-                break;
-                
-            case "Logic":
-                var threshold = NodeProperties.TryGetValue(node.ID, out var lprops) && lprops.TryGetValue("threshold", out var t) ? ToDouble(t, 50.0) : 50.0;
-                var result = ToDouble(outputValue) > threshold;
-                AddConsoleMessage("DEBUG", label, $"Comparing {outputValue} > {threshold} = {result}");
-                outputValue = result;
-                break;
-                
-            case "Output":
-                if (baseType.Contains("debug"))
-                {
-                    AddConsoleMessage("DEBUG", label, $"► {outputValue}");
-                }
-                else if (baseType.Contains("notification"))
-                {
-                    AddConsoleMessage("WARN", label, $"Notification: {outputValue}");
-                }
-                break;
-                
-            case "Data Processing":
-                AddConsoleMessage("DEBUG", label, $"Processed: {outputValue}");
-                break;
-                
-            default:
-                AddConsoleMessage("DEBUG", label, $"Executed with value: {outputValue}");
-                break;
-        }
-        
-        var outgoingConnectors = Connectors.Where(c => c.SourceID == node.ID).ToList();
-        foreach (var connector in outgoingConnectors)
-        {
-            var targetNode = Nodes.FirstOrDefault(n => n.ID == connector.TargetID);
-            if (targetNode != null)
-            {
-                await SimulateNodeExecution(targetNode, new Dictionary<string, object> { ["value"] = outputValue });
-            }
-        }
-    }
-    
-    private object GenerateSimulatedValue(Node node)
-    {
-        var baseType = GetNodeType(node);
-        if (baseType.Contains("timer") || baseType.Contains("schedule"))
-            return DateTime.Now.ToString("HH:mm:ss");
-        if (baseType.Contains("manual"))
-            return "Manual Trigger";
-        return Math.Round(new Random().NextDouble() * 100, 2);
-    }
+    // NOTE: Flow execution happens on the ENGINE, not here.
+    // The App only displays flow design and monitors real-time tag values.
+    // When Engine executes flows, it publishes results via MQTT which the App can display.
     
     private async Task CreateSubflowFromSelection()
     {
