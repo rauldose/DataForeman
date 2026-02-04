@@ -224,9 +224,9 @@
                     <span class="console-toggle"><i class="fa-solid @(ConsoleExpanded ? "fa-chevron-down" : "fa-chevron-up")"></i></span>
                     <span class="console-title"><i class="fa-solid fa-terminal"></i> Output Console</span>
                     <span class="console-badge">@ConsoleMessages.Count</span>
-                    <div class="console-actions">
-                        <button class="console-btn" @onclick:stopPropagation="true" @onclick="ClearConsole" title="Clear"><i class="fa-solid fa-trash"></i></button>
-                        <button class="console-btn" @onclick:stopPropagation="true" @onclick="SimulateExecution" title="Test Run"><i class="fa-solid fa-play"></i></button>
+                    <div class="console-actions" @onclick:stopPropagation="true">
+                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-trash" @onclick="ClearConsole" title="Clear Console"></SfButton>
+                        <SfButton CssClass="e-flat e-small e-success" IconCss="fa-solid fa-play" @onclick="SimulateExecution" title="Test Run"></SfButton>
                     </div>
                 </div>
                 @if (ConsoleExpanded)
