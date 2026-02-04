@@ -205,12 +205,14 @@ html, body {
 .panel-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     font-weight: 500;
+    font-size: 0.8rem;
 }
 
 .panel-header i {
     color: var(--accent-blue);
+    font-size: 0.75rem;
 }
 
 /* Status Grid */
@@ -1070,14 +1072,15 @@ html, body {
     border-color: var(--accent-blue);
 }
 
-.panel-header {
+/* Dashboard panel header - distinct from accordion panel-header */
+.panel > .panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 0.75rem;
     background: var(--bg-tertiary);
     border-bottom: 1px solid var(--border-subtle);
-    min-height: 36px;
+    min-height: 32px;
 }
 
 .panel-title {
