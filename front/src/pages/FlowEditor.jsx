@@ -1176,11 +1176,11 @@ const FlowEditor = () => {
     }
     
     // Get the first output (or use sourceHandle if specified in the future)
-    const sourceHandleIndex = connection.sourceHandle ? parseInt(connection.sourceHandle.split('-')[1]) : 0;
+    const sourceHandleIndex = connection.sourceHandle ? parseInt(connection.sourceHandle.split('-')[1], 10) : 0;
     const sourceOutput = sourceOutputs[sourceHandleIndex] || sourceOutputs[0];
     
     // Get input type from target using targetHandle (e.g., 'input-0', 'input-1')
-    const targetHandleIndex = connection.targetHandle ? parseInt(connection.targetHandle.split('-')[1]) : 0;
+    const targetHandleIndex = connection.targetHandle ? parseInt(connection.targetHandle.split('-')[1], 10) : 0;
     
     // Generate actual inputs based on ioRules and node configuration
     const targetInputs = generateInputs(targetMetadata, targetNode.data || {});
@@ -1218,12 +1218,12 @@ const FlowEditor = () => {
     
     // Generate actual outputs based on ioRules and node configuration
     const sourceOutputs = sourceMetadata ? generateOutputs(sourceMetadata, sourceNode.data || {}) : [];
-    const sourceHandleIndex = params.sourceHandle ? parseInt(params.sourceHandle.split('-')[1]) : 0;
+    const sourceHandleIndex = params.sourceHandle ? parseInt(params.sourceHandle.split('-')[1], 10) : 0;
     const sourceOutput = sourceOutputs[sourceHandleIndex] || sourceOutputs[0];
     
     // Generate actual inputs based on ioRules and node configuration
     const targetInputs = targetMetadata ? generateInputs(targetMetadata, targetNode.data || {}) : [];
-    const targetHandleIndex = params.targetHandle ? parseInt(params.targetHandle.split('-')[1]) : 0;
+    const targetHandleIndex = params.targetHandle ? parseInt(params.targetHandle.split('-')[1], 10) : 0;
     const targetInput = targetInputs[targetHandleIndex];
     
     // Check compatibility and show error message if needed
