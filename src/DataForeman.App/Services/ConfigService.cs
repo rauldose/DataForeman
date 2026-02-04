@@ -17,6 +17,7 @@ public class ConfigService
     private ConnectionsFile _connections = new();
     private ChartsFile _charts = new();
     private FlowsFile _flows = new();
+    private DashboardsFile _dashboards = new();
     
     public event Action? OnConfigurationChanged;
 
@@ -41,6 +42,7 @@ public class ConfigService
     public IReadOnlyList<ConnectionConfig> Connections => _connections.Connections.AsReadOnly();
     public IReadOnlyList<ChartConfig> Charts => _charts.Charts.AsReadOnly();
     public IReadOnlyList<FlowConfig> Flows => _flows.Flows.AsReadOnly();
+    public IReadOnlyList<DashboardConfig> Dashboards => _dashboards.Dashboards.AsReadOnly();
 
     /// <summary>
     /// Loads all configuration files.
@@ -50,6 +52,7 @@ public class ConfigService
         await LoadConnectionsAsync();
         await LoadChartsAsync();
         await LoadFlowsAsync();
+        await LoadDashboardsAsync();
         _logger.LogInformation("All configuration files loaded from {Directory}", _configDirectory);
     }
 
@@ -189,6 +192,53 @@ public class ConfigService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving flows to {FilePath}", filePath);
+        }
+    }
+
+    /// <summary>
+    /// Loads dashboards configuration.
+    /// </summary>
+    public async Task LoadDashboardsAsync()
+    {
+        var filePath = GetConfigFilePath("dashboards.json");
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = await File.ReadAllTextAsync(filePath);
+                _dashboards = JsonSerializer.Deserialize<DashboardsFile>(json, _jsonOptions) ?? new DashboardsFile();
+                _logger.LogInformation("Loaded {Count} dashboards from {FilePath}", _dashboards.Dashboards.Count, filePath);
+            }
+            else
+            {
+                _dashboards = CreateDefaultDashboards();
+                await SaveDashboardsAsync();
+                _logger.LogInformation("Created default dashboards configuration");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading dashboards from {FilePath}", filePath);
+            _dashboards = new DashboardsFile();
+        }
+    }
+
+    /// <summary>
+    /// Saves dashboards configuration.
+    /// </summary>
+    public async Task SaveDashboardsAsync()
+    {
+        var filePath = GetConfigFilePath("dashboards.json");
+        try
+        {
+            var json = JsonSerializer.Serialize(_dashboards, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json);
+            _logger.LogDebug("Saved dashboards to {FilePath}", filePath);
+            OnConfigurationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving dashboards to {FilePath}", filePath);
         }
     }
 
@@ -361,6 +411,43 @@ public class ConfigService
 
     #endregion
 
+    #region Dashboard Operations
+
+    public DashboardConfig? GetDashboard(string id) 
+        => _dashboards.Dashboards.FirstOrDefault(d => d.Id == id);
+
+    public async Task<DashboardConfig> AddDashboardAsync(DashboardConfig dashboard)
+    {
+        dashboard.CreatedAt = DateTime.UtcNow;
+        dashboard.UpdatedAt = DateTime.UtcNow;
+        _dashboards.Dashboards.Add(dashboard);
+        await SaveDashboardsAsync();
+        return dashboard;
+    }
+
+    public async Task<bool> UpdateDashboardAsync(DashboardConfig dashboard)
+    {
+        var existing = _dashboards.Dashboards.FindIndex(d => d.Id == dashboard.Id);
+        if (existing < 0) return false;
+        
+        dashboard.UpdatedAt = DateTime.UtcNow;
+        _dashboards.Dashboards[existing] = dashboard;
+        await SaveDashboardsAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteDashboardAsync(string id)
+    {
+        var removed = _dashboards.Dashboards.RemoveAll(d => d.Id == id) > 0;
+        if (removed)
+        {
+            await SaveDashboardsAsync();
+        }
+        return removed;
+    }
+
+    #endregion
+
     private void EnsureConfigDirectoryExists()
     {
         if (!Directory.Exists(_configDirectory))
@@ -473,6 +560,137 @@ public class ConfigService
                                 PeriodSeconds = 15.0
                             }
                         }
+                    }
+                }
+            }
+        };
+    }
+
+    private DashboardsFile CreateDefaultDashboards()
+    {
+        return new DashboardsFile
+        {
+            Dashboards = new List<DashboardConfig>
+            {
+                new DashboardConfig
+                {
+                    Id = "dashboard-overview",
+                    Name = "Process Overview",
+                    Description = "Overview dashboard with key process metrics",
+                    Panels = new List<DashboardPanel>
+                    {
+                        // Row 1: Stats
+                        new DashboardPanel
+                        {
+                            Id = "stat-temp",
+                            Title = "Temperature",
+                            Type = PanelType.Stat,
+                            GridX = 0, GridY = 0, GridWidth = 3, GridHeight = 2,
+                            StatConfig = new StatPanelConfig
+                            {
+                                TagId = "sim-temp-1",
+                                Label = "Temperature",
+                                Unit = "°C",
+                                Decimals = 1,
+                                ShowSparkline = true,
+                                Icon = "fa-solid fa-thermometer-half",
+                                Thresholds = new() { new() { Value = 0, Color = "#22c55e" }, new() { Value = 30, Color = "#f59e0b" }, new() { Value = 35, Color = "#ef4444" } }
+                            }
+                        },
+                        new DashboardPanel
+                        {
+                            Id = "stat-pressure",
+                            Title = "Pressure",
+                            Type = PanelType.Stat,
+                            GridX = 3, GridY = 0, GridWidth = 3, GridHeight = 2,
+                            StatConfig = new StatPanelConfig
+                            {
+                                TagId = "sim-pressure-1",
+                                Label = "Pressure",
+                                Unit = "bar",
+                                Decimals = 2,
+                                ShowSparkline = true,
+                                Icon = "fa-solid fa-gauge-high",
+                                Thresholds = new() { new() { Value = 0, Color = "#22c55e" }, new() { Value = 6, Color = "#f59e0b" }, new() { Value = 7, Color = "#ef4444" } }
+                            }
+                        },
+                        new DashboardPanel
+                        {
+                            Id = "stat-flow",
+                            Title = "Flow Rate",
+                            Type = PanelType.Stat,
+                            GridX = 6, GridY = 0, GridWidth = 3, GridHeight = 2,
+                            StatConfig = new StatPanelConfig
+                            {
+                                TagId = "sim-flow-1",
+                                Label = "Flow",
+                                Unit = "L/min",
+                                Decimals = 1,
+                                ShowSparkline = true,
+                                Icon = "fa-solid fa-droplet",
+                                Thresholds = new() { new() { Value = 0, Color = "#3b82f6" } }
+                            }
+                        },
+                        new DashboardPanel
+                        {
+                            Id = "gauge-level",
+                            Title = "Tank Level",
+                            Type = PanelType.Gauge,
+                            GridX = 9, GridY = 0, GridWidth = 3, GridHeight = 4,
+                            GaugeConfig = new GaugePanelConfig
+                            {
+                                TagId = "sim-level-1",
+                                MinValue = 0,
+                                MaxValue = 100,
+                                Unit = "%",
+                                GaugeType = GaugeType.Radial,
+                                Thresholds = new() { new() { Value = 0, Color = "#ef4444" }, new() { Value = 20, Color = "#f59e0b" }, new() { Value = 40, Color = "#22c55e" } }
+                            }
+                        },
+                        // Row 2: Chart
+                        new DashboardPanel
+                        {
+                            Id = "chart-trends",
+                            Title = "Process Trends",
+                            Type = PanelType.Chart,
+                            GridX = 0, GridY = 2, GridWidth = 9, GridHeight = 5,
+                            ChartConfig = new ChartPanelConfig
+                            {
+                                ChartType = "Line",
+                                ShowLegend = true,
+                                DataSources = new()
+                                {
+                                    new() { TagId = "sim-temp-1", DisplayName = "Temperature", Color = "#ef4444", YAxisId = "temp-axis" },
+                                    new() { TagId = "sim-pressure-1", DisplayName = "Pressure", Color = "#3b82f6", YAxisId = "pressure-axis" }
+                                },
+                                YAxes = new()
+                                {
+                                    new() { Id = "temp-axis", Name = "Temperature", Position = "Left", Color = "#ef4444", Unit = "°C" },
+                                    new() { Id = "pressure-axis", Name = "Pressure", Position = "Right", Color = "#3b82f6", Unit = "bar" }
+                                }
+                            }
+                        },
+                        // Row 3: Table
+                        new DashboardPanel
+                        {
+                            Id = "table-values",
+                            Title = "All Tag Values",
+                            Type = PanelType.Table,
+                            GridX = 0, GridY = 7, GridWidth = 12, GridHeight = 3,
+                            TableConfig = new TablePanelConfig
+                            {
+                                TagIds = new() { "sim-temp-1", "sim-pressure-1", "sim-level-1", "sim-flow-1", "sim-status-1" },
+                                ShowTimestamp = true,
+                                ShowQuality = true,
+                                MaxRows = 5
+                            }
+                        }
+                    },
+                    Settings = new DashboardSettings
+                    {
+                        DefaultMode = TrendingMode.Realtime,
+                        RefreshIntervalMs = 1000,
+                        AutoRefresh = true
                     }
                 }
             }
