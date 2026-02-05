@@ -513,6 +513,30 @@
 
     private async Task SaveDashboard()
     {
+        // Sync panel positions/sizes from the layout component before saving
+        if (DashboardLayout != null && DashboardId != "new")
+        {
+            try
+            {
+                var panelObjects = await DashboardLayout.Serialize();
+                foreach (var panelObj in panelObjects)
+                {
+                    var panel = CurrentDashboard.Panels.FirstOrDefault(p => p.Id == panelObj.Id);
+                    if (panel != null)
+                    {
+                        panel.GridX = (int)panelObj.Column;
+                        panel.GridY = (int)panelObj.Row;
+                        panel.GridWidth = (int)panelObj.SizeX;
+                        panel.GridHeight = (int)panelObj.SizeY;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error syncing panel layout: {ex.Message}");
+            }
+        }
+        
         // UpdatedAt is set in the service layer
         if (DashboardId == "new")
             await ConfigService.AddDashboardAsync(CurrentDashboard);
