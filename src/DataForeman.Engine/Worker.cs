@@ -11,6 +11,7 @@ public class Worker : BackgroundService
     private readonly ConfigService _configService;
     private readonly MqttPublisher _mqttPublisher;
     private readonly MqttFlowTriggerService _mqttFlowTriggerService;
+    private readonly FlowExecutionService _flowExecutionService;
     private readonly HistoryStore _historyStore;
     private readonly PollEngine _pollEngine;
     private readonly ConfigWatcher _configWatcher;
@@ -20,6 +21,7 @@ public class Worker : BackgroundService
         ConfigService configService,
         MqttPublisher mqttPublisher,
         MqttFlowTriggerService mqttFlowTriggerService,
+        FlowExecutionService flowExecutionService,
         HistoryStore historyStore,
         PollEngine pollEngine,
         ConfigWatcher configWatcher)
@@ -28,6 +30,7 @@ public class Worker : BackgroundService
         _configService = configService;
         _mqttPublisher = mqttPublisher;
         _mqttFlowTriggerService = mqttFlowTriggerService;
+        _flowExecutionService = flowExecutionService;
         _historyStore = historyStore;
         _pollEngine = pollEngine;
         _configWatcher = configWatcher;
@@ -50,6 +53,9 @@ public class Worker : BackgroundService
 
             // Start MQTT flow trigger service (handles mqtt-in node subscriptions)
             await _mqttFlowTriggerService.StartAsync();
+
+            // Start flow execution service (executes flows when MQTT messages trigger them)
+            await _flowExecutionService.StartAsync();
 
             // Start the polling engine
             await _pollEngine.StartAsync();

@@ -60,6 +60,9 @@ public sealed class NodeExecutionContext
     /// <summary>Tag value writer for writing tag values.</summary>
     public required ITagValueWriter TagWriter { get; init; }
 
+    /// <summary>Optional MQTT publisher for mqtt-out nodes.</summary>
+    public INodeMqttPublisher? MqttPublisher { get; init; }
+
     /// <summary>Gets typed configuration.</summary>
     public T? GetConfig<T>() where T : class
     {
@@ -67,6 +70,17 @@ public sealed class NodeExecutionContext
             return null;
         return Config.Value.Deserialize<T>();
     }
+}
+
+/// <summary>
+/// Interface for MQTT publishing from nodes.
+/// </summary>
+public interface INodeMqttPublisher
+{
+    /// <summary>
+    /// Publishes a message to an MQTT topic.
+    /// </summary>
+    ValueTask PublishAsync(string topic, string payload, int qos = 0, bool retain = false, CancellationToken ct = default);
 }
 
 /// <summary>

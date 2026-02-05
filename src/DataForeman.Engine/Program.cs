@@ -7,6 +7,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<MqttPublisher>();
 builder.Services.AddSingleton<MqttFlowTriggerService>();
+builder.Services.AddSingleton<FlowExecutionService>();
 builder.Services.AddSingleton<HistoryStore>();
 builder.Services.AddSingleton<PollEngine>();
 builder.Services.AddSingleton<ConfigWatcher>();
