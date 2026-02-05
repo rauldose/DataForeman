@@ -248,6 +248,7 @@ public class MqttPublisher : IAsyncDisposable
         };
 
         // Add to subscription tracking
+        // Note: flowId and nodeId are GUIDs and cannot contain colons, making this key format safe
         var key = $"{flowId}:{nodeId}";
         _subscriptions.AddOrUpdate(
             key,

@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text.Json;
 using DataForeman.Shared.Models;
-using DataForeman.Shared.Runtime;
 
 namespace DataForeman.Engine.Services;
 
@@ -166,7 +166,7 @@ public class MqttFlowTriggerService : IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets a property value from a flow node.
+    /// Gets a property value from a flow node as a string.
     /// </summary>
     private static string? GetNodeProperty(FlowNode node, string propertyName)
     {
@@ -178,9 +178,15 @@ public class MqttFlowTriggerService : IAsyncDisposable
             }
             if (value is JsonElement jsonElement)
             {
-                return jsonElement.ValueKind == JsonValueKind.String 
-                    ? jsonElement.GetString() 
-                    : jsonElement.GetRawText();
+                return jsonElement.ValueKind switch
+                {
+                    JsonValueKind.String => jsonElement.GetString(),
+                    JsonValueKind.Number => jsonElement.GetDouble().ToString(CultureInfo.InvariantCulture),
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    JsonValueKind.Null => null,
+                    _ => jsonElement.GetRawText()
+                };
             }
             return value?.ToString();
         }
