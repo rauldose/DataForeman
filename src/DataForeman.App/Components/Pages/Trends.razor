@@ -9,6 +9,152 @@
 
 <PageTitle>Trend Visualizer - DataForeman</PageTitle>
 
+<style>
+    .timeline-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #1a1a1a;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .timeline-viewer {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .timeline-header {
+        display: flex;
+        border-bottom: 1px solid #333;
+        background: #222;
+        padding: 8px 0;
+    }
+    
+    .timeline-label-column {
+        width: 200px;
+        flex-shrink: 0;
+    }
+    
+    .timeline-axis {
+        flex: 1;
+        position: relative;
+        height: 30px;
+    }
+    
+    .time-markers {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 100%;
+        position: relative;
+    }
+    
+    .time-marker {
+        position: absolute;
+        font-size: 11px;
+        color: #888;
+        transform: translateX(-50%);
+    }
+    
+    .timeline-traces {
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    .timeline-trace-row {
+        display: flex;
+        border-bottom: 1px solid #2a2a2a;
+        min-height: 60px;
+    }
+    
+    .timeline-trace-row:hover {
+        background: #252525;
+    }
+    
+    .trace-label {
+        width: 200px;
+        flex-shrink: 0;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-right: 1px solid #333;
+    }
+    
+    .trace-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        flex-shrink: 0;
+    }
+    
+    .trace-name {
+        font-weight: 600;
+        color: #fff;
+        font-size: 13px;
+    }
+    
+    .trace-tag {
+        font-size: 11px;
+        color: #888;
+        margin-left: auto;
+    }
+    
+    .trace-canvas {
+        flex: 1;
+        padding: 4px;
+        position: relative;
+    }
+    
+    .trace-canvas svg {
+        display: block;
+    }
+    
+    .timeline-scrubber {
+        height: 40px;
+        border-top: 1px solid #333;
+        padding: 8px 12px;
+        background: #1e1e1e;
+        display: flex;
+        align-items: center;
+    }
+    
+    .scrubber-track {
+        flex: 1;
+        height: 8px;
+        background: #2a2a2a;
+        border-radius: 4px;
+        position: relative;
+        margin-left: 200px;
+    }
+    
+    .scrubber-range {
+        position: absolute;
+        height: 100%;
+        background: #3b82f6;
+        border-radius: 4px;
+        opacity: 0.3;
+    }
+    
+    .scrubber-handle {
+        position: absolute;
+        width: 12px;
+        height: 16px;
+        background: #3b82f6;
+        border-radius: 3px;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        cursor: ew-resize;
+        border: 1px solid #fff;
+    }
+    
+    .scrubber-handle:hover {
+        background: #60a5fa;
+    }
+</style>
+
 <div class="page-container">
     @if (string.IsNullOrEmpty(TrendId))
     {
@@ -72,30 +218,75 @@
             </div>
             
             <div class="viewer-content">
-                <div class="chart-container">
+                <div class="timeline-container">
                     @if (CurrentTrend.Series.Any())
                     {
-                        <SfChart Title="@CurrentTrend.Name" Height="400px" Theme="@GetChartTheme()">
-                            <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" 
-                                               LabelFormat="HH:mm:ss" />
-                            <ChartPrimaryYAxis Title="Value" />
-                            <ChartSeriesCollection>
+                        <div class="timeline-viewer">
+                            <!-- Timeline header with time markers -->
+                            <div class="timeline-header">
+                                <div class="timeline-label-column"></div>
+                                <div class="timeline-axis">
+                                    <div class="time-markers">
+                                        @for (int i = 0; i <= 10; i++)
+                                        {
+                                            var percent = i * 10;
+                                            <div class="time-marker" style="left: @(percent)%">
+                                                <span>@GetTimeLabel(i)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Timeline traces for each series -->
+                            <div class="timeline-traces">
                                 @foreach (var series in CurrentTrend.Series.Where(s => s.Visible))
                                 {
-                                    <ChartSeries DataSource="@GetSeriesData(series.Id)" 
-                                                 XName="Timestamp" 
-                                                 YName="Value"
-                                                 Name="@series.Name"
-                                                 Type="@GetChartSeriesType(series.Type)"
-                                                 Fill="@series.Color">
-                                    </ChartSeries>
+                                    <div class="timeline-trace-row">
+                                        <div class="trace-label">
+                                            <span class="trace-color" style="background-color: @series.Color"></span>
+                                            <span class="trace-name">@series.Name</span>
+                                            <span class="trace-tag">@series.TagPath</span>
+                                        </div>
+                                        <div class="trace-canvas">
+                                            <svg width="100%" height="50" preserveAspectRatio="none">
+                                                @{
+                                                    var dataPoints = GetSeriesData(series.Id);
+                                                    if (dataPoints.Any())
+                                                    {
+                                                        var pathData = GenerateTracePathData(dataPoints);
+                                                        <path d="@pathData" 
+                                                              fill="none" 
+                                                              stroke="@series.Color" 
+                                                              stroke-width="2" 
+                                                              vector-effect="non-scaling-stroke" />
+                                                        
+                                                        <!-- Optional: Fill area under trace -->
+                                                        @if (series.Type == TrendSeriesType.Area)
+                                                        {
+                                                            var fillPath = GenerateTraceFillPathData(dataPoints);
+                                                            <path d="@fillPath" 
+                                                                  fill="@series.Color" 
+                                                                  fill-opacity="0.2" 
+                                                                  stroke="none" />
+                                                        }
+                                                    }
+                                                }
+                                            </svg>
+                                        </div>
+                                    </div>
                                 }
-                            </ChartSeriesCollection>
-                            <ChartLegendSettings Visible="@CurrentTrend.DisplayOptions.ShowLegend"></ChartLegendSettings>
-                            <ChartZoomSettings EnableSelectionZooming="@CurrentTrend.DisplayOptions.EnableZoom"
-                                               EnablePan="@CurrentTrend.DisplayOptions.EnablePan">
-                            </ChartZoomSettings>
-                        </SfChart>
+                            </div>
+                            
+                            <!-- Timeline scrubber at bottom -->
+                            <div class="timeline-scrubber">
+                                <div class="scrubber-track">
+                                    <div class="scrubber-range" style="left: 0%; width: 100%"></div>
+                                    <div class="scrubber-handle scrubber-handle-start" style="left: 0%"></div>
+                                    <div class="scrubber-handle scrubber-handle-end" style="left: 100%"></div>
+                                </div>
+                            </div>
+                        </div>
                     }
                     else
                     {
@@ -394,6 +585,84 @@
         await _deleteDialog!.HideAsync();
         _deletingTrendId = null;
         _deletingTrendName = null;
+    }
+
+    private string GetTimeLabel(int markerIndex)
+    {
+        // Generate time labels based on time range
+        var now = DateTime.Now;
+        var duration = GetTimeRangeDuration();
+        var timeAtMarker = now.AddMinutes(-(duration.TotalMinutes * (10 - markerIndex) / 10));
+        return timeAtMarker.ToString("HH:mm");
+    }
+    
+    private TimeSpan GetTimeRangeDuration()
+    {
+        return CurrentTrend.TimeRange.Type switch
+        {
+            TrendTimeRangeType.Last15Minutes => TimeSpan.FromMinutes(15),
+            TrendTimeRangeType.Last1Hour => TimeSpan.FromHours(1),
+            TrendTimeRangeType.Last4Hours => TimeSpan.FromHours(4),
+            TrendTimeRangeType.Last12Hours => TimeSpan.FromHours(12),
+            TrendTimeRangeType.Last24Hours => TimeSpan.FromHours(24),
+            TrendTimeRangeType.Last7Days => TimeSpan.FromDays(7),
+            TrendTimeRangeType.Last30Days => TimeSpan.FromDays(30),
+            _ => TimeSpan.FromHours(1)
+        };
+    }
+    
+    private string GenerateTracePathData(List<TrendDataPoint> dataPoints)
+    {
+        if (!dataPoints.Any()) return "";
+        
+        var pathBuilder = new System.Text.StringBuilder();
+        var minValue = dataPoints.Min(p => p.Value);
+        var maxValue = dataPoints.Max(p => p.Value);
+        var valueRange = maxValue - minValue;
+        if (valueRange == 0) valueRange = 1; // Avoid division by zero
+        
+        var minTime = dataPoints.Min(p => p.Timestamp);
+        var maxTime = dataPoints.Max(p => p.Timestamp);
+        var timeRange = (maxTime - minTime).TotalSeconds;
+        if (timeRange == 0) timeRange = 1;
+        
+        for (int i = 0; i < dataPoints.Count; i++)
+        {
+            var point = dataPoints[i];
+            var xPercent = ((point.Timestamp - minTime).TotalSeconds / timeRange) * 100;
+            var yPercent = ((maxValue - point.Value) / valueRange) * 100; // Inverted Y axis
+            
+            if (i == 0)
+            {
+                pathBuilder.Append($"M {xPercent:F2} {yPercent:F2}");
+            }
+            else
+            {
+                pathBuilder.Append($" L {xPercent:F2} {yPercent:F2}");
+            }
+        }
+        
+        return pathBuilder.ToString();
+    }
+    
+    private string GenerateTraceFillPathData(List<TrendDataPoint> dataPoints)
+    {
+        if (!dataPoints.Any()) return "";
+        
+        var pathData = GenerateTracePathData(dataPoints);
+        
+        // Close the path to bottom for area fill
+        var lastPoint = dataPoints.Last();
+        var firstPoint = dataPoints.First();
+        var minTime = dataPoints.Min(p => p.Timestamp);
+        var maxTime = dataPoints.Max(p => p.Timestamp);
+        var timeRange = (maxTime - minTime).TotalSeconds;
+        if (timeRange == 0) timeRange = 1;
+        
+        var lastXPercent = ((lastPoint.Timestamp - minTime).TotalSeconds / timeRange) * 100;
+        var firstXPercent = ((firstPoint.Timestamp - minTime).TotalSeconds / timeRange) * 100;
+        
+        return $"{pathData} L {lastXPercent:F2} 100 L {firstXPercent:F2} 100 Z";
     }
 
     private string GetTimeRangeLabel(TrendTimeRangeType type) => type switch
