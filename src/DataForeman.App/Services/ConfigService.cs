@@ -143,7 +143,8 @@ public class ConfigService
     /// <summary>
     /// Saves connections configuration.
     /// </summary>
-    public async Task SaveConnectionsAsync()
+    /// <returns>True if save was successful, false otherwise.</returns>
+    public async Task<bool> SaveConnectionsAsync()
     {
         var filePath = GetConfigFilePath("connections.json");
         try
@@ -151,18 +152,21 @@ public class ConfigService
             var json = JsonSerializer.Serialize(_connections, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json);
             _logger.LogDebug("Saved connections to {FilePath}", filePath);
-            OnConfigurationChanged?.Invoke();
+            SafeInvokeConfigurationChanged();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving connections to {FilePath}", filePath);
+            return false;
         }
     }
 
     /// <summary>
     /// Saves charts configuration.
     /// </summary>
-    public async Task SaveChartsAsync()
+    /// <returns>True if save was successful, false otherwise.</returns>
+    public async Task<bool> SaveChartsAsync()
     {
         var filePath = GetConfigFilePath("charts.json");
         try
@@ -170,18 +174,21 @@ public class ConfigService
             var json = JsonSerializer.Serialize(_charts, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json);
             _logger.LogDebug("Saved charts to {FilePath}", filePath);
-            OnConfigurationChanged?.Invoke();
+            SafeInvokeConfigurationChanged();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving charts to {FilePath}", filePath);
+            return false;
         }
     }
 
     /// <summary>
     /// Saves flows configuration.
     /// </summary>
-    public async Task SaveFlowsAsync()
+    /// <returns>True if save was successful, false otherwise.</returns>
+    public async Task<bool> SaveFlowsAsync()
     {
         var filePath = GetConfigFilePath("flows.json");
         try
@@ -189,11 +196,13 @@ public class ConfigService
             var json = JsonSerializer.Serialize(_flows, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json);
             _logger.LogDebug("Saved flows to {FilePath}", filePath);
-            OnConfigurationChanged?.Invoke();
+            SafeInvokeConfigurationChanged();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving flows to {FilePath}", filePath);
+            return false;
         }
     }
 
@@ -228,7 +237,8 @@ public class ConfigService
     /// <summary>
     /// Saves dashboards configuration.
     /// </summary>
-    public async Task SaveDashboardsAsync()
+    /// <returns>True if save was successful, false otherwise.</returns>
+    public async Task<bool> SaveDashboardsAsync()
     {
         var filePath = GetConfigFilePath("dashboards.json");
         try
@@ -236,11 +246,13 @@ public class ConfigService
             var json = JsonSerializer.Serialize(_dashboards, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json);
             _logger.LogDebug("Saved dashboards to {FilePath}", filePath);
-            OnConfigurationChanged?.Invoke();
+            SafeInvokeConfigurationChanged();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving dashboards to {FilePath}", filePath);
+            return false;
         }
     }
 
@@ -481,7 +493,11 @@ public class ConfigService
         }
     }
 
-    public async Task SaveSubflowsAsync()
+    /// <summary>
+    /// Saves subflows configuration.
+    /// </summary>
+    /// <returns>True if save was successful, false otherwise.</returns>
+    public async Task<bool> SaveSubflowsAsync()
     {
         var filePath = GetConfigFilePath("subflows.json");
         try
@@ -489,11 +505,13 @@ public class ConfigService
             var json = JsonSerializer.Serialize(_subflows, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json);
             _logger.LogDebug("Saved subflows to {FilePath}", filePath);
-            OnConfigurationChanged?.Invoke();
+            SafeInvokeConfigurationChanged();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving subflows to {FilePath}", filePath);
+            return false;
         }
     }
 
@@ -562,7 +580,11 @@ public class ConfigService
         }
     }
 
-    public async Task SaveFlowTemplatesAsync()
+    /// <summary>
+    /// Saves flow templates configuration.
+    /// </summary>
+    /// <returns>True if save was successful, false otherwise.</returns>
+    public async Task<bool> SaveFlowTemplatesAsync()
     {
         var filePath = GetConfigFilePath("flow-templates.json");
         try
@@ -570,11 +592,13 @@ public class ConfigService
             var json = JsonSerializer.Serialize(_flowTemplates, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json);
             _logger.LogDebug("Saved flow templates to {FilePath}", filePath);
-            OnConfigurationChanged?.Invoke();
+            SafeInvokeConfigurationChanged();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving flow templates to {FilePath}", filePath);
+            return false;
         }
     }
 
@@ -673,6 +697,21 @@ public class ConfigService
         {
             Directory.CreateDirectory(_configDirectory);
             _logger.LogInformation("Created configuration directory: {Directory}", _configDirectory);
+        }
+    }
+
+    /// <summary>
+    /// Safely invokes the OnConfigurationChanged event, catching any handler exceptions.
+    /// </summary>
+    private void SafeInvokeConfigurationChanged()
+    {
+        try
+        {
+            OnConfigurationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in OnConfigurationChanged handler");
         }
     }
 

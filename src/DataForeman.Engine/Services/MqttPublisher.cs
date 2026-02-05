@@ -8,15 +8,21 @@ using MQTTnet.Protocol;
 namespace DataForeman.Engine.Services;
 
 /// <summary>
-/// MQTT publisher service for sending real-time tag values.
+/// MQTT publisher service for sending real-time tag values with connection state synchronization.
 /// </summary>
 public class MqttPublisher : IAsyncDisposable
 {
     private readonly ILogger<MqttPublisher> _logger;
     private readonly IConfiguration _configuration;
     private IManagedMqttClient? _mqttClient;
-    private bool _isConnected;
+    private volatile bool _isConnected;
+    private volatile bool _isDisposing;
+    private readonly object _connectionLock = new();
     private readonly JsonSerializerOptions _jsonOptions;
+
+    // Retry configuration
+    private const int MaxPublishRetries = 3;
+    private const int RetryDelayMs = 100;
 
     public bool IsConnected => _isConnected;
     public event Action<bool>? OnConnectionChanged;
@@ -55,17 +61,30 @@ public class MqttPublisher : IAsyncDisposable
                     .Build())
                 .Build();
 
-            _mqttClient.ConnectedAsync += async e =>
+            _mqttClient.ConnectedAsync += e =>
             {
-                _isConnected = true;
+                lock (_connectionLock)
+                {
+                    _isConnected = true;
+                }
                 _logger.LogInformation("Connected to MQTT broker at {Host}:{Port}", brokerHost, brokerPort);
-                OnConnectionChanged?.Invoke(true);
-                await Task.CompletedTask;
+                try
+                {
+                    OnConnectionChanged?.Invoke(true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in OnConnectionChanged handler");
+                }
+                return Task.CompletedTask;
             };
 
-            _mqttClient.DisconnectedAsync += async e =>
+            _mqttClient.DisconnectedAsync += e =>
             {
-                _isConnected = false;
+                lock (_connectionLock)
+                {
+                    _isConnected = false;
+                }
                 if (e.Exception != null)
                 {
                     _logger.LogWarning(e.Exception, "Disconnected from MQTT broker");
@@ -74,14 +93,21 @@ public class MqttPublisher : IAsyncDisposable
                 {
                     _logger.LogInformation("Disconnected from MQTT broker");
                 }
-                OnConnectionChanged?.Invoke(false);
-                await Task.CompletedTask;
+                try
+                {
+                    OnConnectionChanged?.Invoke(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in OnConnectionChanged handler");
+                }
+                return Task.CompletedTask;
             };
 
-            _mqttClient.ConnectingFailedAsync += async e =>
+            _mqttClient.ConnectingFailedAsync += e =>
             {
                 _logger.LogError(e.Exception, "Failed to connect to MQTT broker");
-                await Task.CompletedTask;
+                return Task.CompletedTask;
             };
 
             await _mqttClient.StartAsync(options);
@@ -98,19 +124,21 @@ public class MqttPublisher : IAsyncDisposable
     /// </summary>
     public async Task PublishTagValueAsync(TagValueMessage message)
     {
-        if (_mqttClient == null || !_isConnected) return;
+        if (!CanPublish()) return;
 
         try
         {
             var topic = MqttTopics.GetTagValueTopic(message.ConnectionId, message.TagId);
             var payload = JsonSerializer.Serialize(message, _jsonOptions);
 
-            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                .WithRetainFlag(true)
-                .Build());
+            await EnqueueWithRetryAsync(
+                new MqttApplicationMessageBuilder()
+                    .WithTopic(topic)
+                    .WithPayload(payload)
+                    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                    .WithRetainFlag(true)
+                    .Build(),
+                $"tag value for {message.TagId}");
         }
         catch (Exception ex)
         {
@@ -123,18 +151,20 @@ public class MqttPublisher : IAsyncDisposable
     /// </summary>
     public async Task PublishBulkTagValuesAsync(BulkTagValueMessage message)
     {
-        if (_mqttClient == null || !_isConnected) return;
+        if (!CanPublish()) return;
 
         try
         {
             var topic = MqttTopics.GetBulkTagValueTopic(message.ConnectionId);
             var payload = JsonSerializer.Serialize(message, _jsonOptions);
 
-            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                .Build());
+            await EnqueueWithRetryAsync(
+                new MqttApplicationMessageBuilder()
+                    .WithTopic(topic)
+                    .WithPayload(payload)
+                    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                    .Build(),
+                $"bulk tag values for connection {message.ConnectionId}");
         }
         catch (Exception ex)
         {
@@ -147,19 +177,21 @@ public class MqttPublisher : IAsyncDisposable
     /// </summary>
     public async Task PublishConnectionStatusAsync(ConnectionStatusMessage message)
     {
-        if (_mqttClient == null || !_isConnected) return;
+        if (!CanPublish()) return;
 
         try
         {
             var topic = MqttTopics.GetConnectionStatusTopic(message.ConnectionId);
             var payload = JsonSerializer.Serialize(message, _jsonOptions);
 
-            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
-                .WithTopic(topic)
-                .WithPayload(payload)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                .WithRetainFlag(true)
-                .Build());
+            await EnqueueWithRetryAsync(
+                new MqttApplicationMessageBuilder()
+                    .WithTopic(topic)
+                    .WithPayload(payload)
+                    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                    .WithRetainFlag(true)
+                    .Build(),
+                $"connection status for {message.ConnectionId}");
         }
         catch (Exception ex)
         {
@@ -172,18 +204,20 @@ public class MqttPublisher : IAsyncDisposable
     /// </summary>
     public async Task PublishEngineStatusAsync(EngineStatusMessage message)
     {
-        if (_mqttClient == null || !_isConnected) return;
+        if (!CanPublish()) return;
 
         try
         {
             var payload = JsonSerializer.Serialize(message, _jsonOptions);
 
-            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
-                .WithTopic(MqttTopics.EngineStatus)
-                .WithPayload(payload)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                .WithRetainFlag(true)
-                .Build());
+            await EnqueueWithRetryAsync(
+                new MqttApplicationMessageBuilder()
+                    .WithTopic(MqttTopics.EngineStatus)
+                    .WithPayload(payload)
+                    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                    .WithRetainFlag(true)
+                    .Build(),
+                "engine status");
         }
         catch (Exception ex)
         {
@@ -191,11 +225,70 @@ public class MqttPublisher : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Checks if publishing is possible (thread-safe).
+    /// </summary>
+    private bool CanPublish()
+    {
+        if (_isDisposing) return false;
+
+        lock (_connectionLock)
+        {
+            return _mqttClient != null && _isConnected;
+        }
+    }
+
+    /// <summary>
+    /// Enqueues a message with retry logic.
+    /// </summary>
+    private async Task EnqueueWithRetryAsync(MqttApplicationMessage message, string description)
+    {
+        for (var attempt = 1; attempt <= MaxPublishRetries; attempt++)
+        {
+            if (_isDisposing) return;
+
+            try
+            {
+                // Re-check connection state before each attempt
+                if (!CanPublish())
+                {
+                    _logger.LogDebug("Cannot publish {Description} - not connected (attempt {Attempt})", description, attempt);
+                    if (attempt < MaxPublishRetries)
+                    {
+                        await Task.Delay(RetryDelayMs);
+                    }
+                    continue;
+                }
+
+                await _mqttClient!.EnqueueAsync(message);
+                return; // Success
+            }
+            catch (Exception ex) when (attempt < MaxPublishRetries)
+            {
+                _logger.LogDebug(ex, "Failed to enqueue {Description} (attempt {Attempt}/{MaxRetries})",
+                    description, attempt, MaxPublishRetries);
+                await Task.Delay(RetryDelayMs * attempt); // Exponential backoff
+            }
+        }
+
+        _logger.LogWarning("Failed to publish {Description} after {MaxRetries} attempts", description, MaxPublishRetries);
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _isDisposing = true;
+
         if (_mqttClient != null)
         {
-            await _mqttClient.StopAsync();
+            try
+            {
+                await _mqttClient.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error stopping MQTT client");
+            }
+
             _mqttClient.Dispose();
             _logger.LogInformation("MQTT client disposed");
         }

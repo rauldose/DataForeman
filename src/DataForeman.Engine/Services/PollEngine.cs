@@ -17,15 +17,17 @@ public class PollEngine : IAsyncDisposable
     private readonly ConfigService _configService;
     private readonly MqttPublisher _mqttPublisher;
     private readonly HistoryStore _historyStore;
-    
+
     private readonly ConcurrentDictionary<string, ConnectionPoller> _pollers = new();
     private readonly ConcurrentDictionary<string, TagValue> _currentValues = new();
-    
-    private bool _isRunning;
+
+    private volatile bool _isRunning;
+    private volatile bool _isStopping;
     private DateTime _startTime;
     private long _totalPolls;
     private double _totalPollTimeMs;
     private Timer? _statusTimer;
+    private readonly object _statusTimerLock = new();
 
     public bool IsRunning => _isRunning;
     public IReadOnlyDictionary<string, TagValue> CurrentValues => _currentValues;
@@ -74,18 +76,31 @@ public class PollEngine : IAsyncDisposable
     /// </summary>
     public async Task StopAsync()
     {
-        if (!_isRunning) return;
+        if (!_isRunning || _isStopping) return;
 
+        _isStopping = true;
         _isRunning = false;
-        _statusTimer?.Dispose();
-        _statusTimer = null;
 
-        foreach (var poller in _pollers.Values)
+        // Safely dispose status timer
+        lock (_statusTimerLock)
         {
-            await poller.StopAsync();
+            _statusTimer?.Dispose();
+            _statusTimer = null;
+        }
+
+        // Stop all pollers concurrently
+        var stopTasks = _pollers.Values.Select(p => p.StopAsync()).ToList();
+        try
+        {
+            await Task.WhenAll(stopTasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error stopping one or more pollers");
         }
         _pollers.Clear();
 
+        _isStopping = false;
         _logger.LogInformation("Poll engine stopped");
     }
 
@@ -139,13 +154,19 @@ public class PollEngine : IAsyncDisposable
                 connection,
                 driver,
                 _logger,
-                OnTagValuesReceived,
-                OnConnectionStatusChanged);
+                (connId, values, pollTime) =>
+                {
+                    SafeFireAndForget(OnTagValuesReceivedAsync(connId, values, pollTime), "OnTagValuesReceived");
+                },
+                (connId, state, errorMsg) =>
+                {
+                    SafeFireAndForget(OnConnectionStatusChangedAsync(connId, state, errorMsg), "OnConnectionStatusChanged");
+                });
 
             _pollers[connection.Id] = poller;
             await poller.StartAsync();
 
-            _logger.LogInformation("Started poller for connection: {ConnectionName} ({Type})", 
+            _logger.LogInformation("Started poller for connection: {ConnectionName} ({Type})",
                 connection.Name, connection.Type);
         }
         catch (Exception ex)
@@ -164,8 +185,14 @@ public class PollEngine : IAsyncDisposable
         };
     }
 
-    private async void OnTagValuesReceived(string connectionId, Dictionary<string, TagValue> values, double pollTimeMs)
+    /// <summary>
+    /// Handles tag values received from a connection poller.
+    /// This method is invoked as a fire-and-forget but exceptions are observed and logged.
+    /// </summary>
+    private async Task OnTagValuesReceivedAsync(string connectionId, Dictionary<string, TagValue> values, double pollTimeMs)
     {
+        if (_isStopping) return;
+
         try
         {
             var connection = _configService.GetConnection(connectionId);
@@ -215,8 +242,14 @@ public class PollEngine : IAsyncDisposable
         }
     }
 
-    private async void OnConnectionStatusChanged(string connectionId, ConnectionState state, string? errorMessage)
+    /// <summary>
+    /// Handles connection status changes from a connection poller.
+    /// This method is invoked as a fire-and-forget but exceptions are observed and logged.
+    /// </summary>
+    private async Task OnConnectionStatusChangedAsync(string connectionId, ConnectionState state, string? errorMessage)
     {
+        if (_isStopping) return;
+
         try
         {
             var connection = _configService.GetConnection(connectionId);
@@ -236,6 +269,20 @@ public class PollEngine : IAsyncDisposable
         {
             _logger.LogError(ex, "Error publishing connection status for: {ConnectionId}", connectionId);
         }
+    }
+
+    /// <summary>
+    /// Safe fire-and-forget wrapper that observes exceptions.
+    /// </summary>
+    private void SafeFireAndForget(Task task, string operationName)
+    {
+        task.ContinueWith(t =>
+        {
+            if (t.IsFaulted && t.Exception != null)
+            {
+                _logger.LogError(t.Exception, "Unobserved exception in {OperationName}", operationName);
+            }
+        }, TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private async Task PublishEngineStatusAsync()
@@ -268,7 +315,7 @@ public class PollEngine : IAsyncDisposable
 }
 
 /// <summary>
-/// Manages polling for a single connection.
+/// Manages polling for a single connection with circuit breaker and backpressure support.
 /// </summary>
 internal class ConnectionPoller : IAsyncDisposable
 {
@@ -277,11 +324,19 @@ internal class ConnectionPoller : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly Action<string, Dictionary<string, TagValue>, double> _onValuesReceived;
     private readonly Action<string, ConnectionState, string?> _onStatusChanged;
-    
+
     private readonly ConcurrentDictionary<int, Timer> _pollTimers = new();
     private readonly ConcurrentDictionary<int, List<TagConfig>> _pollGroups = new();
-    
-    private bool _isRunning;
+    private readonly ConcurrentDictionary<int, int> _pollInProgress = new(); // Backpressure tracking
+
+    // Circuit breaker state
+    private int _consecutiveFailures;
+    private DateTime _circuitOpenUntil = DateTime.MinValue;
+    private const int CircuitBreakerThreshold = 5;
+    private const int CircuitBreakerResetSeconds = 30;
+
+    private volatile bool _isRunning;
+    private volatile bool _isStopping;
 
     public bool IsConnected => _driver.IsConnected;
 
@@ -317,15 +372,16 @@ internal class ConnectionPoller : IAsyncDisposable
             {
                 var pollRateMs = group.Key;
                 var tags = group.Value;
-                
+
                 _pollGroups[pollRateMs] = tags;
-                
+                _pollInProgress[pollRateMs] = 0;
+
                 var timer = new Timer(
-                    async _ => await PollGroupAsync(pollRateMs, tags),
+                    _ => PollGroupWithBackpressure(pollRateMs, tags),
                     null,
                     TimeSpan.Zero,
                     TimeSpan.FromMilliseconds(pollRateMs));
-                
+
                 _pollTimers[pollRateMs] = timer;
             }
 
@@ -341,14 +397,27 @@ internal class ConnectionPoller : IAsyncDisposable
 
     public async Task StopAsync()
     {
+        if (_isStopping) return;
+        _isStopping = true;
         _isRunning = false;
 
-        foreach (var timer in _pollTimers.Values)
-        {
-            await timer.DisposeAsync();
-        }
+        // Stop all timers first to prevent new callbacks
+        var timers = _pollTimers.Values.ToList();
         _pollTimers.Clear();
+
+        foreach (var timer in timers)
+        {
+            try
+            {
+                await timer.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disposing timer for connection {ConnectionName}", _connection.Name);
+            }
+        }
         _pollGroups.Clear();
+        _pollInProgress.Clear();
 
         try
         {
@@ -359,11 +428,54 @@ internal class ConnectionPoller : IAsyncDisposable
         {
             _logger.LogError(ex, "Error disconnecting driver: {ConnectionName}", _connection.Name);
         }
+
+        _isStopping = false;
+    }
+
+    /// <summary>
+    /// Timer callback with backpressure - skips poll if previous is still running.
+    /// </summary>
+    private void PollGroupWithBackpressure(int pollRateMs, List<TagConfig> tags)
+    {
+        if (!_isRunning || _isStopping) return;
+
+        // Backpressure: skip if previous poll is still in progress
+        if (Interlocked.CompareExchange(ref _pollInProgress.GetOrAdd(pollRateMs, 0), 1, 0) != 0)
+        {
+            _logger.LogDebug("Skipping poll for {ConnectionName} group {PollRateMs}ms - previous poll still in progress",
+                _connection.Name, pollRateMs);
+            return;
+        }
+
+        // Fire and forget with exception handling
+        _ = PollGroupAsync(pollRateMs, tags).ContinueWith(t =>
+        {
+            // Release backpressure lock
+            _pollInProgress[pollRateMs] = 0;
+
+            if (t.IsFaulted && t.Exception != null)
+            {
+                _logger.LogError(t.Exception, "Unobserved exception in poll for {ConnectionName}", _connection.Name);
+            }
+        });
     }
 
     private async Task PollGroupAsync(int pollRateMs, List<TagConfig> tags)
     {
-        if (!_isRunning || !_driver.IsConnected) return;
+        if (!_isRunning || _isStopping) return;
+
+        // Circuit breaker check
+        if (DateTime.UtcNow < _circuitOpenUntil)
+        {
+            _logger.LogDebug("Circuit breaker open for {ConnectionName}, skipping poll", _connection.Name);
+            return;
+        }
+
+        if (!_driver.IsConnected)
+        {
+            RecordFailure("Driver not connected");
+            return;
+        }
 
         var stopwatch = Stopwatch.StartNew();
         try
@@ -375,11 +487,45 @@ internal class ConnectionPoller : IAsyncDisposable
             {
                 _onValuesReceived(_connection.Id, values, stopwatch.Elapsed.TotalMilliseconds);
             }
+
+            // Reset circuit breaker on success
+            ResetCircuitBreaker();
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            RecordFailure(ex.Message);
             _logger.LogError(ex, "Error polling tags for connection {ConnectionName}, group {PollRateMs}ms",
                 _connection.Name, pollRateMs);
+        }
+    }
+
+    private void RecordFailure(string reason)
+    {
+        var failures = Interlocked.Increment(ref _consecutiveFailures);
+        if (failures >= CircuitBreakerThreshold)
+        {
+            _circuitOpenUntil = DateTime.UtcNow.AddSeconds(CircuitBreakerResetSeconds);
+            _logger.LogWarning(
+                "Circuit breaker opened for {ConnectionName} after {Failures} consecutive failures. Will retry in {Seconds}s. Reason: {Reason}",
+                _connection.Name, failures, CircuitBreakerResetSeconds, reason);
+            _onStatusChanged(_connection.Id, ConnectionState.Error, $"Circuit breaker opened: {reason}");
+        }
+    }
+
+    private void ResetCircuitBreaker()
+    {
+        if (_consecutiveFailures > 0)
+        {
+            var wasOpen = _circuitOpenUntil > DateTime.MinValue;
+            Interlocked.Exchange(ref _consecutiveFailures, 0);
+            _circuitOpenUntil = DateTime.MinValue;
+
+            if (wasOpen)
+            {
+                _logger.LogInformation("Circuit breaker reset for {ConnectionName}", _connection.Name);
+                _onStatusChanged(_connection.Id, ConnectionState.Connected, null);
+            }
         }
     }
 
