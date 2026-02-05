@@ -944,8 +944,6 @@ public class ConfigService
         };
     }
 
-    #endregion
-
     #region State Machine Operations
 
     /// <summary>
