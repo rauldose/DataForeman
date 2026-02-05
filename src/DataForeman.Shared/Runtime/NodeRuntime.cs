@@ -45,6 +45,9 @@ public sealed class NodeExecutionContext
     /// <summary>Run ID for this execution chain.</summary>
     public required string RunId { get; init; }
 
+    /// <summary>The flow ID this node belongs to.</summary>
+    public string? FlowId { get; init; }
+
     /// <summary>Emitter for sending messages to output ports.</summary>
     public required IMessageEmitter Emitter { get; init; }
 
@@ -60,6 +63,12 @@ public sealed class NodeExecutionContext
     /// <summary>Tag value writer for writing tag values.</summary>
     public required ITagValueWriter TagWriter { get; init; }
 
+    /// <summary>Optional MQTT publisher for mqtt-out nodes.</summary>
+    public INodeMqttPublisher? MqttPublisher { get; init; }
+
+    /// <summary>Optional context store for internal tags (global/flow/node scopes).</summary>
+    public IContextStore? ContextStore { get; init; }
+
     /// <summary>Gets typed configuration.</summary>
     public T? GetConfig<T>() where T : class
     {
@@ -67,6 +76,51 @@ public sealed class NodeExecutionContext
             return null;
         return Config.Value.Deserialize<T>();
     }
+}
+
+/// <summary>
+/// Interface for MQTT publishing from nodes.
+/// </summary>
+public interface INodeMqttPublisher
+{
+    /// <summary>
+    /// Publishes a message to an MQTT topic.
+    /// </summary>
+    ValueTask PublishAsync(string topic, string payload, int qos = 0, bool retain = false, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Interface for accessing context store (internal tags) from nodes.
+/// Provides global, flow, and node-scoped context similar to Node-RED.
+/// </summary>
+public interface IContextStore
+{
+    /// <summary>Gets a value from global context.</summary>
+    object? GetGlobal(string key);
+    
+    /// <summary>Sets a value in global context.</summary>
+    void SetGlobal(string key, object? value);
+    
+    /// <summary>Gets all keys in global context.</summary>
+    IEnumerable<string> GetGlobalKeys();
+    
+    /// <summary>Gets a value from flow context.</summary>
+    object? GetFlow(string key);
+    
+    /// <summary>Sets a value in flow context.</summary>
+    void SetFlow(string key, object? value);
+    
+    /// <summary>Gets all keys in flow context.</summary>
+    IEnumerable<string> GetFlowKeys();
+    
+    /// <summary>Gets a value from node context.</summary>
+    object? GetNode(string key);
+    
+    /// <summary>Sets a value in node context.</summary>
+    void SetNode(string key, object? value);
+    
+    /// <summary>Gets all keys in node context.</summary>
+    IEnumerable<string> GetNodeKeys();
 }
 
 /// <summary>

@@ -589,6 +589,47 @@ public class NodePluginRegistry
             }
         });
 
+        // === CONTEXT NODES (Internal Tags) ===
+        Register(new NodePluginDefinition
+        {
+            Id = "context-get",
+            Name = "Context Get",
+            ShortLabel = "Get",
+            Category = "Context",
+            Description = "Read value from internal tag context (global, flow, or node scope)",
+            Icon = "fa-solid fa-download",
+            Color = "#16a085",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "scope", Label = "Scope", Type = PropertyType.Select, DefaultValue = "global", Required = true, Options = new() { new() { Value = "global", Label = "Global" }, new() { Value = "flow", Label = "Flow" }, new() { Value = "node", Label = "Node" } }, Group = "Context" },
+                new() { Key = "key", Label = "Key", Type = PropertyType.Text, Required = true, Placeholder = "myVariable", Group = "Context" },
+                new() { Key = "defaultValue", Label = "Default Value", Type = PropertyType.Text, Placeholder = "Default if not found", Group = "Context" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "context-set",
+            Name = "Context Set",
+            ShortLabel = "Set",
+            Category = "Context",
+            Description = "Write value to internal tag context (global, flow, or node scope)",
+            Icon = "fa-solid fa-upload",
+            Color = "#16a085",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "scope", Label = "Scope", Type = PropertyType.Select, DefaultValue = "global", Required = true, Options = new() { new() { Value = "global", Label = "Global" }, new() { Value = "flow", Label = "Flow" }, new() { Value = "node", Label = "Node" } }, Group = "Context" },
+                new() { Key = "key", Label = "Key", Type = PropertyType.Text, Required = true, Placeholder = "myVariable", Group = "Context" },
+                new() { Key = "valueSource", Label = "Value From", Type = PropertyType.Select, DefaultValue = "payload", Options = new() { new() { Value = "payload", Label = "Message Payload" }, new() { Value = "property", Label = "Payload Property" }, new() { Value = "static", Label = "Static Value" } }, Group = "Value" },
+                new() { Key = "property", Label = "Property Name", Type = PropertyType.Text, Placeholder = "value", Group = "Value" },
+                new() { Key = "staticValue", Label = "Static Value", Type = PropertyType.Text, Placeholder = "Enter value", Group = "Value" }
+            }
+        });
+
         // === TIMER/INJECT NODES ===
         Register(new NodePluginDefinition
         {

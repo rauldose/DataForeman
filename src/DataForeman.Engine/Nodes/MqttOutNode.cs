@@ -9,7 +9,7 @@ namespace DataForeman.Engine.Nodes;
 /// </summary>
 public class MqttOutNode : INodeRuntime
 {
-    public ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    public async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
         var topic = GetConfigString(context.Config, "topic") ?? "";
         var qos = GetConfigInt(context.Config, "qos") ?? 0;
@@ -18,7 +18,7 @@ public class MqttOutNode : INodeRuntime
         if (string.IsNullOrEmpty(topic))
         {
             context.Logger.Warn("MqttOutNode: No topic specified");
-            return ValueTask.CompletedTask;
+            return;
         }
 
         // Serialize the payload
@@ -40,31 +40,34 @@ public class MqttOutNode : INodeRuntime
             payloadString = "";
         }
 
-        // Log the publish action - actual MQTT publishing is handled by the engine
-        context.Logger.Info($"MQTT publish to '{topic}' (QoS={qos}, Retain={retain}): {payloadString}");
-        
-        // Store the publish request in payload for the engine to process
-        var publishData = new Dictionary<string, object>
+        // Publish to MQTT if publisher is available
+        if (context.MqttPublisher != null)
         {
-            ["mqttPublish"] = true,
-            ["topic"] = topic,
-            ["payload"] = payloadString,
-            ["qos"] = qos,
-            ["retain"] = retain
-        };
-        
-        var jsonPayload = MessageEnvelope.CreatePayload(publishData);
-        
+            try
+            {
+                await context.MqttPublisher.PublishAsync(topic, payloadString, qos, retain, ct);
+                context.Logger.Info($"MQTT published to '{topic}' (QoS={qos}, Retain={retain}): {payloadString}");
+            }
+            catch (Exception ex)
+            {
+                context.Logger.Error($"Failed to publish MQTT message to '{topic}': {ex.Message}", ex);
+                context.Emitter.EmitError(ex, context.Message);
+                return;
+            }
+        }
+        else
+        {
+            context.Logger.Warn($"MqttOutNode: No MQTT publisher available, message not sent to '{topic}'");
+        }
+
+        // Emit a derived message downstream (for chaining nodes) with proper timing and provenance
         var outputMessage = context.Message.Derive(
             createdUtc: context.CurrentUtc,
-            payload: jsonPayload,
+            payload: context.Message.Payload,
             sourceNodeId: context.Node.Id,
             sourcePort: "output"
         );
-
         context.Emitter.Emit("output", outputMessage);
-
-        return ValueTask.CompletedTask;
     }
     
     private static string? GetConfigString(JsonElement? config, string propertyName)
