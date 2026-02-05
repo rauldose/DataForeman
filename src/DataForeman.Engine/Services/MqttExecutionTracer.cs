@@ -1,7 +1,7 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using DataForeman.Shared.Messages;
-using MQTTnet;
-using MQTTnet.Protocol;
+using DataForeman.Shared.Runtime;
 
 namespace DataForeman.Engine.Services;
 
@@ -12,7 +12,7 @@ public class MqttExecutionTracer : IExecutionTracer
 {
     private readonly MqttPublisher _mqtt;
     private readonly JsonSerializerOptions _jsonOptions;
-    private string _currentFlowId = string.Empty;
+    private readonly ConcurrentDictionary<string, List<NodeExecutionResult>> _traces = new();
 
     public MqttExecutionTracer(MqttPublisher mqtt)
     {
@@ -23,52 +23,36 @@ public class MqttExecutionTracer : IExecutionTracer
         };
     }
 
-    public void SetFlowId(string flowId)
+    public void RecordTrace(NodeExecutionResult trace)
     {
-        _currentFlowId = flowId;
-    }
+        // Store trace locally
+        var traces = _traces.GetOrAdd(trace.RunId, _ => new List<NodeExecutionResult>());
+        lock (traces)
+        {
+            traces.Add(trace);
+        }
 
-    public void TraceNodeInput(string nodeId, string nodeType, Dictionary<string, object> inputs)
-    {
-        PublishTrace(nodeId, nodeType, "INFO", $"Received input", inputs, null);
-    }
-
-    public void TraceNodeOutput(string nodeId, string nodeType, Dictionary<string, object> outputs)
-    {
-        PublishTrace(nodeId, nodeType, "INFO", $"Produced output", null, outputs);
-    }
-
-    public void TraceNodeError(string nodeId, string nodeType, string error)
-    {
-        PublishTrace(nodeId, nodeType, "ERROR", error, null, null);
-    }
-
-    public void TraceNodeExecution(string nodeId, string nodeType, string message)
-    {
-        PublishTrace(nodeId, nodeType, "INFO", message, null, null);
-    }
-
-    private void PublishTrace(string nodeId, string nodeType, string level, string message, 
-        Dictionary<string, object>? inputs, Dictionary<string, object>? outputs)
-    {
+        // Publish to MQTT for real-time UI display
         try
         {
             if (!_mqtt.IsConnected) return;
 
-            var trace = new FlowExecutionMessage
+            var message = new FlowExecutionMessage
             {
-                FlowId = _currentFlowId,
-                NodeId = nodeId,
-                NodeType = nodeType,
-                Level = level,
-                Message = message,
-                InputData = inputs,
-                OutputData = outputs,
-                Timestamp = DateTime.UtcNow
+                FlowId = trace.RunId, // Use RunId as the flow execution identifier
+                NodeId = trace.NodeId,
+                NodeType = trace.NodeType,
+                Level = trace.Status == ExecutionStatus.Failed ? "ERROR" : "INFO",
+                Message = trace.Status == ExecutionStatus.Failed 
+                    ? $"Failed: {trace.Error}" 
+                    : $"Executed in {trace.Duration.TotalMilliseconds:F1}ms, emitted {trace.MessagesEmitted} messages",
+                InputData = null,
+                OutputData = null,
+                Timestamp = trace.EndUtc
             };
 
-            var topic = $"dataforeman/flows/{_currentFlowId}/execution";
-            var payload = JsonSerializer.Serialize(trace, _jsonOptions);
+            var topic = $"dataforeman/flows/{trace.RunId}/execution";
+            var payload = JsonSerializer.Serialize(message, _jsonOptions);
             
             // Fire and forget - don't block execution for MQTT publish
             _ = _mqtt.PublishMessageAsync(topic, payload);
@@ -79,16 +63,38 @@ public class MqttExecutionTracer : IExecutionTracer
             Console.WriteLine($"[MqttExecutionTracer] Error publishing trace: {ex.Message}");
         }
     }
-}
 
-/// <summary>
-/// Interface for flow execution tracing
-/// </summary>
-public interface IExecutionTracer
-{
-    void SetFlowId(string flowId);
-    void TraceNodeInput(string nodeId, string nodeType, Dictionary<string, object> inputs);
-    void TraceNodeOutput(string nodeId, string nodeType, Dictionary<string, object> outputs);
-    void TraceNodeError(string nodeId, string nodeType, string error);
-    void TraceNodeExecution(string nodeId, string nodeType, string message);
+    public IReadOnlyList<NodeExecutionResult> GetTraces(string runId)
+    {
+        if (_traces.TryGetValue(runId, out var traces))
+        {
+            lock (traces)
+            {
+                return traces.ToList().AsReadOnly();
+            }
+        }
+        return Array.Empty<NodeExecutionResult>();
+    }
+
+    public void ClearOldTraces(DateTime beforeUtc)
+    {
+        var keysToRemove = new List<string>();
+        
+        foreach (var kvp in _traces)
+        {
+            lock (kvp.Value)
+            {
+                kvp.Value.RemoveAll(t => t.EndUtc < beforeUtc);
+                if (kvp.Value.Count == 0)
+                {
+                    keysToRemove.Add(kvp.Key);
+                }
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            _traces.TryRemove(key, out _);
+        }
+    }
 }

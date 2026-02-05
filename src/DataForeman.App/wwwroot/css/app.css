@@ -672,6 +672,16 @@ html, body {
     transform: scale(1.05);
 }
 
+/* Subflow I/O nodes - special gray styling */
+.palette-category .palette-node[style*="#6b7280"] {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    border-left-color: #9ca3af !important;
+}
+
+.palette-category .palette-node[style*="#6b7280"]:hover {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
 /* Properties Panel */
 .properties-panel {
     width: 260px;

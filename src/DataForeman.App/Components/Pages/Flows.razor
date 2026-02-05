@@ -93,6 +93,10 @@
                     <div class="palette-header">NODE PALETTE</div>
                     @foreach (var category in NodeRegistry.Categories)
                     {
+                        // Only show "Subflow I/O" category when editing a subflow
+                        if (category == "Subflow I/O" && string.IsNullOrEmpty(_editingSubflowId))
+                            continue;
+                        // Hide "Subflow I/O" category in the list when not editing a subflow
                         var plugins = NodeRegistry.GetByCategory(category);
                         if (!plugins.Any()) continue;
                         
