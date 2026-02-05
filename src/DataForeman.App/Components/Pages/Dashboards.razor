@@ -644,8 +644,8 @@
             gaugeBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(axesBuilder =>
             {
                 axesBuilder.OpenComponent<CircularGaugeAxis>(0);
-                axesBuilder.AddAttribute(1, "StartAngle", 220);
-                axesBuilder.AddAttribute(2, "EndAngle", 140);
+                axesBuilder.AddAttribute(1, "StartAngle", 220.0);
+                axesBuilder.AddAttribute(2, "EndAngle", 140.0);
                 axesBuilder.AddAttribute(3, "Minimum", config.MinValue);
                 axesBuilder.AddAttribute(4, "Maximum", config.MaxValue);
                 axesBuilder.AddAttribute(5, "Radius", "80%");
@@ -653,7 +653,7 @@
                 {
                     // Line style
                     axisBuilder.OpenComponent<CircularGaugeAxisLineStyle>(0);
-                    axisBuilder.AddAttribute(1, "Width", 0);
+                    axisBuilder.AddAttribute(1, "Width", 0.0);
                     axisBuilder.CloseComponent();
                     
                     // Labels
@@ -717,7 +717,7 @@
                         pointersBuilder.AddAttribute(1, "Value", value);
                         pointersBuilder.AddAttribute(2, "Radius", "60%");
                         pointersBuilder.AddAttribute(3, "Color", color);
-                        pointersBuilder.AddAttribute(4, "PointerWidth", 8);
+                        pointersBuilder.AddAttribute(4, "PointerWidth", 8.0);
                         pointersBuilder.AddAttribute(5, "ChildContent", (RenderFragment)(ptrBuilder =>
                         {
                             ptrBuilder.OpenComponent<CircularGaugePointerAnimation>(0);
@@ -725,12 +725,12 @@
                             ptrBuilder.CloseComponent();
                             
                             ptrBuilder.OpenComponent<CircularGaugeCap>(0);
-                            ptrBuilder.AddAttribute(1, "Radius", 8);
+                            ptrBuilder.AddAttribute(1, "Radius", 8.0);
                             ptrBuilder.AddAttribute(2, "Color", color);
                             ptrBuilder.AddAttribute(3, "ChildContent", (RenderFragment)(capBuilder =>
                             {
                                 capBuilder.OpenComponent<CircularGaugeCapBorder>(0);
-                                capBuilder.AddAttribute(1, "Width", 0);
+                                capBuilder.AddAttribute(1, "Width", 0.0);
                                 capBuilder.CloseComponent();
                             }));
                             ptrBuilder.CloseComponent();
@@ -744,7 +744,7 @@
                     axisBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(annotationsBuilder =>
                     {
                         annotationsBuilder.OpenComponent<CircularGaugeAnnotation>(0);
-                        annotationsBuilder.AddAttribute(1, "Angle", 0);
+                        annotationsBuilder.AddAttribute(1, "Angle", 0.0);
                         annotationsBuilder.AddAttribute(2, "Radius", "0%");
                         annotationsBuilder.AddAttribute(3, "ZIndex", "1");
                         var format = $"F{config.Decimals}";
