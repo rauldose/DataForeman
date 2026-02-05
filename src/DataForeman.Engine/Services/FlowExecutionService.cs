@@ -192,21 +192,33 @@ public class FlowExecutionService : IAsyncDisposable
     {
         _compiledFlows.Clear();
         
-        foreach (var flowConfig in _configService.Flows.Where(f => f.Enabled))
+        var enabledFlows = _configService.Flows.Where(f => f.Enabled).ToList();
+        _logger.LogInformation("Compiling {Count} enabled flows out of {Total} total flows", 
+            enabledFlows.Count, _configService.Flows.Count);
+        
+        foreach (var flowConfig in enabledFlows)
         {
             try
             {
+                // Check if flow has mqtt-in nodes
+                var mqttInNodes = flowConfig.Nodes.Where(n => n.Type == "mqtt-in").ToList();
+                if (mqttInNodes.Count > 0)
+                {
+                    _logger.LogInformation("Flow '{FlowName}' has {Count} mqtt-in nodes", 
+                        flowConfig.Name, mqttInNodes.Count);
+                }
+
                 var flowDefinition = ConvertToFlowDefinition(flowConfig);
                 var compiledFlow = _flowCompiler.Compile(flowDefinition, _nodeRegistry, _runtimeFactory);
                 _compiledFlows[flowConfig.Id] = compiledFlow;
                 
-                _logger.LogDebug("Compiled flow '{FlowName}' (id: {FlowId}) with {NodeCount} nodes",
-                    flowConfig.Name, flowConfig.Id, flowDefinition.Nodes.Count);
+                _logger.LogInformation("Compiled flow '{FlowName}' (id: {FlowId}) with {NodeCount} nodes and {WireCount} wires",
+                    flowConfig.Name, flowConfig.Id, flowDefinition.Nodes.Count, flowDefinition.Wires.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to compile flow '{FlowName}' (id: {FlowId})",
-                    flowConfig.Name, flowConfig.Id);
+                _logger.LogError(ex, "Failed to compile flow '{FlowName}' (id: {FlowId}): {Message}",
+                    flowConfig.Name, flowConfig.Id, ex.Message);
             }
         }
     }

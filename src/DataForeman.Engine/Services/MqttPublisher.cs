@@ -423,7 +423,12 @@ public class MqttPublisher : IAsyncDisposable
             var topic = e.ApplicationMessage.Topic;
             var payload = e.ApplicationMessage.ConvertPayloadToString();
 
-            _logger.LogDebug("MQTT message received on topic '{Topic}': {Payload}", topic, payload);
+            _logger.LogInformation("MQTT message received on topic '{Topic}' with {PayloadLength} bytes", 
+                topic, payload?.Length ?? 0);
+
+            // Log subscription state for debugging
+            var subscriptionCount = _subscriptions.Values.Sum(list => list.Count);
+            _logger.LogDebug("Current subscription count: {Count}", subscriptionCount);
 
             // Notify subscribers
             OnMessageReceived?.Invoke(topic, payload ?? string.Empty);

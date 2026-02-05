@@ -140,12 +140,19 @@ public class MqttFlowTriggerService : IAsyncDisposable
     {
         try
         {
+            _logger.LogDebug("HandleMqttMessage called with topic '{Topic}'", topic);
+            
             // Find all matching subscriptions
             var matchingSubscriptions = _mqttPublisher.GetSubscriptionsForTopic(topic).ToList();
 
+            _logger.LogInformation("Found {MatchCount} matching subscriptions for topic '{Topic}'", 
+                matchingSubscriptions.Count, topic);
+
             if (matchingSubscriptions.Count == 0)
             {
-                _logger.LogDebug("No flow subscriptions match topic '{Topic}'", topic);
+                // Log more details for debugging
+                _logger.LogWarning("No flow subscriptions match topic '{Topic}'. Total tracked mqtt-in nodes: {NodeCount}", 
+                    topic, _mqttInNodes.Values.Sum(list => list.Count));
                 return;
             }
 
