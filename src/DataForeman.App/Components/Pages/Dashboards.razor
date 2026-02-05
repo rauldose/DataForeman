@@ -104,6 +104,7 @@
                                    CellAspectRatio="0.6"
                                    AllowDragging="@IsEditMode"
                                    AllowResizing="@IsEditMode">
+                    <DashboardLayoutEvents Resized="OnPanelResized"></DashboardLayoutEvents>
                     <DashboardLayoutPanels>
                         @foreach (var panel in CurrentDashboard.Panels)
                         {
@@ -307,6 +308,9 @@
     
     private System.Timers.Timer? _refreshTimer;
     
+    // Track panel resize versions to force chart re-render
+    private Dictionary<string, int> _panelResizeVersions = new();
+    
     private List<TimeRangeOption> TimeRanges = new()
     {
         new() { Value = "1m", Label = "Last 1m" },
@@ -377,6 +381,19 @@
     }
 
     private void HandleDataChanged() => InvokeAsync(StateHasChanged);
+    
+    private async Task OnPanelResized(Syncfusion.Blazor.Layouts.ResizeArgs args)
+    {
+        // Increment version for each resized panel to force chart re-render via @key
+        if (!string.IsNullOrEmpty(args.Id))
+        {
+            _panelResizeVersions[args.Id] = _panelResizeVersions.GetValueOrDefault(args.Id, 0) + 1;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    private int GetPanelResizeVersion(string panelId) 
+        => _panelResizeVersions.GetValueOrDefault(panelId, 0);
 
     private void CreateNewDashboard() => Navigation.NavigateTo("/dashboards/new");
     private void ViewDashboard(string id) => Navigation.NavigateTo($"/dashboards/{id}");
@@ -683,7 +700,10 @@
             return;
         }
         
+        // Use @key based on resize version to force re-render when panel is resized
+        var resizeVersion = GetPanelResizeVersion(panel.Id);
         builder.OpenComponent<SfChart>(0);
+        builder.SetKey($"{panel.Id}-{resizeVersion}");
         builder.AddAttribute(1, "Theme", Syncfusion.Blazor.Theme.TailwindDark);
         builder.AddAttribute(2, "Height", "100%");
         builder.AddAttribute(3, "Width", "100%");
