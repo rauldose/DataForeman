@@ -82,6 +82,7 @@ public sealed class FlowExecutor : IFlowExecutor
     private readonly ITagValueReader _tagReader;
     private readonly ITagValueWriter _tagWriter;
     private readonly INodeMqttPublisher? _mqttPublisher;
+    private readonly IContextStore? _contextStore;
     private readonly ILogger<FlowExecutor> _logger;
 
     public FlowExecutor(
@@ -91,7 +92,8 @@ public sealed class FlowExecutor : IFlowExecutor
         ITagValueReader tagReader,
         ITagValueWriter tagWriter,
         ILogger<FlowExecutor> logger,
-        INodeMqttPublisher? mqttPublisher = null)
+        INodeMqttPublisher? mqttPublisher = null,
+        IContextStore? contextStore = null)
     {
         _timeProvider = timeProvider;
         _tracer = tracer;
@@ -100,6 +102,7 @@ public sealed class FlowExecutor : IFlowExecutor
         _tagWriter = tagWriter;
         _logger = logger;
         _mqttPublisher = mqttPublisher;
+        _contextStore = contextStore;
     }
 
     public async ValueTask<FlowExecutionResult> ExecuteAsync(
@@ -165,12 +168,14 @@ public sealed class FlowExecutor : IFlowExecutor
                         Message = msg,
                         CurrentUtc = _timeProvider.UtcNow,
                         RunId = runId,
+                        FlowId = flow.Definition.Id,
                         Emitter = emitter,
                         Logger = nodeLogger,
                         Historian = _historian,
                         TagReader = _tagReader,
                         TagWriter = _tagWriter,
-                        MqttPublisher = _mqttPublisher
+                        MqttPublisher = _mqttPublisher,
+                        ContextStore = _contextStore
                     };
 
                     await node.Runtime.ExecuteAsync(context, cts.Token);

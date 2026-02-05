@@ -20,6 +20,7 @@ public class FlowExecutionService : IAsyncDisposable
     private readonly ConfigService _configService;
     private readonly MqttFlowTriggerService _mqttFlowTriggerService;
     private readonly MqttPublisher _mqttPublisher;
+    private readonly InternalTagStore _internalTagStore;
     
     // Flow infrastructure
     private readonly NodeRegistry _nodeRegistry;
@@ -35,12 +36,14 @@ public class FlowExecutionService : IAsyncDisposable
         ILogger<FlowExecutionService> logger,
         ConfigService configService,
         MqttFlowTriggerService mqttFlowTriggerService,
-        MqttPublisher mqttPublisher)
+        MqttPublisher mqttPublisher,
+        InternalTagStore internalTagStore)
     {
         _logger = logger;
         _configService = configService;
         _mqttFlowTriggerService = mqttFlowTriggerService;
         _mqttPublisher = mqttPublisher;
+        _internalTagStore = internalTagStore;
         
         // Initialize flow infrastructure
         _nodeRegistry = new NodeRegistry();
@@ -54,6 +57,7 @@ public class FlowExecutionService : IAsyncDisposable
         var tagReader = new NoOpTagValueReader();
         var tagWriter = new NoOpTagValueWriter();
         var nodeMqttPublisher = new MqttPublisherAdapter(mqttPublisher);
+        var contextStore = new ContextStoreAdapter(internalTagStore);
         
         _flowExecutor = new FlowExecutor(
             timeProvider,
@@ -62,7 +66,8 @@ public class FlowExecutionService : IAsyncDisposable
             tagReader,
             tagWriter,
             logger as ILogger<FlowExecutor> ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FlowExecutor>.Instance,
-            nodeMqttPublisher);
+            nodeMqttPublisher,
+            contextStore);
         
         RegisterNodeTypes();
     }
@@ -102,6 +107,10 @@ public class FlowExecutionService : IAsyncDisposable
         // MQTT nodes
         _nodeRegistry.Register(CreateMqttInDescriptor(), () => new MqttInNode());
         _nodeRegistry.Register(CreateMqttOutDescriptor(), () => new MqttOutNode());
+        
+        // Context nodes (internal tags)
+        _nodeRegistry.Register(ContextGetNode.Descriptor, () => new ContextGetNode());
+        _nodeRegistry.Register(ContextSetNode.Descriptor, () => new ContextSetNode());
         
         // Built-in nodes (all using dash-separated naming convention to match UI)
         _nodeRegistry.Register(ManualTriggerRuntime.Descriptor, () => new ManualTriggerRuntime());
