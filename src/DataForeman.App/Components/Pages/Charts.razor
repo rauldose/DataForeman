@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject ConfigService ConfigService
 @inject RealtimeDataService RealtimeData
+@inject HistoryService HistoryService
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -412,7 +413,38 @@
         CurrentChart.Settings.HistoricalStartTime = DateTime.Now - range;
     }
 
-    private void LoadHistoricalData() => StateHasChanged();
+    // Dictionary to cache historical data by tagId
+    private Dictionary<string, List<ChartDataPoint>> _historicalData = new();
+    private bool _isLoadingHistorical = false;
+
+    private async Task LoadHistoricalData()
+    {
+        _isLoadingHistorical = true;
+        StateHasChanged();
+        
+        try
+        {
+            _historicalData.Clear();
+            
+            var startTime = CurrentChart.Settings.HistoricalStartTime ?? DateTime.Now.AddHours(-1);
+            var endTime = CurrentChart.Settings.HistoricalEndTime ?? DateTime.Now;
+            
+            foreach (var series in CurrentChart.Series)
+            {
+                var data = await HistoryService.GetHistoricalDataAsync(series.TagId, startTime, endTime);
+                _historicalData[series.TagId] = data.Select(d => new ChartDataPoint
+                {
+                    Timestamp = d.Timestamp,
+                    Value = d.Value
+                }).ToList();
+            }
+        }
+        finally
+        {
+            _isLoadingHistorical = false;
+            StateHasChanged();
+        }
+    }
 
     private void AddTagToChart(TagConfig tag)
     {
@@ -503,7 +535,15 @@
                 Value = v.NumericValue ?? 0
             }).ToList();
         }
-        return new List<ChartDataPoint>();
+        else
+        {
+            // Historical mode - return cached historical data
+            if (_historicalData.TryGetValue(tagId, out var data))
+            {
+                return data;
+            }
+            return new List<ChartDataPoint>();
+        }
     }
 
     private Syncfusion.Blazor.Charts.LegendPosition GetLegendPosition() => CurrentChart.Settings.LegendPosition switch
