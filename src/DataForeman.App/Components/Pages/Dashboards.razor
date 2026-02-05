@@ -106,7 +106,7 @@
                                    CellAspectRatio="0.6"
                                    AllowDragging="@IsEditMode"
                                    AllowResizing="@IsEditMode">
-                    <DashboardLayoutEvents OnResizeStop="OnPanelResized"></DashboardLayoutEvents>
+                    <DashboardLayoutEvents OnResizeStop="OnPanelResized" OnChange="OnLayoutChanged"></DashboardLayoutEvents>
                     <DashboardLayoutPanels>
                         @foreach (var panel in CurrentDashboard.Panels)
                         {
@@ -391,7 +391,50 @@
         {
             _panelResizeVersions[args.Id] = _panelResizeVersions.GetValueOrDefault(args.Id, 0) + 1;
         }
+        
+        // Sync panel positions/sizes from the layout component to our model and save
+        await SyncPanelLayoutAndSave();
         await InvokeAsync(StateHasChanged);
+    }
+    
+    private async Task OnLayoutChanged(Syncfusion.Blazor.Layouts.ChangeEventArgs args)
+    {
+        // Sync panel positions/sizes from the layout component to our model and save
+        await SyncPanelLayoutAndSave();
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    private async Task SyncPanelLayoutAndSave()
+    {
+        if (DashboardLayout == null) return;
+        
+        try
+        {
+            // Get the current panel state from the SfDashboardLayout
+            var panelObjects = await DashboardLayout.Serialize();
+            
+            // panelObjects is a list of panel data with Row, Column, SizeX, SizeY
+            foreach (var panelObj in panelObjects)
+            {
+                // Extract ID and position from serialized panel
+                var id = panelObj.Id;
+                var panel = CurrentDashboard.Panels.FirstOrDefault(p => p.Id == id);
+                if (panel != null)
+                {
+                    panel.GridX = (int)panelObj.Column;
+                    panel.GridY = (int)panelObj.Row;
+                    panel.GridWidth = (int)panelObj.SizeX;
+                    panel.GridHeight = (int)panelObj.SizeY;
+                }
+            }
+            
+            // Save the updated dashboard
+            await ConfigService.UpdateDashboardAsync(CurrentDashboard);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error syncing panel layout: {ex.Message}");
+        }
     }
     
     private int GetPanelResizeVersion(string panelId) 
