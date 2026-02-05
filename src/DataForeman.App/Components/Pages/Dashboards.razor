@@ -105,8 +105,8 @@
                                    CellSpacing="@(new double[] { 10, 10 })"
                                    CellAspectRatio="0.6"
                                    AllowDragging="@IsEditMode"
-                                   AllowResizing="@IsEditMode"
-                                   ResizeStop="@OnPanelResizeStop">
+                                   AllowResizing="@IsEditMode">
+                    <DashboardLayoutEvents Resized="OnPanelResized"></DashboardLayoutEvents>
                     <DashboardLayoutPanels>
                         @foreach (var panel in CurrentDashboard.Panels)
                         {
@@ -128,7 +128,7 @@
                                     </div>
                                 </HeaderTemplate>
                                 <ContentTemplate>
-                                    <div class="panel-content" @key="GetPanelKey(panel.Id)">
+                                    <div class="panel-content" @key="@($"{panel.Id}-v{GetPanelResizeVersion(panel.Id)}")">
                                         @RenderPanel(panel)
                                     </div>
                                 </ContentTemplate>
@@ -309,7 +309,9 @@
     private string NewPanelTitle = "";
     
     private System.Timers.Timer? _refreshTimer;
-    private Dictionary<string, int> _panelResizeVersion = new();
+    
+    // Track panel resize versions to force chart re-render
+    private Dictionary<string, int> _panelResizeVersions = new();
     
     private List<TimeRangeOption> TimeRanges = new()
     {
@@ -381,6 +383,19 @@
     }
 
     private void HandleDataChanged() => InvokeAsync(StateHasChanged);
+    
+    private async Task OnPanelResized(Syncfusion.Blazor.Layouts.ResizeArgs args)
+    {
+        // Increment version for each resized panel to force chart re-render via @key
+        if (!string.IsNullOrEmpty(args.Id))
+        {
+            _panelResizeVersions[args.Id] = _panelResizeVersions.GetValueOrDefault(args.Id, 0) + 1;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    private int GetPanelResizeVersion(string panelId) 
+        => _panelResizeVersions.GetValueOrDefault(panelId, 0);
 
     private void CreateNewDashboard() => Navigation.NavigateTo("/dashboards/new");
     private void ViewDashboard(string id) => Navigation.NavigateTo($"/dashboards/{id}");
@@ -551,22 +566,6 @@
     }
 
     // Panel rendering
-    private string GetPanelKey(string panelId)
-    {
-        var version = _panelResizeVersion.GetValueOrDefault(panelId, 0);
-        return $"{panelId}-v{version}";
-    }
-
-    private void OnPanelResizeStop(Syncfusion.Blazor.Layouts.ResizeArgs args)
-    {
-        if (args.Id != null)
-        {
-            // Increment version to force re-render with new @key
-            _panelResizeVersion[args.Id] = _panelResizeVersion.GetValueOrDefault(args.Id, 0) + 1;
-            StateHasChanged();
-        }
-    }
-
     private RenderFragment RenderPanel(DashboardPanel panel) => builder =>
     {
         switch (panel.Type)
@@ -780,7 +779,10 @@
             return;
         }
         
+        // Use @key based on resize version to force re-render when panel is resized
+        var resizeVersion = GetPanelResizeVersion(panel.Id);
         builder.OpenComponent<SfChart>(0);
+        builder.SetKey($"{panel.Id}-{resizeVersion}");
         builder.AddAttribute(1, "Theme", Syncfusion.Blazor.Theme.TailwindDark);
         builder.AddAttribute(2, "Height", "100%");
         builder.AddAttribute(3, "Width", "100%");
