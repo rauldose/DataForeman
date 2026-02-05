@@ -8,6 +8,7 @@ public class ConfigWatcher : IDisposable
     private readonly ILogger<ConfigWatcher> _logger;
     private readonly ConfigService _configService;
     private readonly PollEngine _pollEngine;
+    private readonly MqttFlowTriggerService _mqttFlowTriggerService;
     private FileSystemWatcher? _watcher;
     private Timer? _debounceTimer;
     private readonly object _debounceLock = new();
@@ -16,11 +17,13 @@ public class ConfigWatcher : IDisposable
     public ConfigWatcher(
         ILogger<ConfigWatcher> logger,
         ConfigService configService,
-        PollEngine pollEngine)
+        PollEngine pollEngine,
+        MqttFlowTriggerService mqttFlowTriggerService)
     {
         _logger = logger;
         _configService = configService;
         _pollEngine = pollEngine;
+        _mqttFlowTriggerService = mqttFlowTriggerService;
     }
 
     /// <summary>
@@ -111,10 +114,12 @@ public class ConfigWatcher : IDisposable
                     break;
                 case "flows":
                     await _configService.LoadFlowsAsync();
+                    await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
                     break;
                 default:
                     await _configService.LoadAllAsync();
                     await _pollEngine.ReloadConfigurationAsync();
+                    await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
                     break;
             }
 
