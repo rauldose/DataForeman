@@ -208,15 +208,36 @@ public class MqttPublisher : IAsyncDisposable
     /// </summary>
     public async Task PublishMessageAsync(string topic, string payload)
     {
+        await PublishMessageAsync(topic, payload, qos: 0, retain: false);
+    }
+
+    /// <summary>
+    /// Publishes a raw message to a topic with QoS and retain options.
+    /// </summary>
+    public async Task PublishMessageAsync(string topic, string payload, int qos, bool retain)
+    {
         if (_mqttClient == null || !_isConnected) return;
 
         try
         {
-            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+            var qosLevel = qos switch
+            {
+                1 => MqttQualityOfServiceLevel.AtLeastOnce,
+                2 => MqttQualityOfServiceLevel.ExactlyOnce,
+                _ => MqttQualityOfServiceLevel.AtMostOnce
+            };
+
+            var builder = new MqttApplicationMessageBuilder()
                 .WithTopic(topic)
                 .WithPayload(payload)
-                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
-                .Build());
+                .WithQualityOfServiceLevel(qosLevel);
+
+            if (retain)
+            {
+                builder.WithRetainFlag(true);
+            }
+
+            await _mqttClient.EnqueueAsync(builder.Build());
         }
         catch (Exception ex)
         {

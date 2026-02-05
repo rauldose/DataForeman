@@ -273,65 +273,74 @@ public class FlowExecutionService : IAsyncDisposable
     {
         try
         {
-            _logger.LogInformation(
-                "Executing flow '{FlowId}' triggered by MQTT message on topic '{Topic}'",
-                flowId, topic);
-
-            if (!_compiledFlows.TryGetValue(flowId, out var compiledFlow))
-            {
-                _logger.LogWarning("Flow '{FlowId}' not found in compiled flows", flowId);
-                return;
-            }
-
-            // Create initial message with MQTT payload
-            JsonElement payloadElement;
-            try
-            {
-                // Try to parse as JSON
-                payloadElement = JsonDocument.Parse(payload).RootElement.Clone();
-            }
-            catch
-            {
-                // If not valid JSON, wrap as string
-                payloadElement = JsonDocument.Parse($"\"{payload.Replace("\"", "\\\"")}\"").RootElement.Clone();
-            }
-
-            var initialMessage = MessageEnvelope.Create(
-                createdUtc: DateTime.UtcNow,
-                payload: payloadElement,
-                correlationId: Guid.NewGuid().ToString("N"));
-
-            // Execute the flow starting from the mqtt-in node
-            var options = new FlowExecutionOptions
-            {
-                Timeout = TimeSpan.FromSeconds(30),
-                MaxMessages = 100,
-                StopOnError = false
-            };
-
-            var result = await _flowExecutor.ExecuteAsync(
-                compiledFlow,
-                nodeId,
-                initialMessage,
-                options,
-                CancellationToken.None);
-
-            if (result.Status == ExecutionStatus.Success)
-            {
-                _logger.LogInformation(
-                    "Flow '{FlowId}' execution completed: {NodesSucceeded} nodes succeeded, {MessagesProcessed} messages processed",
-                    flowId, result.NodesSucceeded, result.MessagesProcessed);
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "Flow '{FlowId}' execution completed with status {Status}: {Error}",
-                    flowId, result.Status, result.Error);
-            }
+            await ExecuteFlowAsync(flowId, nodeId, topic, payload);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error executing flow '{FlowId}'", flowId);
+            // Catch all exceptions to prevent async void from crashing the application
+            _logger.LogError(ex, "Unhandled exception in MQTT flow trigger handler for flow '{FlowId}'", flowId);
+        }
+    }
+
+    /// <summary>
+    /// Executes a flow triggered by an MQTT message.
+    /// </summary>
+    private async Task ExecuteFlowAsync(string flowId, string nodeId, string topic, string payload)
+    {
+        _logger.LogInformation(
+            "Executing flow '{FlowId}' triggered by MQTT message on topic '{Topic}'",
+            flowId, topic);
+
+        if (!_compiledFlows.TryGetValue(flowId, out var compiledFlow))
+        {
+            _logger.LogWarning("Flow '{FlowId}' not found in compiled flows", flowId);
+            return;
+        }
+
+        // Create initial message with MQTT payload
+        JsonElement payloadElement;
+        try
+        {
+            // Try to parse as JSON
+            payloadElement = JsonDocument.Parse(payload).RootElement.Clone();
+        }
+        catch
+        {
+            // If not valid JSON, properly serialize as a JSON string
+            payloadElement = JsonSerializer.SerializeToElement(payload);
+        }
+
+        var initialMessage = MessageEnvelope.Create(
+            createdUtc: DateTime.UtcNow,
+            payload: payloadElement,
+            correlationId: Guid.NewGuid().ToString("N"));
+
+        // Execute the flow starting from the mqtt-in node
+        var options = new FlowExecutionOptions
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxMessages = 100,
+            StopOnError = false
+        };
+
+        var result = await _flowExecutor.ExecuteAsync(
+            compiledFlow,
+            nodeId,
+            initialMessage,
+            options,
+            CancellationToken.None);
+
+        if (result.Status == ExecutionStatus.Success)
+        {
+            _logger.LogInformation(
+                "Flow '{FlowId}' execution completed: {NodesSucceeded} nodes succeeded, {MessagesProcessed} messages processed",
+                flowId, result.NodesSucceeded, result.MessagesProcessed);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Flow '{FlowId}' execution completed with status {Status}: {Error}",
+                flowId, result.Status, result.Error);
         }
     }
 
@@ -358,7 +367,8 @@ internal sealed class MqttPublisherAdapter : INodeMqttPublisher
 
     public async ValueTask PublishAsync(string topic, string payload, int qos = 0, bool retain = false, CancellationToken ct = default)
     {
-        await _mqttPublisher.PublishMessageAsync(topic, payload);
+        ct.ThrowIfCancellationRequested();
+        await _mqttPublisher.PublishMessageAsync(topic, payload, qos, retain);
     }
 }
 

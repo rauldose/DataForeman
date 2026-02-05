@@ -60,8 +60,14 @@ public class MqttOutNode : INodeRuntime
             context.Logger.Warn($"MqttOutNode: No MQTT publisher available, message not sent to '{topic}'");
         }
 
-        // Emit the message downstream (for chaining nodes)
-        context.Emitter.Emit("output", context.Message);
+        // Emit a derived message downstream (for chaining nodes) with proper timing and provenance
+        var outputMessage = context.Message.Derive(
+            createdUtc: context.CurrentUtc,
+            payload: context.Message.Payload,
+            sourceNodeId: context.Node.Id,
+            sourcePort: "output"
+        );
+        context.Emitter.Emit("output", outputMessage);
     }
     
     private static string? GetConfigString(JsonElement? config, string propertyName)
