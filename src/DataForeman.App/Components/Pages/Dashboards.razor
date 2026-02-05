@@ -406,12 +406,15 @@
     
     private async Task SyncPanelLayoutAndSave()
     {
-        if (DashboardLayout == null) return;
+        // Only save layout changes when in edit mode
+        if (DashboardLayout == null || !IsEditMode) return;
         
         try
         {
             // Get the current panel state from the SfDashboardLayout
             var panelObjects = await DashboardLayout.Serialize();
+            
+            Console.WriteLine($"SyncPanelLayoutAndSave: Got {panelObjects?.Count ?? 0} panels from Serialize()");
             
             // panelObjects is a list of panel data with Row, Column, SizeX, SizeY
             foreach (var panelObj in panelObjects)
@@ -421,6 +424,7 @@
                 var panel = CurrentDashboard.Panels.FirstOrDefault(p => p.Id == id);
                 if (panel != null)
                 {
+                    Console.WriteLine($"  Panel '{id}': Row={panelObj.Row}, Col={panelObj.Column}, W={panelObj.SizeX}, H={panelObj.SizeY}");
                     panel.GridX = (int)panelObj.Column;
                     panel.GridY = (int)panelObj.Row;
                     panel.GridWidth = (int)panelObj.SizeX;
@@ -429,7 +433,9 @@
             }
             
             // Save the updated dashboard
+            Console.WriteLine($"Saving dashboard '{CurrentDashboard.Id}' with {CurrentDashboard.Panels.Count} panels");
             await ConfigService.UpdateDashboardAsync(CurrentDashboard);
+            Console.WriteLine("Dashboard saved successfully");
         }
         catch (Exception ex)
         {
