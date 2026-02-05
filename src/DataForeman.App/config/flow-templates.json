@@ -3,7 +3,7 @@
     {
       "id": "template-alarm-simple",
       "name": "Simple Alarm",
-      "description": "Basic alarm flow: reads a tag, compares to threshold, outputs debug",
+      "description": "Basic alarm flow: reads a tag, compares to threshold, logs output",
       "category": "Alarms",
       "icon": "fa-solid fa-file-code",
       "nodes": [
@@ -22,17 +22,19 @@
           "x": 320,
           "y": 100,
           "properties": {
-            "operator": "\u003E",
-            "threshold": "50"
+            "operator": ">",
+            "compareValue": "50"
           }
         },
         {
           "id": "n3",
-          "type": "output-debug",
-          "label": "Debug",
+          "type": "output-log",
+          "label": "Log Output",
           "x": 540,
           "y": 100,
-          "properties": {}
+          "properties": {
+            "logLevel": "info"
+          }
         }
       ],
       "edges": [
@@ -56,7 +58,7 @@
     {
       "id": "template-data-calc",
       "name": "Data Calculation",
-      "description": "Reads two tags, performs calculation, outputs result",
+      "description": "Reads two tags, multiplies values, logs result",
       "category": "Calculations",
       "icon": "fa-solid fa-file-code",
       "nodes": [
@@ -86,11 +88,13 @@
         },
         {
           "id": "n4",
-          "type": "tag-output",
-          "label": "Result",
+          "type": "output-log",
+          "label": "Log Result",
           "x": 540,
           "y": 130,
-          "properties": {}
+          "properties": {
+            "logLevel": "info"
+          }
         }
       ],
       "edges": [
@@ -121,18 +125,18 @@
     {
       "id": "template-mqtt-bridge",
       "name": "MQTT Bridge",
-      "description": "Reads tags and publishes to MQTT topic",
+      "description": "Reads tags on schedule and publishes to MQTT topic",
       "category": "Integration",
       "icon": "fa-solid fa-file-code",
       "nodes": [
         {
           "id": "n1",
-          "type": "trigger-timer",
+          "type": "trigger-schedule",
           "label": "Timer",
           "x": 100,
           "y": 100,
           "properties": {
-            "interval": "5000"
+            "intervalMs": "5000"
           }
         },
         {
@@ -145,7 +149,7 @@
         },
         {
           "id": "n3",
-          "type": "comm-mqtt-out",
+          "type": "mqtt-out",
           "label": "MQTT Publish",
           "x": 540,
           "y": 100,

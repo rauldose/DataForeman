@@ -8,44 +8,42 @@
       "scanRateMs": 500,
       "nodes": [
         {
-          "id": "node-temp-input",
-          "type": "TagInput",
+          "id": "tag-input-instance-temp1",
+          "type": "tag-input",
           "label": "Temperature",
           "x": 100,
           "y": 150,
           "properties": {
-            "tagId": "sim-temp-1",
-            "tagName": "Temperature_001"
+            "tagPath": "sim-temp-1"
           }
         },
         {
-          "id": "node-compare",
-          "type": "Compare",
+          "id": "logic-compare-instance-check1",
+          "type": "logic-compare",
           "label": "Check > 30°C",
-          "x": 300,
+          "x": 350,
           "y": 150,
           "properties": {
             "operator": ">",
-            "compareValue": 30
+            "compareValue": "30"
           }
         },
         {
-          "id": "node-debug",
-          "type": "Debug",
+          "id": "output-log-instance-debug1",
+          "type": "output-log",
           "label": "Debug Output",
-          "x": 500,
-          "y": 150,
+          "x": 600,
+          "y": 100,
           "properties": {
-            "showTimestamp": true,
-            "outputFormat": "json"
+            "logLevel": "info"
           }
         },
         {
-          "id": "node-notify",
-          "type": "Notification",
+          "id": "output-notification-instance-alert1",
+          "type": "output-notification",
           "label": "High Temp Alert",
-          "x": 500,
-          "y": 280,
+          "x": 600,
+          "y": 250,
           "properties": {
             "title": "Temperature Alert",
             "message": "Temperature exceeds 30°C threshold",
@@ -56,28 +54,28 @@
       "edges": [
         {
           "id": "edge-1",
-          "sourceNodeId": "node-temp-input",
-          "sourcePortId": "output",
-          "targetNodeId": "node-compare",
-          "targetPortId": "input"
+          "sourceNodeId": "tag-input-instance-temp1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "logic-compare-instance-check1",
+          "targetPortId": "input-0"
         },
         {
           "id": "edge-2",
-          "sourceNodeId": "node-compare",
-          "sourcePortId": "true",
-          "targetNodeId": "node-debug",
-          "targetPortId": "input"
+          "sourceNodeId": "logic-compare-instance-check1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "output-log-instance-debug1",
+          "targetPortId": "input-0"
         },
         {
           "id": "edge-3",
-          "sourceNodeId": "node-compare",
-          "sourcePortId": "true",
-          "targetNodeId": "node-notify",
-          "targetPortId": "input"
+          "sourceNodeId": "logic-compare-instance-check1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "output-notification-instance-alert1",
+          "targetPortId": "input-0"
         }
       ],
-      "createdAt": "2026-02-03T22:00:00Z",
-      "updatedAt": "2026-02-03T22:00:00Z"
+      "createdAt": "2026-02-04T19:00:00Z",
+      "updatedAt": "2026-02-04T19:00:00Z"
     },
     {
       "id": "flow-data-calc",
@@ -87,213 +85,164 @@
       "scanRateMs": 1000,
       "nodes": [
         {
-          "id": "node-level-input",
-          "type": "TagInput",
+          "id": "tag-input-instance-level1",
+          "type": "tag-input",
           "label": "Tank Level",
           "x": 100,
           "y": 100,
           "properties": {
-            "tagId": "sim-level-1",
-            "tagName": "Level_001"
+            "tagPath": "sim-level-1"
           }
         },
         {
-          "id": "node-flow-input",
-          "type": "TagInput",
+          "id": "tag-input-instance-flow1",
+          "type": "tag-input",
           "label": "Flow Rate",
           "x": 100,
           "y": 250,
           "properties": {
-            "tagId": "sim-flow-1",
-            "tagName": "Flow_001"
+            "tagPath": "sim-flow-1"
           }
         },
         {
-          "id": "node-scale",
-          "type": "Scale",
+          "id": "math-scale-instance-scale1",
+          "type": "math-scale",
           "label": "Scale 0-100",
-          "x": 300,
+          "x": 350,
           "y": 100,
           "properties": {
-            "inputMin": 0,
-            "inputMax": 100,
-            "outputMin": 0,
-            "outputMax": 1000
+            "inputMin": "0",
+            "inputMax": "100",
+            "outputMin": "0",
+            "outputMax": "1000"
           }
         },
         {
-          "id": "node-multiply",
-          "type": "Multiply",
+          "id": "math-multiply-instance-mult1",
+          "type": "math-multiply",
           "label": "Calculate Volume",
-          "x": 500,
+          "x": 550,
           "y": 175,
           "properties": {}
         },
         {
-          "id": "node-smooth",
-          "type": "Smooth",
+          "id": "data-smooth-instance-smooth1",
+          "type": "data-smooth",
           "label": "Smooth Value",
-          "x": 700,
+          "x": 750,
           "y": 175,
           "properties": {
-            "sampleCount": 10,
+            "sampleCount": "10",
             "algorithm": "MovingAverage"
           }
         },
         {
-          "id": "node-debug-calc",
-          "type": "Debug",
+          "id": "output-log-instance-output1",
+          "type": "output-log",
           "label": "Output",
-          "x": 900,
+          "x": 950,
           "y": 175,
           "properties": {
-            "showTimestamp": true,
-            "outputFormat": "value"
+            "logLevel": "info"
           }
         }
       ],
       "edges": [
         {
           "id": "edge-calc-1",
-          "sourceNodeId": "node-level-input",
-          "sourcePortId": "output",
-          "targetNodeId": "node-scale",
-          "targetPortId": "input"
+          "sourceNodeId": "tag-input-instance-level1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "math-scale-instance-scale1",
+          "targetPortId": "input-0"
         },
         {
           "id": "edge-calc-2",
-          "sourceNodeId": "node-scale",
-          "sourcePortId": "output",
-          "targetNodeId": "node-multiply",
-          "targetPortId": "input1"
+          "sourceNodeId": "math-scale-instance-scale1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "math-multiply-instance-mult1",
+          "targetPortId": "input-0"
         },
         {
           "id": "edge-calc-3",
-          "sourceNodeId": "node-flow-input",
-          "sourcePortId": "output",
-          "targetNodeId": "node-multiply",
-          "targetPortId": "input2"
+          "sourceNodeId": "tag-input-instance-flow1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "math-multiply-instance-mult1",
+          "targetPortId": "input-1"
         },
         {
           "id": "edge-calc-4",
-          "sourceNodeId": "node-multiply",
-          "sourcePortId": "output",
-          "targetNodeId": "node-smooth",
-          "targetPortId": "input"
+          "sourceNodeId": "math-multiply-instance-mult1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "data-smooth-instance-smooth1",
+          "targetPortId": "input-0"
         },
         {
           "id": "edge-calc-5",
-          "sourceNodeId": "node-smooth",
-          "sourcePortId": "output",
-          "targetNodeId": "node-debug-calc",
-          "targetPortId": "input"
+          "sourceNodeId": "data-smooth-instance-smooth1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "output-log-instance-output1",
+          "targetPortId": "input-0"
         }
       ],
-      "createdAt": "2026-02-03T22:00:00Z",
-      "updatedAt": "2026-02-03T22:00:00Z"
+      "createdAt": "2026-02-04T19:00:00Z",
+      "updatedAt": "2026-02-04T19:00:00Z"
     },
     {
-      "id": "flow-mqtt-bridge",
-      "name": "MQTT Bridge",
-      "description": "Publishes sensor data to MQTT topics",
-      "enabled": false,
+      "id": "flow-simple-test",
+      "name": "Simple Test Flow",
+      "description": "Simple flow for end-to-end testing with trigger and debug output",
+      "enabled": true,
       "scanRateMs": 1000,
       "nodes": [
         {
-          "id": "node-timer",
-          "type": "Timer",
-          "label": "Every 5s",
+          "id": "trigger-manual-instance-start1",
+          "type": "trigger-manual",
+          "label": "Manual Start",
           "x": 100,
           "y": 150,
           "properties": {
-            "intervalMs": 5000,
-            "repeat": true
+            "runOnDeploy": "true"
           }
         },
         {
-          "id": "node-temp-read",
-          "type": "TagInput",
-          "label": "Read Temp",
-          "x": 300,
-          "y": 100,
-          "properties": {
-            "tagId": "sim-temp-1",
-            "tagName": "Temperature_001"
-          }
-        },
-        {
-          "id": "node-pressure-read",
-          "type": "TagInput",
-          "label": "Read Pressure",
-          "x": 300,
-          "y": 200,
-          "properties": {
-            "tagId": "sim-pressure-1",
-            "tagName": "Pressure_001"
-          }
-        },
-        {
-          "id": "node-template",
-          "type": "Template",
-          "label": "JSON Payload",
-          "x": 500,
+          "id": "tag-input-instance-temp2",
+          "type": "tag-input",
+          "label": "Read Temperature",
+          "x": 350,
           "y": 150,
           "properties": {
-            "template": "{\"temperature\": {{msg.temp}}, \"pressure\": {{msg.pressure}}, \"timestamp\": \"{{msg.timestamp}}\"}"
+            "tagPath": "sim-temp-1"
           }
         },
         {
-          "id": "node-mqtt-out",
-          "type": "MqttOut",
-          "label": "Publish",
-          "x": 700,
+          "id": "output-log-instance-log1",
+          "type": "output-log",
+          "label": "Log Value",
+          "x": 600,
           "y": 150,
           "properties": {
-            "topic": "dataforeman/sensors/process",
-            "qos": 1,
-            "retain": false
+            "logLevel": "info"
           }
         }
       ],
       "edges": [
         {
-          "id": "edge-mqtt-1",
-          "sourceNodeId": "node-timer",
-          "sourcePortId": "output",
-          "targetNodeId": "node-temp-read",
-          "targetPortId": "trigger"
+          "id": "edge-test-1",
+          "sourceNodeId": "trigger-manual-instance-start1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "tag-input-instance-temp2",
+          "targetPortId": "input-0"
         },
         {
-          "id": "edge-mqtt-2",
-          "sourceNodeId": "node-timer",
-          "sourcePortId": "output",
-          "targetNodeId": "node-pressure-read",
-          "targetPortId": "trigger"
-        },
-        {
-          "id": "edge-mqtt-3",
-          "sourceNodeId": "node-temp-read",
-          "sourcePortId": "output",
-          "targetNodeId": "node-template",
-          "targetPortId": "temp"
-        },
-        {
-          "id": "edge-mqtt-4",
-          "sourceNodeId": "node-pressure-read",
-          "sourcePortId": "output",
-          "targetNodeId": "node-template",
-          "targetPortId": "pressure"
-        },
-        {
-          "id": "edge-mqtt-5",
-          "sourceNodeId": "node-template",
-          "sourcePortId": "output",
-          "targetNodeId": "node-mqtt-out",
-          "targetPortId": "input"
+          "id": "edge-test-2",
+          "sourceNodeId": "tag-input-instance-temp2",
+          "sourcePortId": "output-0",
+          "targetNodeId": "output-log-instance-log1",
+          "targetPortId": "input-0"
         }
       ],
-      "createdAt": "2026-02-03T22:00:00Z",
-      "updatedAt": "2026-02-03T22:00:00Z"
+      "createdAt": "2026-02-04T19:00:00Z",
+      "updatedAt": "2026-02-04T19:00:00Z"
     }
   ]
 }

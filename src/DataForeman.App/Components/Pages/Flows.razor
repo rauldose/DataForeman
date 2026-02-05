@@ -5,6 +5,7 @@
 @inject NodePluginRegistry NodeRegistry
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject RealtimeDataService RealtimeData
 @implements IDisposable
 
 <PageTitle>Flows - DataForeman</PageTitle>
@@ -12,7 +13,6 @@
 <div class="page-container">
     @if (string.IsNullOrEmpty(FlowId))
     {
-        <!-- Flow List View -->
         <div class="page-toolbar">
             <h2><i class="fa-solid fa-diagram-project"></i> Flows</h2>
             <div class="toolbar-actions">
@@ -63,29 +63,44 @@
     }
     else
     {
-        <!-- Flow Editor View -->
-        <div class="flow-editor">
+        <div class="flow-editor" @key="@FlowId">
             <div class="editor-toolbar">
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
                 <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
-                <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
-                <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
-                <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
-                <span class="toolbar-separator"></span>
-                <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
-                          IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
-                          Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
-                          @onclick="ToggleEnabled"></SfButton>
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                @if (!string.IsNullOrEmpty(_editingSubflowId))
+                {
+                    <span class="editing-subflow-badge"><i class="fa-solid fa-object-group"></i> Editing Subflow</span>
+                    <span class="toolbar-separator"></span>
+                    <SfButton CssClass="e-info e-outline" IconCss="fa-solid fa-right-to-bracket" Content="+ Input" @onclick="AddSubflowInput" title="Add Subflow Input"></SfButton>
+                    <SfButton CssClass="e-info e-outline" IconCss="fa-solid fa-right-from-bracket" Content="+ Output" @onclick="AddSubflowOutput" title="Add Subflow Output"></SfButton>
+                    <span class="toolbar-separator"></span>
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveSubflow">Save Subflow</SfButton>
+                    <SfButton CssClass="e-flat" @onclick="CancelSubflowEdit">Cancel</SfButton>
+                }
+                else
+                {
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
+                    <span class="toolbar-separator"></span>
+                    <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
+                              IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
+                              Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
+                              @onclick="ToggleEnabled"></SfButton>
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                }
             </div>
             
             <div class="editor-content">
-                <!-- Node Palette (Custom HTML5 - not hardcoded, from NodeRegistry) -->
                 <div class="node-palette">
                     <div class="palette-header">NODE PALETTE</div>
                     @foreach (var category in NodeRegistry.Categories)
                     {
+                        // Only show "Subflow I/O" category when editing a subflow
+                        if (category == "Subflow I/O" && string.IsNullOrEmpty(_editingSubflowId))
+                            continue;
+                        // Hide "Subflow I/O" category in the list when not editing a subflow
                         var plugins = NodeRegistry.GetByCategory(category);
                         if (!plugins.Any()) continue;
                         
@@ -106,6 +121,14 @@
                                              @onclick="() => AddNodeFromPalette(plugin)">
                                             <span class="node-icon"><i class="@plugin.Icon" style="color: @plugin.Color"></i></span>
                                             <span class="node-label">@plugin.ShortLabel</span>
+                                            @if (category == "Subflows")
+                                            {
+                                                <span class="subflow-actions" @onclick:stopPropagation="true">
+                                                    <button class="subflow-edit-btn" @onclick="() => EditSubflow(plugin.Id)" title="Edit Subflow">
+                                                        <i class="fa-solid fa-pen-to-square"></i>
+                                                    </button>
+                                                </span>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -114,7 +137,6 @@
                     }
                 </div>
                 
-                <!-- Diagram Canvas -->
                 <div class="diagram-container" 
                      id="diagram-space"
                      @ondragover="OnDiagramDragOver"
@@ -139,12 +161,11 @@
                     </SfDiagramComponent>
                 </div>
                 
-                <!-- Properties Panel -->
                 <div class="properties-panel">
                     <h3>Properties</h3>
                     @if (SelectedNode != null)
                     {
-                        var plugin = NodeRegistry.Get(GetNodeBaseType(SelectedNode));
+                        var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
                         <div class="property-header">
                             <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
                                 <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
@@ -200,7 +221,6 @@
                 </div>
             </div>
             
-            <!-- Collapsible Output Console -->
             <div class="output-console @(ConsoleExpanded ? "expanded" : "collapsed")">
                 <div class="console-header" @onclick="ToggleConsole">
                     <span class="console-toggle"><i class="fa-solid @(ConsoleExpanded ? "fa-chevron-down" : "fa-chevron-up")"></i></span>
@@ -208,7 +228,6 @@
                     <span class="console-badge">@ConsoleMessages.Count</span>
                     <div class="console-actions">
                         <button class="console-btn" @onclick:stopPropagation="true" @onclick="ClearConsole" title="Clear"><i class="fa-solid fa-trash"></i></button>
-                        <button class="console-btn" @onclick:stopPropagation="true" @onclick="SimulateExecution" title="Test Run"><i class="fa-solid fa-play"></i></button>
                     </div>
                 </div>
                 @if (ConsoleExpanded)
@@ -216,7 +235,10 @@
                     <div class="console-body" @ref="ConsoleBody">
                         @if (!ConsoleMessages.Any())
                         {
-                            <div class="console-empty">No output yet. Click <i class="fa-solid fa-play"></i> to test the flow.</div>
+                            <div class="console-empty">
+                                <div>📡 Monitoring real-time tag values</div>
+                                <div class="text-muted mt-1">Flows are executed on the Engine. This console shows tag data received via MQTT.</div>
+                            </div>
                         }
                         else
                         {
@@ -237,7 +259,6 @@
     }
 </div>
 
-<!-- Delete Confirmation Dialog -->
 @if (ShowDeleteDialog)
 {
     <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
@@ -255,7 +276,6 @@
     </SfDialog>
 }
 
-<!-- Template Selection Dialog -->
 @if (ShowTemplateDialog)
 {
     <SfDialog @bind-Visible="ShowTemplateDialog" Width="500px" IsModal="true" ShowCloseIcon="true">
@@ -290,7 +310,6 @@
     </SfDialog>
 }
 
-<!-- Replace with Subflow Dialog -->
 @if (ShowReplaceWithSubflowDialog)
 {
     <SfDialog @bind-Visible="ShowReplaceWithSubflowDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
@@ -318,12 +337,24 @@
     private string SelectedNodeLabel = "";
     
     // Palette state
-    private HashSet<string> ExpandedCategories = new() { "Triggers", "Tags" };
+     private HashSet<string> ExpandedCategories = new() { "Triggers", "Tags" };
     private NodePluginDefinition? _draggingPlugin;
     
     private FlowConfig CurrentFlow = new();
     private bool ShowDeleteDialog;
     private string DeleteFlowId = "";
+    private string? _lastLoadedFlowId;
+    
+    // Disposal flag to stop execution when navigating away
+    private bool _disposed = false;
+    private CancellationTokenSource? _cts;
+    
+    // MISSING FIELDS ADDED HERE:
+    private string? _editingSubflowId;
+    private bool ShowTemplateDialog;
+    private bool ShowReplaceWithSubflowDialog;
+    private string PendingSubflowId = "";
+    private List<FlowTemplate> AvailableTemplates => ConfigService.FlowTemplates.ToList();
     
     // Node property values storage
     private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
@@ -331,7 +362,7 @@
     // Node type mapping (for looking up plugin info)
     private Dictionary<string, string> _nodeTypes = new();
     
-    // Pending connectors (added after nodes are rendered)
+    // Pending connectors (added after diagram is rendered)
     private DiagramObjectCollection<Connector> _pendingConnectors = new();
     private bool _connectorsAdded = false;
     
@@ -352,35 +383,55 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _cts = new CancellationTokenSource();
+        _disposed = false; // Reset in case component is reused
         await ConfigService.LoadAllAsync();
-        
-        // Load flow definition if FlowId is set
-        if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
-        {
-            var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
-            if (flow != null)
-            {
-                CurrentFlow = flow;
-                LoadFlowDefinition(flow);
-            }
-        }
-        else if (FlowId == "new")
-        {
-            CurrentFlow = new FlowConfig { Name = "New Flow" };
-        }
+        RealtimeData.OnTagValueChanged += HandleTagValueChanged;
+        RealtimeData.OnFlowExecutionReceived += HandleFlowExecutionReceived;
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         // Handle parameter changes (navigating between flows)
-        if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
+        if (FlowId != _lastLoadedFlowId)
         {
-            var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
-            if (flow != null && CurrentFlow.Id != flow.Id)
+            _lastLoadedFlowId = FlowId;
+            
+            if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
             {
-                CurrentFlow = flow;
-                LoadFlowDefinition(flow);
-                _connectorsAdded = false; // Reset to add connectors after render
+                var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == FlowId);
+                if (flow != null)
+                {
+                    CurrentFlow = flow;
+                    
+                    // Reset state before loading
+                    _connectorsAdded = false; 
+                    
+                    LoadFlowDefinition(flow);
+                    
+                    ConsoleMessages.Clear();
+                    AddConsoleMessage("INFO", "System", $"Loaded flow: {flow.Name}");
+                    StateHasChanged();
+                }
+            }
+            else if (FlowId == "new")
+            {
+                CurrentFlow = new FlowConfig { Name = "New Flow" };
+                // FIX: Create new instances instead of Clear()
+                Nodes = new DiagramObjectCollection<Node>();
+                Connectors = new DiagramObjectCollection<Connector>();
+                _pendingConnectors.Clear();
+                NodeProperties.Clear();
+                _nodeTypes.Clear();
+                ConsoleMessages.Clear();
+                StateHasChanged();
+            }
+            else
+            {
+                // Returning to flow list - clear state with new instances
+                Nodes = new DiagramObjectCollection<Node>();
+                Connectors = new DiagramObjectCollection<Connector>();
+                _pendingConnectors.Clear();
             }
         }
     }
@@ -388,19 +439,19 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Add connectors after nodes are fully rendered
-        if (!_connectorsAdded && !string.IsNullOrEmpty(FlowId) && FlowId != "new" && Diagram != null && _pendingConnectors.Count > 0)
+        if (!_connectorsAdded && Diagram != null && _pendingConnectors.Count > 0)
         {
             _connectorsAdded = true;
             
             // Wait for nodes to be fully rendered
-            await Task.Delay(300);
+            await Task.Delay(500);
             
             try
             {
-                // Add connectors using Diagram API
                 var connectorsToAdd = _pendingConnectors.ToList();
                 await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
                 _pendingConnectors.Clear();
+                Console.WriteLine($"Successfully added {connectorsToAdd.Count} connectors");
             }
             catch (Exception ex)
             {
@@ -408,19 +459,117 @@
             }
         }
     }
+    
+    private async void HandleTagValueChanged(string tagId)
+    {
+        // Stop if component is disposed (user navigated away)
+        if (_disposed || _cts?.IsCancellationRequested == true) return;
+        
+        try
+        {
+            // NOTE: Flow execution happens on the ENGINE, not here.
+            // This handler only updates the visual display when tag values change.
+            
+            // Find nodes that use this tag and update their display
+            foreach (var nodeEntry in NodeProperties)
+            {
+                if (_disposed || _cts?.IsCancellationRequested == true) return;
+                
+                if (nodeEntry.Value.TryGetValue("tagPath", out var tagPath) && 
+                    tagPath?.ToString() == tagId)
+                {
+                    var tagValue = RealtimeData.GetTagValue(tagId);
+                    if (tagValue != null)
+                    {
+                        // Just show the value in console - no execution on frontend
+                        var node = Nodes.FirstOrDefault(n => n.ID == nodeEntry.Key);
+                        if (node != null)
+                        {
+                            var label = GetNodeLabel(node);
+                            var value = tagValue.NumericValue ?? tagValue.Value ?? 0.0;
+                            AddConsoleMessage("DATA", label, $"Value: {value:F2} (Quality: {tagValue.Quality})");
+                        }
+                        
+                        if (!_disposed && _cts?.IsCancellationRequested != true)
+                        {
+                            await InvokeAsync(StateHasChanged);
+                        }
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled during navigation
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component was disposed
+        }
+    }
+
+    private async void HandleFlowExecutionReceived(DataForeman.Shared.Messages.FlowExecutionMessage message)
+    {
+        try
+        {
+            if (_disposed || _cts?.IsCancellationRequested == true) return;
+            
+            // Only show messages for the current flow
+            if (CurrentFlow != null && message.FlowId == CurrentFlow.Id)
+            {
+                // Find the node label
+                var nodeLabel = message.NodeId;
+                var node = Nodes.FirstOrDefault(n => n.ID == message.NodeId);
+                if (node != null)
+                {
+                    nodeLabel = GetNodeLabel(node);
+                }
+
+                // Format the message
+                var msgText = message.Message;
+                if (message.InputData?.Any() == true)
+                {
+                    var inputStr = string.Join(", ", message.InputData.Select(kv => $"{kv.Key}={kv.Value}"));
+                    msgText += $" | Input: {inputStr}";
+                }
+                if (message.OutputData?.Any() == true)
+                {
+                    var outputStr = string.Join(", ", message.OutputData.Select(kv => $"{kv.Key}={kv.Value}"));
+                    msgText += $" | Output: {outputStr}";
+                }
+
+                AddConsoleMessage(message.Level, nodeLabel, msgText);
+                
+                if (!_disposed && _cts?.IsCancellationRequested != true)
+                {
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled during navigation
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component was disposed
+        }
+    }
 
     private void LoadFlowDefinition(FlowConfig flow)
     {
-        // Create fresh collections
+        // FIX: New collection instances
         Nodes = new DiagramObjectCollection<Node>();
         Connectors = new DiagramObjectCollection<Connector>();
-        _pendingConnectors = new DiagramObjectCollection<Connector>();
+        
+        _pendingConnectors.Clear();
         NodeProperties.Clear();
         _nodeTypes.Clear();
         
         foreach (var node in flow.Nodes)
         {
-            var plugin = NodeRegistry.Get(node.Type);
+            var mappedType = MapNodeType(node.Type);
+            var plugin = NodeRegistry.Get(mappedType);
             var diagramNode = CreateFlowNode(
                 node.Id,
                 node.Label ?? plugin?.Name ?? node.Type,
@@ -431,56 +580,100 @@
                 plugin?.OutputCount ?? 1
             );
             Nodes.Add(diagramNode);
+            _nodeTypes[node.Id] = mappedType;
             
-            // Store node type mapping
-            if (!string.IsNullOrEmpty(node.Type))
-            {
-                _nodeTypes[node.Id] = node.Type;
-            }
-            
-            // Store node properties
             if (node.Properties != null)
             {
                 NodeProperties[node.Id] = new Dictionary<string, object>(node.Properties);
             }
         }
         
-        // Add connectors to pending list - they'll be added after nodes render
         foreach (var edge in flow.Edges)
         {
+            var mappedSourcePort = MapPortName(edge.SourcePortId, "output");
+            var mappedTargetPort = MapPortName(edge.TargetPortId, "input");
+            
             _pendingConnectors.Add(CreateFlowConnector(
                 edge.Id,
                 edge.SourceNodeId,
-                edge.SourcePortId,
+                mappedSourcePort,
                 edge.TargetNodeId,
-                edge.TargetPortId
+                mappedTargetPort
             ));
         }
         
         _connectorsAdded = false;
     }
 
+    private string MapNodeType(string? nodeType)
+    {
+        if (string.IsNullOrEmpty(nodeType)) return "unknown";
+        if (NodeRegistry.Get(nodeType) != null) return nodeType;
+        
+        return nodeType.ToLower() switch
+        {
+            "taginput" => "tag-input",
+            "tagoutput" => "tag-output",
+            "compare" => "logic-compare",
+            "debug" => "output-log",
+            "notification" => "output-notification",
+            "timer" => "trigger-schedule",
+            "inject" => "trigger-manual",
+            "multiply" => "math-multiply",
+            "divide" => "math-divide",
+            "add" => "math-add",
+            "subtract" => "math-subtract",
+            "scale" => "math-scale",
+            "smooth" => "data-smooth",
+            "mqttin" => "mqtt-in",
+            "mqttout" => "mqtt-out",
+            "template" => "func-template",
+            "switch" => "func-switch",
+            "branch" => "logic-branch",
+            "and" => "logic-and",
+            "or" => "logic-or",
+            "delay" => "util-delay",
+            "filter" => "util-filter",
+            "constant" => "util-constant",
+            "aggregate" => "data-aggregate",
+            "deadband" => "data-deadband",
+            "rateofchange" => "data-rateofchange",
+            "httprequest" => "http-request",
+            "javascript" => "func-javascript",
+            _ => nodeType.ToLower()
+        };
+    }
+
+    private string MapPortName(string? portName, string portType)
+    {
+        if (string.IsNullOrEmpty(portName)) return $"{portType}-0";
+        if (portName.StartsWith("input-") || portName.StartsWith("output-")) return portName;
+        if (portName.Equals("input", StringComparison.OrdinalIgnoreCase) || portName.Equals("output", StringComparison.OrdinalIgnoreCase)) return $"{portType}-0";
+        if (portName.Equals("true", StringComparison.OrdinalIgnoreCase)) return "output-0";
+        if (portName.Equals("false", StringComparison.OrdinalIgnoreCase)) return "output-1";
+        if (portName.StartsWith("input", StringComparison.OrdinalIgnoreCase) && portName.Length > 5 && int.TryParse(portName[5..], out var inputNum)) return $"input-{inputNum - 1}";
+        if (portName.StartsWith("output", StringComparison.OrdinalIgnoreCase) && portName.Length > 6 && int.TryParse(portName[6..], out var outputNum)) return $"output-{outputNum - 1}";
+        return $"{portType}-0";
+    }
+
     private void CreateNewFlow() => Navigation.NavigateTo("/flows/new");
     private void EditFlow(string id) => Navigation.NavigateTo($"/flows/{id}");
     private void GoBack() => Navigation.NavigateTo("/flows");
-    
     private void ToggleEnabled() => CurrentFlow.Enabled = !CurrentFlow.Enabled;
 
     private async Task SaveFlow()
     {
-        // Convert diagram nodes to flow nodes
-        CurrentFlow.Nodes = Nodes.Select(n => new FlowNode
+        CurrentFlow.Nodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => new FlowNode
         {
             Id = n.ID,
-            Type = GetNodeBaseType(n),
+            Type = GetNodeType(n),
             Label = GetNodeLabel(n),
             X = n.OffsetX,
             Y = n.OffsetY,
             Properties = NodeProperties.TryGetValue(n.ID, out var props) ? props : new()
         }).ToList();
         
-        // Convert connectors to edges
-        CurrentFlow.Edges = Connectors.Select(c => new FlowEdge
+        CurrentFlow.Edges = Connectors.Where(c => !string.IsNullOrEmpty(c.ID)).Select(c => new FlowEdge
         {
             Id = c.ID,
             SourceNodeId = c.SourceID,
@@ -491,165 +684,74 @@
         
         CurrentFlow.UpdatedAt = DateTime.UtcNow;
         
-        if (FlowId == "new")
-        {
-            await ConfigService.AddFlowAsync(CurrentFlow);
-        }
-        else
-        {
-            await ConfigService.UpdateFlowAsync(CurrentFlow);
-        }
+        if (FlowId == "new") await ConfigService.AddFlowAsync(CurrentFlow);
+        else await ConfigService.UpdateFlowAsync(CurrentFlow);
         
         Navigation.NavigateTo("/flows");
     }
 
-    private void ConfirmDeleteFlow(string id)
-    {
-        DeleteFlowId = id;
-        ShowDeleteDialog = true;
-    }
+    private void ConfirmDeleteFlow(string id) { DeleteFlowId = id; ShowDeleteDialog = true; }
+    private async Task ExecuteDeleteFlow() { await ConfigService.DeleteFlowAsync(DeleteFlowId); ShowDeleteDialog = false; }
 
-    private async Task ExecuteDeleteFlow()
-    {
-        await ConfigService.DeleteFlowAsync(DeleteFlowId);
-        ShowDeleteDialog = false;
-    }
-
-    // Palette interactions
-    private void ToggleCategory(string category)
-    {
-        if (ExpandedCategories.Contains(category))
-            ExpandedCategories.Remove(category);
-        else
-            ExpandedCategories.Add(category);
-    }
-
-    private void OnPaletteDragStart(NodePluginDefinition plugin)
-    {
-        _draggingPlugin = plugin;
-    }
-
-    private void OnDiagramDragOver(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
-    {
-        e.DataTransfer.DropEffect = "copy";
-    }
+    private void ToggleCategory(string category) { if (ExpandedCategories.Contains(category)) ExpandedCategories.Remove(category); else ExpandedCategories.Add(category); }
+    private void OnPaletteDragStart(NodePluginDefinition plugin) { _draggingPlugin = plugin; }
+    private void OnDiagramDragOver(Microsoft.AspNetCore.Components.Web.DragEventArgs e) { e.DataTransfer.DropEffect = "copy"; }
 
     private async Task OnDiagramDrop(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
     {
         if (_draggingPlugin == null || Diagram == null) return;
-        
         try
         {
-            var diagramRect = await JSRuntime.InvokeAsync<Dictionary<string, double>>(
-                "eval", 
-                "(() => { const rect = document.getElementById('diagram-space').getBoundingClientRect(); return { left: rect.left, top: rect.top }; })()");
-            
+            var diagramRect = await JSRuntime.InvokeAsync<Dictionary<string, double>>("eval", "(() => { const rect = document.getElementById('diagram-space').getBoundingClientRect(); return { left: rect.left, top: rect.top }; })()");
             double diagramX = e.ClientX - diagramRect["left"];
             double diagramY = e.ClientY - diagramRect["top"];
-            
             await AddNodeFromPalette(_draggingPlugin, diagramX, diagramY);
         }
-        finally
-        {
-            _draggingPlugin = null;
-        }
+        finally { _draggingPlugin = null; }
     }
 
     private async Task AddNodeFromPalette(NodePluginDefinition plugin, double? x = null, double? y = null)
     {
         if (Diagram == null) return;
-        
         double offsetX = x ?? (400 + (Nodes.Count % 4) * 220);
         double offsetY = y ?? (150 + (Nodes.Count / 4) * 120);
         
         var nodeId = $"{plugin.Id}-{Guid.NewGuid():N}";
-        var node = CreateFlowNode(
-            nodeId,
-            plugin.Name,
-            plugin.Color,
-            offsetX, offsetY,
-            plugin.InputCount, plugin.OutputCount
-        );
+        var node = CreateFlowNode(nodeId, plugin.Name, plugin.Color, offsetX, offsetY, plugin.InputCount, plugin.OutputCount);
         
-        // Initialize default properties (cast to object)
-        NodeProperties[nodeId] = plugin.Properties
-            .Where(p => !string.IsNullOrEmpty(p.DefaultValue))
-            .ToDictionary(p => p.Key, p => (object)p.DefaultValue);
-        
+        NodeProperties[nodeId] = plugin.Properties.Where(p => !string.IsNullOrEmpty(p.DefaultValue)).ToDictionary(p => p.Key, p => (object)p.DefaultValue);
         Nodes.Add(node);
         StateHasChanged();
     }
 
     private Node CreateFlowNode(string id, string label, string color, double x, double y, int inputCount, int outputCount)
     {
-        var baseType = GetBaseTypeFromId(id);
+        var baseType = GetNodeType(id);
         var plugin = NodeRegistry.Get(baseType);
         
         var node = new Node
         {
-            ID = id,
-            OffsetX = x,
-            OffsetY = y,
-            Width = 180,
-            Height = 70,
+            ID = id, OffsetX = x, OffsetY = y, Width = 180, Height = 70,
             Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
             Style = new ShapeStyle { Fill = "#2a2a2a", StrokeColor = color, StrokeWidth = 2 },
-            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
-            Ports = new DiagramObjectCollection<PointPort>(),
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(), Ports = new DiagramObjectCollection<PointPort>(),
             Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
         };
         
-        // Main label
-        node.Annotations.Add(new ShapeAnnotation
-        {
-            Content = label,
-            Style = new TextStyle { Color = "#ffffff", FontSize = 13, Bold = true },
-            Offset = new DiagramPoint { X = 0.5, Y = 0.35 },
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
+        node.Annotations.Add(new ShapeAnnotation { Content = label, Style = new TextStyle { Color = "#ffffff", FontSize = 13, Bold = true }, Offset = new DiagramPoint { X = 0.5, Y = 0.35 }, HorizontalAlignment = HorizontalAlignment.Center });
+        node.Annotations.Add(new ShapeAnnotation { Content = plugin?.Category ?? "Node", Style = new TextStyle { Color = "#9d9d9d", FontSize = 10, Italic = true }, Offset = new DiagramPoint { X = 0.5, Y = 0.7 }, HorizontalAlignment = HorizontalAlignment.Center });
         
-        // Category subtitle
-        var category = plugin?.Category ?? "Node";
-        node.Annotations.Add(new ShapeAnnotation
-        {
-            Content = category,
-            Style = new TextStyle { Color = "#9d9d9d", FontSize = 10, Italic = true },
-            Offset = new DiagramPoint { X = 0.5, Y = 0.7 },
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-        
-        // Input ports
         for (int i = 0; i < inputCount; i++)
         {
             var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
-            node.Ports.Add(new PointPort
-            {
-                ID = $"input-{i}",
-                Offset = new DiagramPoint { X = 0, Y = yOffset },
-                Visibility = PortVisibility.Visible,
-                Shape = PortShapes.Circle,
-                Width = 12, Height = 12,
-                Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#ffffff", StrokeWidth = 2 },
-                Constraints = PortConstraints.Default | PortConstraints.Draw
-            });
+            node.Ports.Add(new PointPort { ID = $"input-{i}", Offset = new DiagramPoint { X = 0, Y = yOffset }, Visibility = PortVisibility.Visible, Shape = PortShapes.Circle, Width = 12, Height = 12, Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#ffffff", StrokeWidth = 2 }, Constraints = PortConstraints.Default | PortConstraints.Draw });
         }
         
-        // Output ports
         for (int i = 0; i < outputCount; i++)
         {
             var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
-            node.Ports.Add(new PointPort
-            {
-                ID = $"output-{i}",
-                Offset = new DiagramPoint { X = 1, Y = yOffset },
-                Visibility = PortVisibility.Visible,
-                Shape = PortShapes.Circle,
-                Width = 12, Height = 12,
-                Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#ffffff", StrokeWidth = 2 },
-                Constraints = PortConstraints.Default | PortConstraints.Draw
-            });
+            node.Ports.Add(new PointPort { ID = $"output-{i}", Offset = new DiagramPoint { X = 1, Y = yOffset }, Visibility = PortVisibility.Visible, Shape = PortShapes.Circle, Width = 12, Height = 12, Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#ffffff", StrokeWidth = 2 }, Constraints = PortConstraints.Default | PortConstraints.Draw });
         }
-        
         return node;
     }
 
@@ -657,362 +759,129 @@
     {
         return new Connector
         {
-            ID = id,
-            SourceID = sourceId,
-            SourcePortID = sourcePort ?? "output-0",
-            TargetID = targetId,
-            TargetPortID = targetPort ?? "input-0",
-            Type = ConnectorSegmentType.Bezier,
-            Style = new ShapeStyle { StrokeColor = "#6b7280", StrokeWidth = 2 },
-            TargetDecorator = new DecoratorSettings
-            {
-                Shape = DecoratorShape.Arrow,
-                Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = "#6b7280" }
-            }
+            ID = id, SourceID = sourceId, SourcePortID = sourcePort ?? "output-0", TargetID = targetId, TargetPortID = targetPort ?? "input-0",
+            Type = ConnectorSegmentType.Orthogonal, Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 }, CornerRadius = 5,
+            TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Width = 10, Height = 10, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }
         };
     }
 
-    private void OnNodeCreating(IDiagramObject obj)
-    {
-        if (obj is Node node)
-        {
-            node.Style.Fill = "#2a2a2a";
-        }
-    }
-
-    private void OnConnectorCreating(IDiagramObject obj)
-    {
-        if (obj is Connector connector)
-        {
-            connector.Type = ConnectorSegmentType.Bezier;
-            connector.Style.StrokeColor = "#6b7280";
-            connector.Style.StrokeWidth = 2;
-            
-            // Set arrow decorator
-            connector.TargetDecorator = new DecoratorSettings
-            {
-                Shape = DecoratorShape.Arrow,
-                Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = "#6b7280" }
-            };
-        }
-    }
+    private void OnNodeCreating(IDiagramObject obj) { if (obj is Node node) { node.Style.Fill = "#2a2a2a"; if (node.Ports != null) foreach (var port in node.Ports) { port.Visibility = PortVisibility.Visible; port.Width = 12; port.Height = 12; port.Constraints = PortConstraints.Default | PortConstraints.Draw; } } }
+    private void OnConnectorCreating(IDiagramObject obj) { if (obj is Connector connector) { connector.Type = ConnectorSegmentType.Orthogonal; connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 }; connector.CornerRadius = 5; connector.TargetDecorator = new DecoratorSettings { Shape = DecoratorShape.Arrow, Width = 10, Height = 10, Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } }; } }
 
     private void OnConnectionChanged(Syncfusion.Blazor.Diagram.ConnectionChangedEventArgs args)
     {
-        // Log connection changes to console
         if (args.Connector != null && !string.IsNullOrEmpty(args.Connector.SourceID) && !string.IsNullOrEmpty(args.Connector.TargetID))
         {
             var sourceNode = Nodes.FirstOrDefault(n => n.ID == args.Connector.SourceID);
             var targetNode = Nodes.FirstOrDefault(n => n.ID == args.Connector.TargetID);
-            
-            var sourceLabel = sourceNode != null ? GetNodeLabel(sourceNode) : args.Connector.SourceID;
-            var targetLabel = targetNode != null ? GetNodeLabel(targetNode) : args.Connector.TargetID;
-            var sourcePort = args.Connector.SourcePortID ?? "output-0";
-            var targetPort = args.Connector.TargetPortID ?? "input-0";
-            
-            AddConsoleMessage("INFO", "System", $"Connected: {sourceLabel}[{sourcePort}] → {targetLabel}[{targetPort}]");
+            AddConsoleMessage("INFO", "System", $"Connected: {(sourceNode != null ? GetNodeLabel(sourceNode) : args.Connector.SourceID)} → {(targetNode != null ? GetNodeLabel(targetNode) : args.Connector.TargetID)}");
         }
     }
 
     private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
     {
-        if (args.NewValue?.Count > 0 && args.NewValue[0] is Node node)
-        {
-            SelectedNode = node;
-            SelectedNodeLabel = GetNodeLabel(node);
-        }
-        else
-        {
-            SelectedNode = null;
-            SelectedNodeLabel = "";
-        }
+        if (args.NewValue?.Count > 0 && args.NewValue[0] is Node node) { SelectedNode = node; SelectedNodeLabel = GetNodeLabel(node); }
+        else { SelectedNode = null; SelectedNodeLabel = ""; }
     }
 
     private async Task OnLabelChanged(string newLabel)
     {
         if (SelectedNode == null || Diagram == null) return;
-        
         SelectedNodeLabel = newLabel;
-        if (SelectedNode.Annotations.Count > 0)
-        {
-            SelectedNode.Annotations[0].Content = newLabel;
-            StateHasChanged();
-        }
+        if (SelectedNode.Annotations.Count > 0) { SelectedNode.Annotations[0].Content = newLabel; StateHasChanged(); }
     }
 
     private async Task DeleteSelectedNode()
     {
         if (SelectedNode == null || Diagram == null) return;
-        
         var nodeId = SelectedNode.ID;
         Nodes.Remove(SelectedNode);
         NodeProperties.Remove(nodeId);
-        
-        // Remove connected connectors
         var connectedConnectors = Connectors.Where(c => c.SourceID == nodeId || c.TargetID == nodeId).ToList();
-        foreach (var conn in connectedConnectors)
-        {
-            Connectors.Remove(conn);
-        }
-        
+        foreach (var conn in connectedConnectors) Connectors.Remove(conn);
         SelectedNode = null;
         StateHasChanged();
     }
 
-    private string GetNodeLabel(Node node) => node.Annotations?.FirstOrDefault()?.Content ?? node.ID;
-    private string GetNodeType(Node node) => GetBaseTypeFromId(node.ID);
-    private string GetNodeBaseType(Node node) => GetBaseTypeFromId(node.ID);
+    private string GetNodeLabel(Node node) => node?.Annotations?.FirstOrDefault()?.Content ?? node?.ID ?? "Unknown";
     
-    private string GetBaseTypeFromId(string id)
+    /// <summary>
+    /// Extracts the plugin type ID from a node ID (e.g., "tag-input-instance-abc123" → "tag-input")
+    /// </summary>
+    private string GetNodeType(string? nodeId)
     {
-        // Handle IDs like "trigger-manual-abc123" or "math-add-instance-xyz"
-        if (id.Contains("-instance-"))
-            return id.Split("-instance-")[0];
-        
-        // Try to match against known plugin IDs
-        var parts = id.Split('-');
-        for (int i = parts.Length; i > 0; i--)
+        if (string.IsNullOrEmpty(nodeId)) return "unknown";
+        if (nodeId.Contains("-instance-")) return nodeId.Split("-instance-")[0];
+        var parts = nodeId.Split('-');
+        for (int i = parts.Length; i > 0; i--) { var candidate = string.Join("-", parts.Take(i)); if (NodeRegistry.Get(candidate) != null) return candidate; }
+        if (parts.Length > 1 && parts[^1].Length >= 8) return string.Join("-", parts.Take(parts.Length - 1));
+        return nodeId;
+    }
+    
+    private string GetNodeType(Node? node) => GetNodeType(node?.ID);
+    
+    /// <summary>
+    /// Safely converts an object to double, handling JsonElement and other types.
+    /// </summary>
+    private double ToDouble(object? value, double defaultValue = 0.0)
+    {
+        if (value == null) return defaultValue;
+        if (value is double d) return d;
+        if (value is int i) return i;
+        if (value is float f) return f;
+        if (value is decimal dec) return (double)dec;
+        if (value is long l) return l;
+        if (value is System.Text.Json.JsonElement je)
         {
-            var candidate = string.Join("-", parts.Take(i));
-            if (NodeRegistry.Get(candidate) != null)
-                return candidate;
+            return je.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Number => je.GetDouble(),
+                System.Text.Json.JsonValueKind.String when double.TryParse(je.GetString(), out var parsed) => parsed,
+                _ => defaultValue
+            };
         }
-        
-        // Fallback: remove last segment if it looks like a GUID
-        if (parts.Length > 1 && parts[^1].Length >= 8)
-            return string.Join("-", parts.Take(parts.Length - 1));
-        
-        return id;
+        if (value is string s && double.TryParse(s, out var result)) return result;
+        try { return Convert.ToDouble(value); } catch { return defaultValue; }
     }
 
     private RenderFragment RenderPropertyInput(NodePropertyDefinition prop) => builder =>
     {
         var nodeId = SelectedNode?.ID;
         if (nodeId == null) return;
-        
-        if (!NodeProperties.ContainsKey(nodeId))
-            NodeProperties[nodeId] = new();
-        
+        if (!NodeProperties.ContainsKey(nodeId)) NodeProperties[nodeId] = new();
         var currentValue = NodeProperties[nodeId].TryGetValue(prop.Key, out var v) ? v?.ToString() : prop.DefaultValue;
         
         switch (prop.Type)
         {
             case PropertyType.Text:
-                builder.OpenComponent<SfTextBox>(0);
-                builder.AddAttribute(1, "Value", currentValue ?? "");
-                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
-                builder.AddAttribute(3, "Placeholder", prop.Placeholder);
-                builder.CloseComponent();
-                break;
-                
+                builder.OpenComponent<SfTextBox>(0); builder.AddAttribute(1, "Value", currentValue ?? ""); builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val))); builder.AddAttribute(3, "Placeholder", prop.Placeholder); builder.CloseComponent(); break;
             case PropertyType.Integer:
-                builder.OpenComponent<SfNumericTextBox<int>>(0);
-                builder.AddAttribute(1, "Value", int.TryParse(currentValue, out var intVal) ? intVal : 0);
-                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<int>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString())));
-                builder.AddAttribute(3, "Min", (int)(prop.Min ?? int.MinValue));
-                builder.AddAttribute(4, "Max", (int)(prop.Max ?? int.MaxValue));
-                builder.CloseComponent();
-                break;
-                
+                builder.OpenComponent<SfNumericTextBox<int>>(0); builder.AddAttribute(1, "Value", int.TryParse(currentValue, out var intVal) ? intVal : 0); builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<int>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString()))); builder.AddAttribute(3, "Min", (int)(prop.Min ?? int.MinValue)); builder.AddAttribute(4, "Max", (int)(prop.Max ?? int.MaxValue)); builder.CloseComponent(); break;
             case PropertyType.Decimal:
-                builder.OpenComponent<SfNumericTextBox<double>>(0);
-                builder.AddAttribute(1, "Value", double.TryParse(currentValue, out var dblVal) ? dblVal : 0);
-                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString())));
-                builder.CloseComponent();
-                break;
-                
+                builder.OpenComponent<SfNumericTextBox<double>>(0); builder.AddAttribute(1, "Value", double.TryParse(currentValue, out var dblVal) ? dblVal : 0); builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString()))); builder.CloseComponent(); break;
             case PropertyType.Boolean:
-                builder.OpenComponent<SfCheckBox<bool>>(0);
-                builder.AddAttribute(1, "Checked", currentValue?.ToLower() == "true");
-                builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString().ToLower())));
-                builder.CloseComponent();
-                break;
-                
+                builder.OpenComponent<SfCheckBox<bool>>(0); builder.AddAttribute(1, "Checked", currentValue?.ToLower() == "true"); builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString().ToLower()))); builder.CloseComponent(); break;
             case PropertyType.Select:
-                // For select, just render a simple text input for now (complex dropdowns need different handling)
-                builder.OpenComponent<SfTextBox>(0);
-                builder.AddAttribute(1, "Value", currentValue?.ToString() ?? "");
-                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
-                builder.AddAttribute(3, "Placeholder", string.Join(", ", prop.Options.Select(o => o.Label)));
-                builder.CloseComponent();
-                break;
-                
             case PropertyType.TextArea:
-                builder.OpenComponent<SfTextBox>(0);
-                builder.AddAttribute(1, "Value", currentValue?.ToString() ?? "");
-                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
-                builder.AddAttribute(3, "Multiline", true);
-                builder.CloseComponent();
-                break;
-                
             default:
-                builder.OpenComponent<SfTextBox>(0);
-                builder.AddAttribute(1, "Value", currentValue?.ToString() ?? "");
-                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
-                builder.CloseComponent();
-                break;
+                builder.OpenComponent<SfTextBox>(0); builder.AddAttribute(1, "Value", currentValue?.ToString() ?? ""); builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val))); builder.CloseComponent(); break;
         }
     };
 
-    private void SetPropertyValue(string nodeId, string key, object value)
-    {
-        if (!NodeProperties.ContainsKey(nodeId))
-            NodeProperties[nodeId] = new();
-        NodeProperties[nodeId][key] = value;
-    }
-
-    // Console methods
+    private void SetPropertyValue(string nodeId, string key, object value) { if (!NodeProperties.ContainsKey(nodeId)) NodeProperties[nodeId] = new(); NodeProperties[nodeId][key] = value; }
     private void ToggleConsole() => ConsoleExpanded = !ConsoleExpanded;
+    private void ClearConsole() { ConsoleMessages.Clear(); StateHasChanged(); }
+    private void AddConsoleMessage(string level, string nodeLabel, string message) { ConsoleMessages.Add(new ConsoleLogMessage { Timestamp = DateTime.Now, Level = level, NodeLabel = nodeLabel, Message = message }); if (ConsoleMessages.Count > 500) ConsoleMessages.RemoveAt(0); InvokeAsync(StateHasChanged); }
     
-    private void ClearConsole()
-    {
-        ConsoleMessages.Clear();
-        StateHasChanged();
-    }
+    // NOTE: Flow execution happens on the ENGINE, not here.
+    // The App only displays flow design and monitors real-time tag values.
+    // When Engine executes flows, it publishes results via MQTT which the App can display.
     
-    private void AddConsoleMessage(string level, string nodeLabel, string message)
-    {
-        ConsoleMessages.Add(new ConsoleLogMessage
-        {
-            Timestamp = DateTime.Now,
-            Level = level,
-            NodeLabel = nodeLabel,
-            Message = message
-        });
-        
-        // Keep only last 500 messages
-        if (ConsoleMessages.Count > 500)
-            ConsoleMessages.RemoveAt(0);
-            
-        InvokeAsync(StateHasChanged);
-    }
-    
-    private async Task SimulateExecution()
-    {
-        if (!Nodes.Any())
-        {
-            AddConsoleMessage("WARN", "System", "No nodes to execute");
-            return;
-        }
-        
-        AddConsoleMessage("INFO", "System", $"Starting flow execution: {CurrentFlow.Name}");
-        
-        // Find trigger nodes (nodes with no inputs connected)
-        var triggerNodes = Nodes.Where(n => 
-        {
-            var plugin = NodeRegistry.Get(GetNodeBaseType(n));
-            return plugin?.Category == "Triggers";
-        }).ToList();
-        
-        if (!triggerNodes.Any())
-        {
-            // If no trigger nodes, start from nodes with no incoming connections
-            var nodesWithIncoming = Connectors.Select(c => c.TargetID).ToHashSet();
-            triggerNodes = Nodes.Where(n => !nodesWithIncoming.Contains(n.ID)).ToList();
-        }
-        
-        foreach (var triggerNode in triggerNodes)
-        {
-            await SimulateNodeExecution(triggerNode, new Dictionary<string, object> { ["value"] = GenerateSimulatedValue(triggerNode) });
-        }
-        
-        AddConsoleMessage("INFO", "System", "Flow execution completed");
-    }
-    
-    private async Task SimulateNodeExecution(Node node, Dictionary<string, object> inputData)
-    {
-        var label = GetNodeLabel(node);
-        var baseType = GetNodeBaseType(node);
-        var plugin = NodeRegistry.Get(baseType);
-        
-        // Simulate processing delay
-        await Task.Delay(50);
-        
-        // Generate output based on node type
-        object outputValue = inputData.TryGetValue("value", out var val) ? val : 0.0;
-        
-        switch (plugin?.Category)
-        {
-            case "Triggers":
-                outputValue = GenerateSimulatedValue(node);
-                AddConsoleMessage("INFO", label, $"Triggered with value: {outputValue}");
-                break;
-                
-            case "Tags":
-                if (baseType.Contains("input"))
-                {
-                    outputValue = Math.Round(new Random().NextDouble() * 100, 2);
-                    AddConsoleMessage("INFO", label, $"Read tag value: {outputValue}");
-                }
-                else
-                {
-                    AddConsoleMessage("INFO", label, $"Writing value: {outputValue}");
-                }
-                break;
-                
-            case "Math":
-                var factor = NodeProperties.TryGetValue(node.ID, out var props) && props.TryGetValue("factor", out var f) ? Convert.ToDouble(f) : 1.0;
-                if (baseType.Contains("scale")) outputValue = Convert.ToDouble(outputValue) * factor;
-                else if (baseType.Contains("add")) outputValue = Convert.ToDouble(outputValue) + factor;
-                else if (baseType.Contains("multiply")) outputValue = Convert.ToDouble(outputValue) * factor;
-                AddConsoleMessage("DEBUG", label, $"Input: {val} → Output: {outputValue}");
-                break;
-                
-            case "Logic":
-                var threshold = NodeProperties.TryGetValue(node.ID, out var lprops) && lprops.TryGetValue("threshold", out var t) ? Convert.ToDouble(t) : 50.0;
-                var result = Convert.ToDouble(outputValue) > threshold;
-                AddConsoleMessage("DEBUG", label, $"Comparing {outputValue} > {threshold} = {result}");
-                outputValue = result;
-                break;
-                
-            case "Output":
-                if (baseType.Contains("debug"))
-                {
-                    AddConsoleMessage("DEBUG", label, $"► {outputValue}");
-                }
-                else if (baseType.Contains("notification"))
-                {
-                    AddConsoleMessage("WARN", label, $"Notification: {outputValue}");
-                }
-                break;
-                
-            case "Data Processing":
-                AddConsoleMessage("DEBUG", label, $"Processed: {outputValue}");
-                break;
-                
-            default:
-                AddConsoleMessage("DEBUG", label, $"Executed with value: {outputValue}");
-                break;
-        }
-        
-        // Find connected nodes and execute them
-        var outgoingConnectors = Connectors.Where(c => c.SourceID == node.ID).ToList();
-        foreach (var connector in outgoingConnectors)
-        {
-            var targetNode = Nodes.FirstOrDefault(n => n.ID == connector.TargetID);
-            if (targetNode != null)
-            {
-                await SimulateNodeExecution(targetNode, new Dictionary<string, object> { ["value"] = outputValue });
-            }
-        }
-    }
-    
-    private object GenerateSimulatedValue(Node node)
-    {
-        var baseType = GetNodeBaseType(node);
-        if (baseType.Contains("timer") || baseType.Contains("schedule"))
-            return DateTime.Now.ToString("HH:mm:ss");
-        if (baseType.Contains("manual"))
-            return "Manual Trigger";
-        return Math.Round(new Random().NextDouble() * 100, 2);
-    }
-    
-    // Subflow methods
     private async Task CreateSubflowFromSelection()
     {
         if (Diagram == null) return;
         
-        var selectedNodes = Nodes.Where(n => Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
+        var selectedNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
         
         if (selectedNodes.Count < 2)
         {
@@ -1020,19 +889,15 @@
             return;
         }
         
-        // Create subflow definition
         var subflowId = $"subflow-{Guid.NewGuid():N}";
         var subflowName = $"Subflow {ConfigService.Subflows.Count + 1}";
         
-        // Find internal connectors (both source and target are in selection)
-        var selectedIds = selectedNodes.Select(n => n.ID).ToHashSet();
+        var selectedIds = selectedNodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => n.ID).ToHashSet();
         var internalConnectors = Connectors.Where(c => selectedIds.Contains(c.SourceID) && selectedIds.Contains(c.TargetID)).ToList();
         
-        // Find input/output nodes (connected to nodes outside selection)
         var inputConnectors = Connectors.Where(c => !selectedIds.Contains(c.SourceID) && selectedIds.Contains(c.TargetID)).ToList();
         var outputConnectors = Connectors.Where(c => selectedIds.Contains(c.SourceID) && !selectedIds.Contains(c.TargetID)).ToList();
         
-        // Calculate bounding box for relative positions
         var minX = selectedNodes.Min(n => n.OffsetX);
         var minY = selectedNodes.Min(n => n.OffsetY);
         
@@ -1046,7 +911,7 @@
             Nodes = selectedNodes.Select(n => new FlowNode
             {
                 Id = n.ID,
-                Type = GetNodeBaseType(n),
+                Type = GetNodeType(n),
                 Label = GetNodeLabel(n),
                 X = n.OffsetX - minX,
                 Y = n.OffsetY - minY,
@@ -1063,40 +928,30 @@
         };
         
         await ConfigService.AddSubflowAsync(subflow);
-        
-        // Register as a node plugin
         NodeRegistry.RegisterSubflow(subflow);
-        
         AddConsoleMessage("INFO", "System", $"Created subflow '{subflowName}' with {selectedNodes.Count} nodes");
         
-        // Optionally remove selected nodes and replace with subflow node
         ShowReplaceWithSubflowDialog = true;
         PendingSubflowId = subflowId;
     }
-    
-    private bool ShowReplaceWithSubflowDialog;
-    private string PendingSubflowId = "";
     
     private async Task ReplaceSelectionWithSubflow()
     {
         if (Diagram == null || string.IsNullOrEmpty(PendingSubflowId)) return;
         
-        var selectedNodes = Nodes.Where(n => Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
-        var selectedIds = selectedNodes.Select(n => n.ID).ToHashSet();
+        var selectedNodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID) && Diagram.SelectionSettings?.Nodes?.Any(sn => sn.ID == n.ID) == true).ToList();
+        var selectedIds = selectedNodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => n.ID).ToHashSet();
         
-        // Calculate center position
         var centerX = selectedNodes.Average(n => n.OffsetX);
         var centerY = selectedNodes.Average(n => n.OffsetY);
         
-        // Find external connections
         var incomingConnectors = Connectors.Where(c => !selectedIds.Contains(c.SourceID) && selectedIds.Contains(c.TargetID)).ToList();
         var outgoingConnectors = Connectors.Where(c => selectedIds.Contains(c.SourceID) && !selectedIds.Contains(c.TargetID)).ToList();
         
-        // Remove selected nodes and their internal connectors
         foreach (var node in selectedNodes)
         {
             Nodes.Remove(node);
-            NodeProperties.Remove(node.ID);
+            if (!string.IsNullOrEmpty(node.ID)) NodeProperties.Remove(node.ID);
         }
         
         var connectorsToRemove = Connectors.Where(c => selectedIds.Contains(c.SourceID) || selectedIds.Contains(c.TargetID)).ToList();
@@ -1105,20 +960,18 @@
             Connectors.Remove(conn);
         }
         
-        // Add subflow node
         var subflow = ConfigService.Subflows.FirstOrDefault(s => s.Id == PendingSubflowId);
         if (subflow != null)
         {
             var subflowNode = CreateFlowNode(
                 $"{PendingSubflowId}-{Guid.NewGuid():N}",
                 subflow.Name,
-                "#8b5cf6", // Purple for subflows
+                "#8b5cf6",
                 centerX, centerY,
                 subflow.InputCount, subflow.OutputCount
             );
             Nodes.Add(subflowNode);
             
-            // Reconnect external connections
             foreach (var conn in incomingConnectors)
             {
                 Connectors.Add(CreateFlowConnector(
@@ -1143,23 +996,234 @@
         StateHasChanged();
     }
     
-    // Template methods
-    private bool ShowTemplateDialog;
-    private List<FlowTemplate> AvailableTemplates => ConfigService.FlowTemplates.ToList();
+    private void EditSubflow(string subflowId)
+    {
+        var subflow = ConfigService.Subflows.FirstOrDefault(s => s.Id == subflowId);
+        if (subflow == null)
+        {
+            AddConsoleMessage("ERROR", "System", $"Subflow '{subflowId}' not found");
+            return;
+        }
+        
+        // FIX: Re-new collections
+        Nodes = new DiagramObjectCollection<Node>();
+        Connectors = new DiagramObjectCollection<Connector>();
+        _pendingConnectors.Clear();
+        NodeProperties.Clear();
+        _nodeTypes.Clear();
+        ConsoleMessages.Clear();
+        
+        CurrentFlow = new FlowConfig
+        {
+            Id = subflowId,
+            Name = $"Editing Subflow: {subflow.Name}",
+            Description = subflow.Description,
+            Enabled = false,
+            ScanRateMs = 1000
+        };
+        
+        foreach (var node in subflow.Nodes)
+        {
+            var mappedType = MapNodeType(node.Type);
+            var plugin = NodeRegistry.Get(mappedType);
+            var diagramNode = CreateFlowNode(
+                node.Id,
+                node.Label ?? plugin?.Name ?? node.Type,
+                plugin?.Color ?? "#9ca3af",
+                node.X,
+                node.Y,
+                plugin?.InputCount ?? 1,
+                plugin?.OutputCount ?? 1
+            );
+            Nodes.Add(diagramNode);
+            _nodeTypes[node.Id] = mappedType;
+            
+            if (node.Properties != null)
+            {
+                NodeProperties[node.Id] = new Dictionary<string, object>(node.Properties);
+            }
+        }
+        
+        foreach (var edge in subflow.Edges)
+        {
+            var mappedSourcePort = MapPortName(edge.SourcePortId, "output");
+            var mappedTargetPort = MapPortName(edge.TargetPortId, "input");
+            
+            _pendingConnectors.Add(CreateFlowConnector(
+                edge.Id,
+                edge.SourceNodeId,
+                mappedSourcePort,
+                edge.TargetNodeId,
+                mappedTargetPort
+            ));
+        }
+        
+        _connectorsAdded = false;
+        _editingSubflowId = subflowId;
+        AddConsoleMessage("INFO", "System", $"Editing subflow: {subflow.Name}");
+        StateHasChanged();
+    }
+    
+    private async Task SaveSubflow()
+    {
+        if (string.IsNullOrEmpty(_editingSubflowId)) return;
+        
+        var existingSubflow = ConfigService.Subflows.FirstOrDefault(s => s.Id == _editingSubflowId);
+        if (existingSubflow == null) return;
+        
+        existingSubflow.Nodes = Nodes.Where(n => !string.IsNullOrEmpty(n.ID)).Select(n => new FlowNode
+        {
+            Id = n.ID,
+            Type = _nodeTypes.TryGetValue(n.ID, out var t) ? t : GetNodeType(n),
+            Label = GetNodeLabel(n),
+            X = n.OffsetX,
+            Y = n.OffsetY,
+            Properties = NodeProperties.TryGetValue(n.ID, out var props) 
+                ? props.ToDictionary(kv => kv.Key, kv => kv.Value)
+                : new Dictionary<string, object>()
+        }).ToList();
+        
+        existingSubflow.Edges = Connectors.Where(c => !string.IsNullOrEmpty(c.ID)).Select(c => new FlowEdge
+        {
+            Id = c.ID,
+            SourceNodeId = c.SourceID,
+            SourcePortId = c.SourcePortID,
+            TargetNodeId = c.TargetID,
+            TargetPortId = c.TargetPortID
+        }).ToList();
+        
+        // Count only explicit subflow I/O nodes, not nodes based on connections
+        existingSubflow.InputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && GetNodeType(n.ID) == "subflow-input");
+        existingSubflow.OutputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && GetNodeType(n.ID) == "subflow-output");
+        
+        await ConfigService.UpdateSubflowAsync(existingSubflow);
+        NodeRegistry.UnregisterSubflow(_editingSubflowId);
+        NodeRegistry.RegisterSubflow(existingSubflow);
+        
+        AddConsoleMessage("INFO", "System", $"Saved subflow: {existingSubflow.Name}");
+        _editingSubflowId = null;
+        Navigation.NavigateTo("/flows");
+    }
+    
+    private void CancelSubflowEdit()
+    {
+        _editingSubflowId = null;
+        Nodes = new DiagramObjectCollection<Node>();
+        Connectors = new DiagramObjectCollection<Connector>();
+        _pendingConnectors.Clear();
+        NodeProperties.Clear();
+        _nodeTypes.Clear();
+        ConsoleMessages.Clear();
+        Navigation.NavigateTo("/flows");
+    }
+    
+    private async Task AddSubflowInput()
+    {
+        var plugin = NodeRegistry.Get("subflow-input");
+        if (plugin == null) return;
+        
+        // Position on the left side of the canvas
+        var existingInputs = Nodes.Count(n => GetNodeType(n.ID) == "subflow-input");
+        double offsetX = 100;
+        double offsetY = 150 + (existingInputs * 100);
+        
+        var nodeId = $"subflow-input-{Guid.NewGuid():N}";
+        var node = CreateSubflowIONode(nodeId, plugin.Name, plugin.Color, offsetX, offsetY, 0, 1, true);
+        
+        NodeProperties[nodeId] = new Dictionary<string, object> { ["name"] = $"Input {existingInputs + 1}" };
+        Nodes.Add(node);
+        AddConsoleMessage("INFO", "System", $"Added subflow input node: Input {existingInputs + 1}");
+        StateHasChanged();
+    }
+    
+    private async Task AddSubflowOutput()
+    {
+        var plugin = NodeRegistry.Get("subflow-output");
+        if (plugin == null) return;
+        
+        // Position on the right side of the canvas
+        var existingOutputs = Nodes.Count(n => GetNodeType(n.ID) == "subflow-output");
+        double offsetX = 700;
+        double offsetY = 150 + (existingOutputs * 100);
+        
+        var nodeId = $"subflow-output-{Guid.NewGuid():N}";
+        var node = CreateSubflowIONode(nodeId, plugin.Name, plugin.Color, offsetX, offsetY, 1, 0, false);
+        
+        NodeProperties[nodeId] = new Dictionary<string, object> { ["name"] = $"Output {existingOutputs + 1}" };
+        Nodes.Add(node);
+        AddConsoleMessage("INFO", "System", $"Added subflow output node: Output {existingOutputs + 1}");
+        StateHasChanged();
+    }
+    
+    private Node CreateSubflowIONode(string id, string label, string color, double x, double y, int inputCount, int outputCount, bool isInput)
+    {
+        var node = new Node
+        {
+            ID = id, OffsetX = x, OffsetY = y, Width = 140, Height = 50,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 25 },
+            Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = color, StrokeWidth = 3 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(), Ports = new DiagramObjectCollection<PointPort>(),
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        node.Annotations.Add(new ShapeAnnotation 
+        { 
+            Content = label, 
+            Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true }, 
+            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }, 
+            HorizontalAlignment = HorizontalAlignment.Center 
+        });
+        
+        // Input node has output port on right, Output node has input port on left
+        if (isInput)
+        {
+            node.Ports.Add(new PointPort 
+            { 
+                ID = "output-0", 
+                Offset = new DiagramPoint { X = 1, Y = 0.5 }, 
+                Visibility = PortVisibility.Visible, 
+                Shape = PortShapes.Circle, 
+                Width = 14, Height = 14, 
+                Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#ffffff", StrokeWidth = 2 }, 
+                Constraints = PortConstraints.Default | PortConstraints.Draw 
+            });
+        }
+        else
+        {
+            node.Ports.Add(new PointPort 
+            { 
+                ID = "input-0", 
+                Offset = new DiagramPoint { X = 0, Y = 0.5 }, 
+                Visibility = PortVisibility.Visible, 
+                Shape = PortShapes.Circle, 
+                Width = 14, Height = 14, 
+                Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#ffffff", StrokeWidth = 2 }, 
+                Constraints = PortConstraints.Default | PortConstraints.Draw 
+            });
+        }
+        
+        return node;
+    }
     
     private void ShowTemplates() => ShowTemplateDialog = true;
     
     private async Task ApplyTemplate(FlowTemplate template)
     {
-        // Add template nodes to current flow
         var offsetX = Nodes.Any() ? Nodes.Max(n => n.OffsetX) + 300 : 200;
         var offsetY = 150;
         
+        // Map from template node IDs to new generated IDs
+        var nodeIdMap = new Dictionary<string, string>();
+        
+        // Add nodes with new IDs
         foreach (var node in template.Nodes)
         {
             var plugin = NodeRegistry.Get(node.Type);
+            var newNodeId = $"{node.Type}-{Guid.NewGuid():N}";
+            nodeIdMap[node.Id] = newNodeId; // Map old ID to new ID
+            
             var diagramNode = CreateFlowNode(
-                $"{node.Type}-{Guid.NewGuid():N}",
+                newNodeId,
                 node.Label ?? plugin?.Name ?? node.Type,
                 plugin?.Color ?? "#9ca3af",
                 node.X + offsetX,
@@ -1168,6 +1232,7 @@
                 plugin?.OutputCount ?? 1
             );
             Nodes.Add(diagramNode);
+            _nodeTypes[newNodeId] = node.Type;
             
             if (node.Properties != null)
             {
@@ -1175,21 +1240,51 @@
             }
         }
         
-        // Note: Template edges reference original node IDs, so we'd need to map them
-        // For simplicity, user can reconnect after applying template
+        // Add edges with mapped node IDs
+        if (template.Edges != null && template.Edges.Any())
+        {
+            var connectorsToAdd = new List<Connector>();
+            foreach (var edge in template.Edges)
+            {
+                // Map the source and target node IDs to the new IDs
+                if (nodeIdMap.TryGetValue(edge.SourceNodeId, out var newSourceId) &&
+                    nodeIdMap.TryGetValue(edge.TargetNodeId, out var newTargetId))
+                {
+                    var connector = CreateFlowConnector(
+                        $"edge-{Guid.NewGuid():N}",
+                        newSourceId,
+                        edge.SourcePortId,
+                        newTargetId,
+                        edge.TargetPortId
+                    );
+                    connectorsToAdd.Add(connector);
+                }
+            }
+            
+            // Add connectors to the diagram
+            if (connectorsToAdd.Any() && Diagram != null)
+            {
+                try
+                {
+                    await Task.Delay(100); // Wait for nodes to be rendered
+                    await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
+                    AddConsoleMessage("INFO", "System", $"Added {connectorsToAdd.Count} connectors from template");
+                }
+                catch (Exception ex)
+                {
+                    AddConsoleMessage("ERROR", "System", $"Failed to add connectors: {ex.Message}");
+                }
+            }
+        }
         
-        AddConsoleMessage("INFO", "System", $"Applied template: {template.Name}");
+        AddConsoleMessage("INFO", "System", $"Applied template: {template.Name} ({template.Nodes.Count} nodes)");
         ShowTemplateDialog = false;
         StateHasChanged();
     }
     
     private async Task SaveAsTemplate()
     {
-        if (!Nodes.Any())
-        {
-            AddConsoleMessage("WARN", "System", "No nodes to save as template");
-            return;
-        }
+        if (!Nodes.Any()) return;
         
         var template = new FlowTemplate
         {
@@ -1200,7 +1295,7 @@
             Nodes = Nodes.Select(n => new FlowNode
             {
                 Id = n.ID,
-                Type = GetNodeBaseType(n),
+                Type = GetNodeType(n),
                 Label = GetNodeLabel(n),
                 X = n.OffsetX,
                 Y = n.OffsetY,
@@ -1222,7 +1317,20 @@
     
     public void Dispose()
     {
+        // Set disposed flag first to stop any running execution
+        _disposed = true;
+        
+        // Cancel any pending async operations
+        try
+        {
+            _cts?.Cancel();
+            _cts?.Dispose();
+        }
+        catch { /* Ignore disposal errors */ }
+        
         _simulationTimer?.Dispose();
+        RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
+        RealtimeData.OnFlowExecutionReceived -= HandleFlowExecutionReceived;
     }
 
     public class FlowDisplay
@@ -1242,3 +1350,5 @@
         public string Message { get; set; } = "";
     }
 }
+
+```

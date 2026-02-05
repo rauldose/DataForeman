@@ -706,6 +706,42 @@ public class NodePluginRegistry
                 new() { Key = "query", Label = "SQL Query", Type = PropertyType.TextArea, Placeholder = "SELECT * FROM history WHERE timestamp > ?", Group = "Operation", Advanced = true }
             }
         });
+
+        // === SUBFLOW I/O NODES ===
+        // These are special nodes only shown when editing a subflow
+        Register(new NodePluginDefinition
+        {
+            Id = "subflow-input",
+            Name = "Subflow Input",
+            ShortLabel = "Input",
+            Category = "Subflow I/O",
+            Description = "Entry point for data into the subflow",
+            Icon = "fa-solid fa-right-to-bracket",
+            Color = "#6b7280",
+            InputCount = 0,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "name", Label = "Input Name", Type = PropertyType.Text, DefaultValue = "input", Group = "Definition" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "subflow-output",
+            Name = "Subflow Output",
+            ShortLabel = "Output",
+            Category = "Subflow I/O",
+            Description = "Exit point for data from the subflow",
+            Icon = "fa-solid fa-right-from-bracket",
+            Color = "#6b7280",
+            InputCount = 1,
+            OutputCount = 0,
+            Properties = new()
+            {
+                new() { Key = "outputName", Label = "Output Name", Type = PropertyType.Text, DefaultValue = "output", Group = "Definition" }
+            }
+        });
     }
 
     /// <summary>

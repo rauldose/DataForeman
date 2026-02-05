@@ -191,6 +191,27 @@ public class MqttPublisher : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Publishes a raw message to a topic.
+    /// </summary>
+    public async Task PublishMessageAsync(string topic, string payload)
+    {
+        if (_mqttClient == null || !_isConnected) return;
+
+        try
+        {
+            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .Build());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing message to {Topic}", topic);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_mqttClient != null)

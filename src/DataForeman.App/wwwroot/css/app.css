@@ -177,18 +177,20 @@ html, body {
 .e-accordion .e-acrdn-item {
     background: var(--bg-secondary) !important;
     border: none !important;
-    border-radius: 6px !important;
-    margin-bottom: 0.75rem !important;
+    border-radius: 4px !important;
+    margin-bottom: 0.5rem !important;
 }
 
 .e-accordion .e-acrdn-header {
     background: transparent !important;
     border: none !important;
-    padding: 0.75rem 1rem !important;
+    padding: 0.5rem 0.75rem !important;
+    min-height: 32px !important;
 }
 
 .e-accordion .e-acrdn-header-content {
     color: var(--text-primary) !important;
+    font-size: 0.8rem !important;
 }
 
 .e-accordion .e-acrdn-panel {
@@ -197,18 +199,20 @@ html, body {
 }
 
 .e-accordion .e-acrdn-content {
-    padding: 1rem !important;
+    padding: 0.75rem !important;
 }
 
 .panel-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     font-weight: 500;
+    font-size: 0.8rem;
 }
 
 .panel-header i {
     color: var(--accent-blue);
+    font-size: 0.75rem;
 }
 
 /* Status Grid */
@@ -378,6 +382,17 @@ html, body {
     border-radius: 6px 6px 0 0;
 }
 
+.editing-subflow-badge {
+    background: var(--accent-purple);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .chart-name-input, .flow-name-input {
     width: 200px;
 }
@@ -412,6 +427,14 @@ html, body {
     flex: 1;
     overflow: hidden;
     background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ensure chart takes full available space */
+.chart-area .e-chart {
+    flex: 1;
+    min-height: 0;
 }
 
 .time-range-bar {
@@ -627,6 +650,38 @@ html, body {
     flex: 1;
 }
 
+.subflow-actions {
+    display: flex;
+    margin-left: auto;
+}
+
+.subflow-edit-btn {
+    background: var(--accent-purple, #8b5cf6);
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    opacity: 1;
+    transition: background 0.2s, transform 0.2s;
+}
+
+.subflow-edit-btn:hover {
+    background: #7c3aed;
+    transform: scale(1.05);
+}
+
+/* Subflow I/O nodes - special gray styling */
+.palette-category .palette-node[style*="#6b7280"] {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    border-left-color: #9ca3af !important;
+}
+
+.palette-category .palette-node[style*="#6b7280"]:hover {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
 /* Properties Panel */
 .properties-panel {
     width: 260px;
@@ -826,6 +881,27 @@ html, body {
 /* Syncfusion Chart Overrides */
 .e-chart {
     background: transparent !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Chart text elements - ensure consistent font */
+.e-chart text,
+.e-chart .e-chart-axis-title,
+.e-chart .e-axis-label,
+.e-chart .e-legend-text,
+.e-chart .e-chart-legend-text,
+.e-chart .e-chart-series-name {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Syncfusion Component Font Override */
+.e-control,
+.e-lib,
+.e-dashboardlayout,
+.e-grid,
+.e-chart,
+.e-dialog {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 /* ============================================
@@ -946,6 +1022,64 @@ html, body {
 .dashboard-grid-container {
     flex: 1;
     overflow: auto;
+    min-height: 500px;
+}
+
+/* Syncfusion Dashboard Layout Overrides */
+.e-dashboardlayout {
+    background: transparent !important;
+    height: 100% !important;
+}
+
+.e-dashboardlayout .e-panel {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 4px !important;
+}
+
+.e-dashboardlayout .e-panel .e-panel-header {
+    background: var(--bg-tertiary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0 !important;
+    min-height: 36px !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Dashboard panel header content - proper flex layout for title and buttons */
+.panel-header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.panel-header-content .panel-title {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.panel-header-content .panel-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+}
+
+.panel-header-content.selected {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.e-dashboardlayout .e-panel .e-panel-content {
+    height: calc(100% - 36px) !important;
+    overflow: hidden !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 .dashboard-grid-container.fullscreen {
@@ -985,14 +1119,15 @@ html, body {
     border-color: var(--accent-blue);
 }
 
-.panel-header {
+/* Dashboard panel header - distinct from accordion panel-header */
+.panel > .panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 0.75rem;
     background: var(--bg-tertiary);
     border-bottom: 1px solid var(--border-subtle);
-    min-height: 36px;
+    min-height: 32px;
 }
 
 .panel-title {
@@ -1012,6 +1147,16 @@ html, body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+/* Ensure charts in panels take full height */
+.panel-content .e-chart {
+    flex: 1;
+    min-height: 0;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 .empty-panel {
@@ -1085,27 +1230,33 @@ html, body {
     align-items: center;
     justify-content: center;
     height: 100%;
+    padding: 0.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .gauge-svg {
     width: 100%;
-    max-width: 150px;
+    max-width: 120px;
     height: auto;
+    flex-shrink: 0;
 }
 
 .gauge-value {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .gauge-labels {
     display: flex;
     justify-content: space-between;
     width: 100%;
-    max-width: 130px;
-    font-size: 0.7rem;
+    max-width: 100px;
+    font-size: 0.65rem;
     color: var(--text-muted);
+    margin-top: 0.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Output Console */

@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject ConfigService ConfigService
 @inject RealtimeDataService RealtimeData
+@inject HistoryService HistoryService
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -138,7 +139,7 @@
                         </div>
                     }
                     
-                    <SfChart Theme="Syncfusion.Blazor.Theme.TailwindDark" Height="100%">
+                    <SfChart Theme="Syncfusion.Blazor.Theme.TailwindDark" Width="100%" Height="100%">
                         <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
                             <ChartAxisMajorGridLines Width="0.5" Color="#374151"></ChartAxisMajorGridLines>
                         </ChartPrimaryXAxis>
@@ -197,11 +198,13 @@
                                             <div class="series-header">
                                                 <div class="series-color" style="background-color: @series.Color"></div>
                                                 <span class="series-name">@series.DisplayName</span>
-                                                <SfCheckBox TChecked="bool" @bind-Checked="series.Visible" CssClass="e-small"></SfCheckBox>
+                                                <span @onclick:stopPropagation="true">
+                                                    <SfCheckBox TChecked="bool" @bind-Checked="series.Visible" CssClass="e-small"></SfCheckBox>
+                                                </span>
                                             </div>
                                             @if (SelectedSeries?.Id == series.Id)
                                             {
-                                                <div class="series-config">
+                                                <div class="series-config" @onclick:stopPropagation="true">
                                                     <div class="config-row">
                                                         <label>Color</label>
                                                         <SfColorPicker @bind-Value="series.Color" Mode="ColorPickerMode.Palette"></SfColorPicker>
@@ -410,7 +413,38 @@
         CurrentChart.Settings.HistoricalStartTime = DateTime.Now - range;
     }
 
-    private void LoadHistoricalData() => StateHasChanged();
+    // Dictionary to cache historical data by tagId
+    private Dictionary<string, List<ChartDataPoint>> _historicalData = new();
+    private bool _isLoadingHistorical = false;
+
+    private async Task LoadHistoricalData()
+    {
+        _isLoadingHistorical = true;
+        StateHasChanged();
+        
+        try
+        {
+            _historicalData.Clear();
+            
+            var startTime = CurrentChart.Settings.HistoricalStartTime ?? DateTime.Now.AddHours(-1);
+            var endTime = CurrentChart.Settings.HistoricalEndTime ?? DateTime.Now;
+            
+            foreach (var series in CurrentChart.Series)
+            {
+                var data = await HistoryService.GetHistoricalDataAsync(series.TagId, startTime, endTime);
+                _historicalData[series.TagId] = data.Select(d => new ChartDataPoint
+                {
+                    Timestamp = d.Timestamp,
+                    Value = d.Value
+                }).ToList();
+            }
+        }
+        finally
+        {
+            _isLoadingHistorical = false;
+            StateHasChanged();
+        }
+    }
 
     private void AddTagToChart(TagConfig tag)
     {
@@ -501,15 +535,23 @@
                 Value = v.NumericValue ?? 0
             }).ToList();
         }
-        return new List<ChartDataPoint>();
+        else
+        {
+            // Historical mode - return cached historical data
+            if (_historicalData.TryGetValue(tagId, out var data))
+            {
+                return data;
+            }
+            return new List<ChartDataPoint>();
+        }
     }
 
-    private LegendPosition GetLegendPosition() => CurrentChart.Settings.LegendPosition switch
+    private Syncfusion.Blazor.Charts.LegendPosition GetLegendPosition() => CurrentChart.Settings.LegendPosition switch
     {
-        "Top" => LegendPosition.Top,
-        "Left" => LegendPosition.Left,
-        "Right" => LegendPosition.Right,
-        _ => LegendPosition.Bottom
+        "Top" => Syncfusion.Blazor.Charts.LegendPosition.Top,
+        "Left" => Syncfusion.Blazor.Charts.LegendPosition.Left,
+        "Right" => Syncfusion.Blazor.Charts.LegendPosition.Right,
+        _ => Syncfusion.Blazor.Charts.LegendPosition.Bottom
     };
 
     public void Dispose()
