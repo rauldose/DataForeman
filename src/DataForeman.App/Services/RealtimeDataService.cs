@@ -15,6 +15,7 @@ public class RealtimeDataService : IDisposable
     private readonly ConcurrentDictionary<string, TagValueCache> _tagValues = new();
     private readonly ConcurrentDictionary<string, ConnectionStatusMessage> _connectionStatuses = new();
     private readonly ConcurrentDictionary<string, List<FlowExecutionMessage>> _flowExecutionCache = new();
+    private readonly ConcurrentDictionary<string, InternalTagValueCache> _internalTagValues = new();
     private EngineStatusMessage? _engineStatus;
     
     public event Action? OnDataChanged;
@@ -58,6 +59,50 @@ public class RealtimeDataService : IDisposable
     {
         return _tagValues.Values.Where(v => v.ConnectionId == connectionId);
     }
+
+    #region Internal Tags
+
+    /// <summary>
+    /// Gets all internal tag values.
+    /// </summary>
+    public IReadOnlyDictionary<string, InternalTagValueCache> GetInternalTagValues()
+        => _internalTagValues;
+
+    /// <summary>
+    /// Sets an internal tag value.
+    /// </summary>
+    public void SetInternalTag(string key, object? value)
+    {
+        var cache = _internalTagValues.GetOrAdd(key, k => new InternalTagValueCache { Key = k });
+        cache.Value = value;
+        cache.TimestampUtc = DateTime.UtcNow;
+        
+        _logger.LogDebug("Set internal tag '{Key}' = {Value}", key, value);
+        OnDataChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Deletes an internal tag.
+    /// </summary>
+    public void DeleteInternalTag(string key)
+    {
+        if (_internalTagValues.TryRemove(key, out _))
+        {
+            _logger.LogDebug("Deleted internal tag '{Key}'", key);
+            OnDataChanged?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Gets an internal tag value.
+    /// </summary>
+    public InternalTagValueCache? GetInternalTag(string key)
+    {
+        _internalTagValues.TryGetValue(key, out var value);
+        return value;
+    }
+
+    #endregion
 
     /// <summary>
     /// Gets the status for a connection.
@@ -360,4 +405,14 @@ public class TagHistoryPoint
 {
     public DateTime Timestamp { get; set; }
     public double? NumericValue { get; set; }
+}
+
+/// <summary>
+/// Cached internal tag value.
+/// </summary>
+public class InternalTagValueCache
+{
+    public string Key { get; set; } = string.Empty;
+    public object? Value { get; set; }
+    public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
 }

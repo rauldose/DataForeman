@@ -1,0 +1,506 @@
+@page "/internal-tags"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject RealtimeDataService RealtimeData
+@implements IDisposable
+
+<PageTitle>Internal Tags - DataForeman</PageTitle>
+
+<div class="page-container">
+    <div class="page-toolbar">
+        <h2><i class="fa-solid fa-database"></i> Internal Tags</h2>
+        <div class="toolbar-actions">
+            <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="ShowAddTagDialog">Add Internal Tag</SfButton>
+            <SfButton CssClass="e-info" IconCss="fa-solid fa-sync" @onclick="RefreshTags">Refresh</SfButton>
+        </div>
+    </div>
+
+    <div class="info-banner">
+        <i class="fa-solid fa-info-circle"></i>
+        <span>Internal tags are virtual tags that live within the system. They can be used in flows via <strong>context-get</strong> and <strong>context-set</strong> nodes. Values are stored in-memory and cleared on engine restart.</span>
+    </div>
+
+    <SfTab>
+        <TabItems>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="@GlobalTabText"></TabHeader>
+                </ChildContent>
+                <ContentTemplate>
+                    <div class="tab-panel">
+                        @if (!GlobalTags.Any())
+                        {
+                            <div class="empty-state">
+                                <i class="fa-solid fa-globe"></i>
+                                <span>No global tags defined</span>
+                                <p class="text-muted">Global tags are shared across all flows</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@GlobalTags" AllowPaging="true">
+                                <GridPageSettings PageSize="15"></GridPageSettings>
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Key)" HeaderText="Key" Width="200"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Value)" HeaderText="Current Value" Width="200"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Timestamp)" HeaderText="Last Updated" Width="180"></GridColumn>
+                                    <GridColumn HeaderText="Actions" Width="120">
+                                        <Template>
+                                            @{
+                                                var item = (context as InternalTagDisplay);
+                                                <div class="action-buttons">
+                                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditTag(item!)"></SfButton>
+                                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteTag(item!)"></SfButton>
+                                                </div>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="@FlowTabText"></TabHeader>
+                </ChildContent>
+                <ContentTemplate>
+                    <div class="tab-panel">
+                        <div class="filter-bar">
+                            <SfDropDownList TItem="FlowOption" TValue="string" 
+                                            DataSource="@FlowOptions" 
+                                            @bind-Value="SelectedFlowId"
+                                            Placeholder="All Flows">
+                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                            </SfDropDownList>
+                        </div>
+                        
+                        @if (!FlowTags.Any())
+                        {
+                            <div class="empty-state">
+                                <i class="fa-solid fa-project-diagram"></i>
+                                <span>No flow-scoped tags</span>
+                                <p class="text-muted">Flow tags are scoped to specific flows</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@FlowTags" AllowPaging="true">
+                                <GridPageSettings PageSize="15"></GridPageSettings>
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.FlowName)" HeaderText="Flow" Width="150"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Key)" HeaderText="Key" Width="180"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Value)" HeaderText="Current Value" Width="200"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Timestamp)" HeaderText="Last Updated" Width="160"></GridColumn>
+                                    <GridColumn HeaderText="Actions" Width="100">
+                                        <Template>
+                                            @{
+                                                var item = (context as InternalTagDisplay);
+                                                <div class="action-buttons">
+                                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteTag(item!)"></SfButton>
+                                                </div>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+            <TabItem>
+                <ChildContent>
+                    <TabHeader Text="@NodeTabText"></TabHeader>
+                </ChildContent>
+                <ContentTemplate>
+                    <div class="tab-panel">
+                        @if (!NodeTags.Any())
+                        {
+                            <div class="empty-state">
+                                <i class="fa-solid fa-cube"></i>
+                                <span>No node-scoped tags</span>
+                                <p class="text-muted">Node tags are private to specific node instances</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <SfGrid DataSource="@NodeTags" AllowPaging="true">
+                                <GridPageSettings PageSize="15"></GridPageSettings>
+                                <GridColumns>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.FlowName)" HeaderText="Flow" Width="120"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.NodeId)" HeaderText="Node" Width="100"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Key)" HeaderText="Key" Width="150"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Value)" HeaderText="Current Value" Width="180"></GridColumn>
+                                    <GridColumn Field="@nameof(InternalTagDisplay.Timestamp)" HeaderText="Last Updated" Width="140"></GridColumn>
+                                    <GridColumn HeaderText="Actions" Width="80">
+                                        <Template>
+                                            @{
+                                                var item = (context as InternalTagDisplay);
+                                                <div class="action-buttons">
+                                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteTag(item!)"></SfButton>
+                                                </div>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+        </TabItems>
+    </SfTab>
+</div>
+
+<!-- Add/Edit Internal Tag Dialog -->
+@if (ShowTagDialog)
+{
+    <SfDialog @bind-Visible="ShowTagDialog" Width="450px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>@(IsEditing ? "Edit Internal Tag" : "Add Internal Tag")</Header>
+            <Content>
+                <div class="dialog-form">
+                    <div class="form-row">
+                        <label>Scope</label>
+                        <SfDropDownList TItem="ScopeOption" TValue="string" 
+                                        DataSource="@ScopeOptions" 
+                                        @bind-Value="TagForm.Scope"
+                                        Enabled="@(!IsEditing)">
+                            <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                    </div>
+                    @if (TagForm.Scope == "flow")
+                    {
+                        <div class="form-row">
+                            <label>Flow</label>
+                            <SfDropDownList TItem="FlowOption" TValue="string" 
+                                            DataSource="@FlowOptionsNoAll" 
+                                            @bind-Value="TagForm.FlowId">
+                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                            </SfDropDownList>
+                        </div>
+                    }
+                    <div class="form-row">
+                        <label>Key *</label>
+                        <SfTextBox @bind-Value="TagForm.Key" Placeholder="e.g., counter, last_value, average"></SfTextBox>
+                    </div>
+                    <div class="form-row">
+                        <label>Initial Value</label>
+                        <SfTextBox @bind-Value="TagForm.Value" Placeholder="Initial value (optional)"></SfTextBox>
+                    </div>
+                    <div class="form-row">
+                        <label>Description</label>
+                        <SfTextBox @bind-Value="TagForm.Description" Placeholder="Optional description"></SfTextBox>
+                    </div>
+                </div>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+                <SfButton CssClass="e-primary" @onclick="SaveTag">Save</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- Delete Confirmation Dialog -->
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content>
+                <p>Delete internal tag "@DeleteItemName"?</p>
+                <p class="text-muted">This will clear the stored value.</p>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="CloseDialogs">Cancel</SfButton>
+                <SfButton CssClass="e-danger" @onclick="ExecuteDelete">Delete</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<style>
+    .info-banner {
+        background: #17a2b8;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .info-banner i {
+        font-size: 1.2em;
+    }
+    
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        color: #888;
+    }
+    
+    .empty-state i {
+        font-size: 3em;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+    
+    .empty-state span {
+        font-size: 1.1em;
+        margin-bottom: 8px;
+    }
+    
+    .filter-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        align-items: center;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 4px;
+    }
+    
+    .dialog-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .form-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    
+    .form-row label {
+        font-weight: 500;
+        font-size: 0.9em;
+        color: #555;
+    }
+    
+    .scope-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: 500;
+    }
+    
+    .scope-global { background: #007bff; color: white; }
+    .scope-flow { background: #28a745; color: white; }
+    .scope-node { background: #6c757d; color: white; }
+</style>
+
+@code {
+    // State
+    private string SelectedFlowId = "";
+    private bool ShowTagDialog;
+    private bool ShowDeleteDialog;
+    private bool IsEditing;
+    
+    private TagFormModel TagForm = new();
+    private string DeleteItemName = "";
+    private InternalTagDisplay? DeleteTarget;
+    
+    // Simulated internal tag data (since this is stored in Engine, we simulate here)
+    private List<InternalTagDisplay> _internalTags = new();
+
+    // Tab text
+    private string GlobalTabText => $"Global ({GlobalTags.Count})";
+    private string FlowTabText => $"Flow ({FlowTags.Count})";
+    private string NodeTabText => $"Node ({NodeTags.Count})";
+
+    // Scope options
+    private List<ScopeOption> ScopeOptions = new()
+    {
+        new("global", "Global - Shared across all flows"),
+        new("flow", "Flow - Scoped to a specific flow")
+    };
+
+    // Flow options
+    private List<FlowOption> FlowOptions => new List<FlowOption> { new("", "All Flows") }
+        .Concat(ConfigService.Flows.Select(f => new FlowOption(f.Id, f.Name))).ToList();
+    
+    private List<FlowOption> FlowOptionsNoAll => ConfigService.Flows.Select(f => new FlowOption(f.Id, f.Name)).ToList();
+
+    // Filtered lists
+    private List<InternalTagDisplay> GlobalTags => _internalTags.Where(t => t.Scope == "global").ToList();
+    
+    private List<InternalTagDisplay> FlowTags 
+    {
+        get 
+        {
+            var tags = _internalTags.Where(t => t.Scope == "flow");
+            if (!string.IsNullOrEmpty(SelectedFlowId))
+                tags = tags.Where(t => t.FlowId == SelectedFlowId);
+            return tags.ToList();
+        }
+    }
+    
+    private List<InternalTagDisplay> NodeTags => _internalTags.Where(t => t.Scope == "node").ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+        RefreshTags();
+    }
+
+    private void HandleDataChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RefreshTags()
+    {
+        // Get internal tags from the RealtimeDataService (which would communicate with Engine)
+        // For now, we'll show any tags that have been set via context-set nodes
+        var internalTagValues = RealtimeData.GetInternalTagValues();
+        
+        // Create flow lookup for efficient access
+        var flowLookup = ConfigService.Flows.ToDictionary(f => f.Id, f => f.Name);
+        
+        _internalTags = internalTagValues.Select(kvp => 
+        {
+            var (scope, flowId, nodeId, key) = ParseTagKey(kvp.Key);
+            var flowName = !string.IsNullOrEmpty(flowId) && flowLookup.TryGetValue(flowId, out var name) 
+                ? name 
+                : flowId ?? "";
+                
+            return new InternalTagDisplay
+            {
+                FullKey = kvp.Key,
+                Scope = scope,
+                FlowId = flowId,
+                FlowName = flowName,
+                NodeId = nodeId,
+                Key = key,
+                Value = kvp.Value?.Value?.ToString() ?? "(not set)",
+                Timestamp = kvp.Value?.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
+            };
+        }).ToList();
+        
+        StateHasChanged();
+    }
+
+    private (string scope, string? flowId, string? nodeId, string key) ParseTagKey(string fullKey)
+    {
+        var parts = fullKey.Split(':');
+        if (parts.Length >= 2)
+        {
+            var scope = parts[0];
+            return scope switch
+            {
+                "global" => ("global", null, null, string.Join(":", parts.Skip(1))),
+                "flow" when parts.Length >= 3 => ("flow", parts[1], null, string.Join(":", parts.Skip(2))),
+                "node" when parts.Length >= 4 => ("node", parts[1], parts[2], string.Join(":", parts.Skip(3))),
+                _ => ("global", null, null, fullKey)
+            };
+        }
+        return ("global", null, null, fullKey);
+    }
+
+    private void ShowAddTagDialog()
+    {
+        IsEditing = false;
+        TagForm = new TagFormModel { Scope = "global" };
+        ShowTagDialog = true;
+    }
+
+    private void EditTag(InternalTagDisplay tag)
+    {
+        IsEditing = true;
+        TagForm = new TagFormModel
+        {
+            Scope = tag.Scope,
+            FlowId = tag.FlowId ?? "",
+            Key = tag.Key,
+            Value = tag.Value
+        };
+        ShowTagDialog = true;
+    }
+
+    private void ConfirmDeleteTag(InternalTagDisplay tag)
+    {
+        DeleteItemName = $"{tag.Scope}:{tag.Key}";
+        DeleteTarget = tag;
+        ShowDeleteDialog = true;
+    }
+
+    private void SaveTag()
+    {
+        if (string.IsNullOrWhiteSpace(TagForm.Key))
+            return;
+
+        // Build the full key
+        var fullKey = TagForm.Scope switch
+        {
+            "flow" when !string.IsNullOrEmpty(TagForm.FlowId) => $"flow:{TagForm.FlowId}:{TagForm.Key}",
+            _ => $"global:{TagForm.Key}"
+        };
+
+        // Set the value via RealtimeDataService
+        RealtimeData.SetInternalTag(fullKey, TagForm.Value);
+        
+        RefreshTags();
+        CloseDialogs();
+    }
+
+    private void ExecuteDelete()
+    {
+        if (DeleteTarget != null)
+        {
+            RealtimeData.DeleteInternalTag(DeleteTarget.FullKey);
+            RefreshTags();
+        }
+        CloseDialogs();
+    }
+
+    private void CloseDialogs()
+    {
+        ShowTagDialog = false;
+        ShowDeleteDialog = false;
+        DeleteTarget = null;
+    }
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+    }
+
+    // Models
+    private class InternalTagDisplay
+    {
+        public string FullKey { get; set; } = "";
+        public string Scope { get; set; } = "";
+        public string? FlowId { get; set; }
+        public string FlowName { get; set; } = "";
+        public string? NodeId { get; set; }
+        public string Key { get; set; } = "";
+        public string Value { get; set; } = "";
+        public string Timestamp { get; set; } = "";
+    }
+
+    private class TagFormModel
+    {
+        public string Scope { get; set; } = "global";
+        public string FlowId { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Value { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+
+    private record ScopeOption(string Id, string Name);
+    private record FlowOption(string Id, string Name);
+}
