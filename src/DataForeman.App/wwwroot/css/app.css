@@ -656,24 +656,21 @@ html, body {
 }
 
 .subflow-edit-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     cursor: pointer;
-    padding: 0.25rem;
+    padding: 0.25rem 0.4rem;
     border-radius: 3px;
-    font-size: 0.75rem;
-    opacity: 0;
-    transition: opacity 0.2s, color 0.2s;
-}
-
-.palette-node:hover .subflow-edit-btn {
+    font-size: 0.7rem;
     opacity: 1;
+    transition: color 0.2s, background-color 0.2s;
 }
 
 .subflow-edit-btn:hover {
     color: var(--accent-blue);
-    background: var(--bg-tertiary);
+    background: var(--bg-primary);
+    border-color: var(--accent-blue);
 }
 
 /* Properties Panel */

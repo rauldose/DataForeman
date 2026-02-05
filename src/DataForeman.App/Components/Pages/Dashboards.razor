@@ -1,6 +1,8 @@
 @page "/dashboards"
 @page "/dashboards/{DashboardId}"
 @rendermode InteractiveServer
+@using Syncfusion.Blazor.Layouts
+@using Syncfusion.Blazor.CircularGauge
 @inject ConfigService ConfigService
 @inject RealtimeDataService RealtimeData
 @inject NavigationManager Navigation
@@ -103,7 +105,8 @@
                                    CellSpacing="@(new double[] { 10, 10 })"
                                    CellAspectRatio="0.6"
                                    AllowDragging="@IsEditMode"
-                                   AllowResizing="@IsEditMode">
+                                   AllowResizing="@IsEditMode"
+                                   ResizeStop="@OnPanelResizeStop">
                     <DashboardLayoutPanels>
                         @foreach (var panel in CurrentDashboard.Panels)
                         {
@@ -125,7 +128,7 @@
                                     </div>
                                 </HeaderTemplate>
                                 <ContentTemplate>
-                                    <div class="panel-content">
+                                    <div class="panel-content" @key="GetPanelKey(panel.Id)">
                                         @RenderPanel(panel)
                                     </div>
                                 </ContentTemplate>
@@ -306,6 +309,7 @@
     private string NewPanelTitle = "";
     
     private System.Timers.Timer? _refreshTimer;
+    private Dictionary<string, int> _panelResizeVersion = new();
     
     private List<TimeRangeOption> TimeRanges = new()
     {
@@ -547,6 +551,22 @@
     }
 
     // Panel rendering
+    private string GetPanelKey(string panelId)
+    {
+        var version = _panelResizeVersion.GetValueOrDefault(panelId, 0);
+        return $"{panelId}-v{version}";
+    }
+
+    private void OnPanelResizeStop(Syncfusion.Blazor.Layouts.ResizeArgs args)
+    {
+        if (args.Id != null)
+        {
+            // Increment version to force re-render with new @key
+            _panelResizeVersion[args.Id] = _panelResizeVersion.GetValueOrDefault(args.Id, 0) + 1;
+            StateHasChanged();
+        }
+    }
+
     private RenderFragment RenderPanel(DashboardPanel panel) => builder =>
     {
         switch (panel.Type)
@@ -610,65 +630,142 @@
         
         var tagValue = RealtimeData.GetTagValue(config.TagId);
         var value = tagValue?.NumericValue ?? 0;
-        var percent = Math.Clamp((value - config.MinValue) / (config.MaxValue - config.MinValue) * 100, 0, 100);
         var color = GetThresholdColor(config.Thresholds, value);
         
-        // Simple SVG-based gauge
-        builder.OpenElement(0, "div");
-        builder.AddAttribute(1, "class", "gauge-panel");
-        
-        // SVG Arc Gauge
-        builder.OpenElement(2, "svg");
-        builder.AddAttribute(3, "viewBox", "0 0 100 60");
-        builder.AddAttribute(4, "class", "gauge-svg");
-        
-        // Background arc
-        builder.OpenElement(5, "path");
-        builder.AddAttribute(6, "d", "M 10 50 A 40 40 0 0 1 90 50");
-        builder.AddAttribute(7, "fill", "none");
-        builder.AddAttribute(8, "stroke", "#374151");
-        builder.AddAttribute(9, "stroke-width", "8");
-        builder.AddAttribute(10, "stroke-linecap", "round");
-        builder.CloseElement();
-        
-        // Value arc
-        var angle = percent * 1.8; // 180 degrees = 100%
-        var radians = (180 - angle) * Math.PI / 180;
-        var endX = 50 + 40 * Math.Cos(radians);
-        var endY = 50 - 40 * Math.Sin(radians);
-        var largeArc = angle > 90 ? 1 : 0;
-        var pathD = $"M 10 50 A 40 40 0 {largeArc} 1 {endX:F1} {endY:F1}";
-        
-        builder.OpenElement(11, "path");
-        builder.AddAttribute(12, "d", pathD);
-        builder.AddAttribute(13, "fill", "none");
-        builder.AddAttribute(14, "stroke", color);
-        builder.AddAttribute(15, "stroke-width", "8");
-        builder.AddAttribute(16, "stroke-linecap", "round");
-        builder.CloseElement();
-        
-        builder.CloseElement(); // svg
-        
-        // Value display
-        builder.OpenElement(17, "div");
-        builder.AddAttribute(18, "class", "gauge-value");
-        builder.AddAttribute(19, "style", $"color: {color}");
-        var format = $"F{config.Decimals}";
-        builder.AddContent(20, $"{value.ToString(format)}{config.Unit}");
-        builder.CloseElement();
-        
-        // Min/Max labels
-        builder.OpenElement(21, "div");
-        builder.AddAttribute(22, "class", "gauge-labels");
-        builder.OpenElement(23, "span");
-        builder.AddContent(24, config.MinValue.ToString());
-        builder.CloseElement();
-        builder.OpenElement(25, "span");
-        builder.AddContent(26, config.MaxValue.ToString());
-        builder.CloseElement();
-        builder.CloseElement();
-        
-        builder.CloseElement(); // div.gauge-panel
+        // Syncfusion Circular Gauge
+        builder.OpenComponent<SfCircularGauge>(0);
+        builder.AddAttribute(1, "Theme", Syncfusion.Blazor.Theme.TailwindDark);
+        builder.AddAttribute(2, "Height", "100%");
+        builder.AddAttribute(3, "Width", "100%");
+        builder.AddAttribute(4, "Background", "transparent");
+        builder.AddAttribute(5, "ChildContent", (RenderFragment)(gaugeBuilder =>
+        {
+            // Axes collection
+            gaugeBuilder.OpenComponent<CircularGaugeAxes>(0);
+            gaugeBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(axesBuilder =>
+            {
+                axesBuilder.OpenComponent<CircularGaugeAxis>(0);
+                axesBuilder.AddAttribute(1, "StartAngle", 220);
+                axesBuilder.AddAttribute(2, "EndAngle", 140);
+                axesBuilder.AddAttribute(3, "Minimum", config.MinValue);
+                axesBuilder.AddAttribute(4, "Maximum", config.MaxValue);
+                axesBuilder.AddAttribute(5, "Radius", "80%");
+                axesBuilder.AddAttribute(6, "ChildContent", (RenderFragment)(axisBuilder =>
+                {
+                    // Line style
+                    axisBuilder.OpenComponent<CircularGaugeAxisLineStyle>(0);
+                    axisBuilder.AddAttribute(1, "Width", 0);
+                    axisBuilder.CloseComponent();
+                    
+                    // Labels
+                    axisBuilder.OpenComponent<CircularGaugeAxisLabelStyle>(0);
+                    axisBuilder.AddAttribute(1, "Offset", -10d);
+                    axisBuilder.AddAttribute(2, "ChildContent", (RenderFragment)(labelBuilder =>
+                    {
+                        labelBuilder.OpenComponent<CircularGaugeAxisLabelFont>(0);
+                        labelBuilder.AddAttribute(1, "Size", "11px");
+                        labelBuilder.AddAttribute(2, "Color", "#94a3b8");
+                        labelBuilder.AddAttribute(3, "FontFamily", "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif");
+                        labelBuilder.CloseComponent();
+                    }));
+                    axisBuilder.CloseComponent();
+                    
+                    // Major ticks
+                    axisBuilder.OpenComponent<CircularGaugeAxisMajorTicks>(0);
+                    axisBuilder.AddAttribute(1, "Height", 10d);
+                    axisBuilder.AddAttribute(2, "Offset", 5d);
+                    axisBuilder.AddAttribute(3, "Color", "#475569");
+                    axisBuilder.CloseComponent();
+                    
+                    // Minor ticks
+                    axisBuilder.OpenComponent<CircularGaugeAxisMinorTicks>(0);
+                    axisBuilder.AddAttribute(1, "Height", 5d);
+                    axisBuilder.AddAttribute(2, "Offset", 5d);
+                    axisBuilder.AddAttribute(3, "Color", "#334155");
+                    axisBuilder.CloseComponent();
+                    
+                    // Ranges collection
+                    axisBuilder.OpenComponent<CircularGaugeRanges>(0);
+                    axisBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(rangesBuilder =>
+                    {
+                        // Background range
+                        rangesBuilder.OpenComponent<CircularGaugeRange>(0);
+                        rangesBuilder.AddAttribute(1, "Start", config.MinValue);
+                        rangesBuilder.AddAttribute(2, "End", config.MaxValue);
+                        rangesBuilder.AddAttribute(3, "Color", "#1e293b");
+                        rangesBuilder.AddAttribute(4, "StartWidth", "18");
+                        rangesBuilder.AddAttribute(5, "EndWidth", "18");
+                        rangesBuilder.AddAttribute(6, "Radius", "90%");
+                        rangesBuilder.CloseComponent();
+                        
+                        // Value range
+                        rangesBuilder.OpenComponent<CircularGaugeRange>(0);
+                        rangesBuilder.AddAttribute(1, "Start", config.MinValue);
+                        rangesBuilder.AddAttribute(2, "End", value);
+                        rangesBuilder.AddAttribute(3, "Color", color);
+                        rangesBuilder.AddAttribute(4, "StartWidth", "18");
+                        rangesBuilder.AddAttribute(5, "EndWidth", "18");
+                        rangesBuilder.AddAttribute(6, "Radius", "90%");
+                        rangesBuilder.CloseComponent();
+                    }));
+                    axisBuilder.CloseComponent();
+                    
+                    // Pointers collection
+                    axisBuilder.OpenComponent<CircularGaugePointers>(0);
+                    axisBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(pointersBuilder =>
+                    {
+                        pointersBuilder.OpenComponent<CircularGaugePointer>(0);
+                        pointersBuilder.AddAttribute(1, "Value", value);
+                        pointersBuilder.AddAttribute(2, "Radius", "60%");
+                        pointersBuilder.AddAttribute(3, "Color", color);
+                        pointersBuilder.AddAttribute(4, "PointerWidth", 8);
+                        pointersBuilder.AddAttribute(5, "ChildContent", (RenderFragment)(ptrBuilder =>
+                        {
+                            ptrBuilder.OpenComponent<CircularGaugePointerAnimation>(0);
+                            ptrBuilder.AddAttribute(1, "Enable", false);
+                            ptrBuilder.CloseComponent();
+                            
+                            ptrBuilder.OpenComponent<CircularGaugeCap>(0);
+                            ptrBuilder.AddAttribute(1, "Radius", 8);
+                            ptrBuilder.AddAttribute(2, "Color", color);
+                            ptrBuilder.AddAttribute(3, "ChildContent", (RenderFragment)(capBuilder =>
+                            {
+                                capBuilder.OpenComponent<CircularGaugeCapBorder>(0);
+                                capBuilder.AddAttribute(1, "Width", 0);
+                                capBuilder.CloseComponent();
+                            }));
+                            ptrBuilder.CloseComponent();
+                        }));
+                        pointersBuilder.CloseComponent();
+                    }));
+                    axisBuilder.CloseComponent();
+                    
+                    // Annotations for value display
+                    axisBuilder.OpenComponent<CircularGaugeAnnotations>(0);
+                    axisBuilder.AddAttribute(1, "ChildContent", (RenderFragment)(annotationsBuilder =>
+                    {
+                        annotationsBuilder.OpenComponent<CircularGaugeAnnotation>(0);
+                        annotationsBuilder.AddAttribute(1, "Angle", 0);
+                        annotationsBuilder.AddAttribute(2, "Radius", "0%");
+                        annotationsBuilder.AddAttribute(3, "ZIndex", "1");
+                        var format = $"F{config.Decimals}";
+                        var displayValue = $"{value.ToString(format)}{config.Unit}";
+                        annotationsBuilder.AddAttribute(4, "ContentTemplate", (RenderFragment)(annBuilder =>
+                        {
+                            annBuilder.OpenElement(0, "div");
+                            annBuilder.AddAttribute(1, "style", $"color: {color}; font-size: 1.5rem; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;");
+                            annBuilder.AddContent(2, displayValue);
+                            annBuilder.CloseElement();
+                        }));
+                        annotationsBuilder.CloseComponent();
+                    }));
+                    axisBuilder.CloseComponent();
+                }));
+                axesBuilder.CloseComponent();
+            }));
+            gaugeBuilder.CloseComponent();
+        }));
+        builder.CloseComponent();
     }
 
     private void RenderChartPanel(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DashboardPanel panel)

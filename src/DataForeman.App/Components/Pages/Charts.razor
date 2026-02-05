@@ -506,12 +506,12 @@
         return new List<ChartDataPoint>();
     }
 
-    private LegendPosition GetLegendPosition() => CurrentChart.Settings.LegendPosition switch
+    private Syncfusion.Blazor.Charts.LegendPosition GetLegendPosition() => CurrentChart.Settings.LegendPosition switch
     {
-        "Top" => LegendPosition.Top,
-        "Left" => LegendPosition.Left,
-        "Right" => LegendPosition.Right,
-        _ => LegendPosition.Bottom
+        "Top" => Syncfusion.Blazor.Charts.LegendPosition.Top,
+        "Left" => Syncfusion.Blazor.Charts.LegendPosition.Left,
+        "Right" => Syncfusion.Blazor.Charts.LegendPosition.Right,
+        _ => Syncfusion.Blazor.Charts.LegendPosition.Bottom
     };
 
     public void Dispose()
