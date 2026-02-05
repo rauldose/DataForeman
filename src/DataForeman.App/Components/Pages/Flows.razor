@@ -1092,10 +1092,9 @@
             TargetPortId = c.TargetPortID
         }).ToList();
         
-        var nodesWithIncoming = Connectors.Select(c => c.TargetID).ToHashSet();
-        var nodesWithOutgoing = Connectors.Select(c => c.SourceID).ToHashSet();
-        existingSubflow.InputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && !nodesWithIncoming.Contains(n.ID));
-        existingSubflow.OutputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && !nodesWithOutgoing.Contains(n.ID));
+        // Count only explicit subflow I/O nodes, not nodes based on connections
+        existingSubflow.InputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && GetNodeType(n.ID) == "subflow-input");
+        existingSubflow.OutputCount = Nodes.Count(n => !string.IsNullOrEmpty(n.ID) && GetNodeType(n.ID) == "subflow-output");
         
         await ConfigService.UpdateSubflowAsync(existingSubflow);
         NodeRegistry.UnregisterSubflow(_editingSubflowId);
