@@ -290,7 +290,7 @@
 
 @code {
     [Parameter] public string? DashboardId { get; set; }
-    
+
     private SfDashboardLayout? DashboardLayout;
     private DashboardConfig CurrentDashboard = new();
     private DashboardPanel? SelectedPanel;
@@ -304,8 +304,10 @@
     private string SelectedTimeRange = "5m";
     private PanelType NewPanelType = PanelType.Stat;
     private string NewPanelTitle = "";
-    
+
     private System.Timers.Timer? _refreshTimer;
+    private volatile bool _isDisposed;
+    private readonly object _timerLock = new();
     
     private List<TimeRangeOption> TimeRanges = new()
     {
@@ -352,6 +354,12 @@
                 {
                     CurrentDashboard = dashboard;
                 }
+                else
+                {
+                    // Dashboard not found - redirect to list
+                    Navigation.NavigateTo("/dashboards");
+                    return;
+                }
             }
             StartRefreshTimer();
         }
@@ -363,20 +371,47 @@
 
     private void StartRefreshTimer()
     {
-        StopRefreshTimer();
-        _refreshTimer = new System.Timers.Timer(CurrentDashboard.Settings.RefreshIntervalMs);
-        _refreshTimer.Elapsed += (s, e) => InvokeAsync(StateHasChanged);
-        _refreshTimer.Start();
+        if (_isDisposed) return;
+
+        lock (_timerLock)
+        {
+            StopRefreshTimerCore();
+            _refreshTimer = new System.Timers.Timer(CurrentDashboard.Settings.RefreshIntervalMs);
+            _refreshTimer.Elapsed += OnTimerElapsed;
+            _refreshTimer.Start();
+        }
+    }
+
+    private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (_isDisposed) return;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void StopRefreshTimer()
     {
-        _refreshTimer?.Stop();
-        _refreshTimer?.Dispose();
-        _refreshTimer = null;
+        lock (_timerLock)
+        {
+            StopRefreshTimerCore();
+        }
     }
 
-    private void HandleDataChanged() => InvokeAsync(StateHasChanged);
+    private void StopRefreshTimerCore()
+    {
+        if (_refreshTimer != null)
+        {
+            _refreshTimer.Elapsed -= OnTimerElapsed;
+            _refreshTimer.Stop();
+            _refreshTimer.Dispose();
+            _refreshTimer = null;
+        }
+    }
+
+    private void HandleDataChanged()
+    {
+        if (_isDisposed) return;
+        _ = InvokeAsync(StateHasChanged);
+    }
 
     private void CreateNewDashboard() => Navigation.NavigateTo("/dashboards/new");
     private void ViewDashboard(string id) => Navigation.NavigateTo($"/dashboards/{id}");
@@ -818,6 +853,7 @@
 
     public void Dispose()
     {
+        _isDisposed = true;
         RealtimeData.OnDataChanged -= HandleDataChanged;
         StopRefreshTimer();
     }

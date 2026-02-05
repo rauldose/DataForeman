@@ -28,9 +28,10 @@
 
 @code {
     [Inject] private Services.RealtimeDataService? RealtimeData { get; set; }
-    
+
+    private volatile bool _isDisposed;
     private bool EngineConnected => RealtimeData?.GetEngineStatus()?.IsRunning ?? false;
-    
+
     protected override void OnInitialized()
     {
         if (RealtimeData != null)
@@ -39,24 +40,28 @@
         }
         Navigation.LocationChanged += OnLocationChanged;
     }
-    
+
     private void HandleStatusChanged()
     {
-        InvokeAsync(StateHasChanged);
+        if (_isDisposed) return;
+        _ = InvokeAsync(StateHasChanged);
     }
-    
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
     {
-        StateHasChanged();
+        if (_isDisposed) return;
+        // LocationChanged can fire from non-UI thread, must use InvokeAsync
+        _ = InvokeAsync(StateHasChanged);
     }
-    
+
     private void NavigateTo(string url)
     {
         Navigation.NavigateTo(url);
     }
-    
+
     public void Dispose()
     {
+        _isDisposed = true;
         if (RealtimeData != null)
         {
             RealtimeData.OnEngineStatusChanged -= HandleStatusChanged;

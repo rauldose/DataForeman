@@ -294,7 +294,7 @@
 
 @code {
     [Parameter] public string? ChartId { get; set; }
-    
+
     private ChartConfig CurrentChart = new();
     private ChartSeriesConfig? SelectedSeries;
     private ChartAxisConfig? SelectedAxis;
@@ -302,7 +302,10 @@
     private bool ShowDeleteDialog;
     private string DeleteChartId = "";
     private System.Timers.Timer? _refreshTimer;
-    
+    private volatile bool _isDisposed;
+    private readonly object _timerLock = new();
+    private bool _chartNotFound;
+
     private List<string> AxisPositions = new() { "Left", "Right" };
     
     private List<ChartDisplay> ChartsList => ConfigService.Charts.Select(c => new ChartDisplay
@@ -334,27 +337,39 @@
 
     protected override void OnParametersSet()
     {
+        _chartNotFound = false;
+
         if (!string.IsNullOrEmpty(ChartId))
         {
-            var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == ChartId);
-            if (chart != null)
+            if (ChartId == "new")
             {
-                CurrentChart = chart;
-                // Ensure at least one Y-axis exists
-                if (!CurrentChart.YAxes.Any())
+                CurrentChart = new ChartConfig
                 {
-                    CurrentChart.YAxes.Add(new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" });
-                }
-            }
-            else if (ChartId == "new")
-            {
-                CurrentChart = new ChartConfig 
-                { 
                     Name = "New Chart",
                     YAxes = new List<ChartAxisConfig> { new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" } }
                 };
             }
-            
+            else
+            {
+                var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == ChartId);
+                if (chart != null)
+                {
+                    CurrentChart = chart;
+                    // Ensure at least one Y-axis exists
+                    if (!CurrentChart.YAxes.Any())
+                    {
+                        CurrentChart.YAxes.Add(new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" });
+                    }
+                }
+                else
+                {
+                    // Chart not found - redirect to list
+                    _chartNotFound = true;
+                    Navigation.NavigateTo("/charts");
+                    return;
+                }
+            }
+
             // Start refresh timer for realtime mode
             if (CurrentChart.Settings.Mode == TrendingMode.Realtime)
             {
@@ -369,24 +384,48 @@
 
     private void StartRefreshTimer()
     {
-        StopRefreshTimer();
-        _refreshTimer = new System.Timers.Timer(CurrentChart.Settings.RefreshIntervalMs);
-        _refreshTimer.Elapsed += (s, e) => InvokeAsync(StateHasChanged);
-        _refreshTimer.Start();
+        if (_isDisposed) return;
+
+        lock (_timerLock)
+        {
+            StopRefreshTimerCore();
+            _refreshTimer = new System.Timers.Timer(CurrentChart.Settings.RefreshIntervalMs);
+            _refreshTimer.Elapsed += OnTimerElapsed;
+            _refreshTimer.Start();
+        }
+    }
+
+    private void OnTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (_isDisposed) return;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private void StopRefreshTimer()
     {
-        _refreshTimer?.Stop();
-        _refreshTimer?.Dispose();
-        _refreshTimer = null;
+        lock (_timerLock)
+        {
+            StopRefreshTimerCore();
+        }
+    }
+
+    private void StopRefreshTimerCore()
+    {
+        if (_refreshTimer != null)
+        {
+            _refreshTimer.Elapsed -= OnTimerElapsed;
+            _refreshTimer.Stop();
+            _refreshTimer.Dispose();
+            _refreshTimer = null;
+        }
     }
 
     private void HandleDataChanged()
     {
+        if (_isDisposed) return;
         if (CurrentChart.Settings.Mode == TrendingMode.Realtime)
         {
-            InvokeAsync(StateHasChanged);
+            _ = InvokeAsync(StateHasChanged);
         }
     }
 
@@ -514,6 +553,7 @@
 
     public void Dispose()
     {
+        _isDisposed = true;
         RealtimeData.OnDataChanged -= HandleDataChanged;
         StopRefreshTimer();
     }

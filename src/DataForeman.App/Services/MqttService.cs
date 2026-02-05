@@ -16,7 +16,10 @@ public class MqttService : IAsyncDisposable
     private readonly ILogger<MqttService> _logger;
     private readonly IConfiguration _configuration;
     private IManagedMqttClient? _mqttClient;
-    private bool _isConnected;
+    private volatile bool _isConnected;
+    private volatile bool _isDisposing;
+    private bool _isInitialized;
+    private readonly object _initLock = new();
     private readonly JsonSerializerOptions _jsonOptions;
 
     public bool IsConnected => _isConnected;
@@ -42,6 +45,13 @@ public class MqttService : IAsyncDisposable
     /// </summary>
     public async Task ConnectAsync()
     {
+        // Prevent multiple initialization
+        lock (_initLock)
+        {
+            if (_isInitialized || _isDisposing) return;
+            _isInitialized = true;
+        }
+
         try
         {
             var mqttFactory = new MqttFactory();
@@ -61,41 +71,9 @@ public class MqttService : IAsyncDisposable
                     .Build())
                 .Build();
 
-            _mqttClient.ConnectedAsync += async e =>
-            {
-                _isConnected = true;
-                _logger.LogInformation("Connected to MQTT broker at {Host}:{Port}", brokerHost, brokerPort);
-                OnConnectionChanged?.Invoke(true);
-
-                // Subscribe to all topics
-                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllTagsWildcard).Build() });
-                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllConnectionStatusWildcard).Build() });
-                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.EngineStatus).Build() });
-
-                _logger.LogInformation("Subscribed to MQTT topics");
-            };
-
-            _mqttClient.DisconnectedAsync += async e =>
-            {
-                _isConnected = false;
-                if (e.Exception != null)
-                {
-                    _logger.LogWarning(e.Exception, "Disconnected from MQTT broker");
-                }
-                else
-                {
-                    _logger.LogInformation("Disconnected from MQTT broker");
-                }
-                OnConnectionChanged?.Invoke(false);
-                await Task.CompletedTask;
-            };
-
-            _mqttClient.ConnectingFailedAsync += async e =>
-            {
-                _logger.LogError(e.Exception, "Failed to connect to MQTT broker");
-                await Task.CompletedTask;
-            };
-
+            _mqttClient.ConnectedAsync += OnConnectedAsync;
+            _mqttClient.DisconnectedAsync += OnDisconnectedAsync;
+            _mqttClient.ConnectingFailedAsync += OnConnectingFailedAsync;
             _mqttClient.ApplicationMessageReceivedAsync += OnMessageReceived;
 
             await _mqttClient.StartAsync(options);
@@ -104,11 +82,78 @@ public class MqttService : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error starting MQTT client");
+            lock (_initLock)
+            {
+                _isInitialized = false;
+            }
+        }
+    }
+
+    private async Task OnConnectedAsync(MqttClientConnectedEventArgs e)
+    {
+        if (_isDisposing) return;
+
+        _isConnected = true;
+        _logger.LogInformation("Connected to MQTT broker");
+        SafeInvokeConnectionChanged(true);
+
+        try
+        {
+            // Subscribe to all topics
+            if (_mqttClient != null)
+            {
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllTagsWildcard).Build() });
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllConnectionStatusWildcard).Build() });
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.EngineStatus).Build() });
+                _logger.LogInformation("Subscribed to MQTT topics");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error subscribing to MQTT topics");
+        }
+    }
+
+    private Task OnDisconnectedAsync(MqttClientDisconnectedEventArgs e)
+    {
+        _isConnected = false;
+        if (e.Exception != null && !_isDisposing)
+        {
+            _logger.LogWarning(e.Exception, "Disconnected from MQTT broker");
+        }
+        else if (!_isDisposing)
+        {
+            _logger.LogInformation("Disconnected from MQTT broker");
+        }
+        SafeInvokeConnectionChanged(false);
+        return Task.CompletedTask;
+    }
+
+    private Task OnConnectingFailedAsync(ConnectingFailedEventArgs e)
+    {
+        if (!_isDisposing)
+        {
+            _logger.LogError(e.Exception, "Failed to connect to MQTT broker");
+        }
+        return Task.CompletedTask;
+    }
+
+    private void SafeInvokeConnectionChanged(bool connected)
+    {
+        try
+        {
+            OnConnectionChanged?.Invoke(connected);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in OnConnectionChanged handler");
         }
     }
 
     private Task OnMessageReceived(MqttApplicationMessageReceivedEventArgs e)
     {
+        if (_isDisposing) return Task.CompletedTask;
+
         try
         {
             var topic = e.ApplicationMessage.Topic;
@@ -124,7 +169,7 @@ public class MqttService : IAsyncDisposable
                     var message = JsonSerializer.Deserialize<BulkTagValueMessage>(payload, _jsonOptions);
                     if (message != null)
                     {
-                        OnBulkTagValuesReceived?.Invoke(message);
+                        SafeInvoke(() => OnBulkTagValuesReceived?.Invoke(message), "OnBulkTagValuesReceived");
                     }
                 }
                 else
@@ -132,7 +177,7 @@ public class MqttService : IAsyncDisposable
                     var message = JsonSerializer.Deserialize<TagValueMessage>(payload, _jsonOptions);
                     if (message != null)
                     {
-                        OnTagValueReceived?.Invoke(message);
+                        SafeInvoke(() => OnTagValueReceived?.Invoke(message), "OnTagValueReceived");
                     }
                 }
             }
@@ -141,7 +186,7 @@ public class MqttService : IAsyncDisposable
                 var message = JsonSerializer.Deserialize<ConnectionStatusMessage>(payload, _jsonOptions);
                 if (message != null)
                 {
-                    OnConnectionStatusReceived?.Invoke(message);
+                    SafeInvoke(() => OnConnectionStatusReceived?.Invoke(message), "OnConnectionStatusReceived");
                 }
             }
             else if (topic == MqttTopics.EngineStatus)
@@ -149,7 +194,7 @@ public class MqttService : IAsyncDisposable
                 var message = JsonSerializer.Deserialize<EngineStatusMessage>(payload, _jsonOptions);
                 if (message != null)
                 {
-                    OnEngineStatusReceived?.Invoke(message);
+                    SafeInvoke(() => OnEngineStatusReceived?.Invoke(message), "OnEngineStatusReceived");
                 }
             }
         }
@@ -159,6 +204,18 @@ public class MqttService : IAsyncDisposable
         }
 
         return Task.CompletedTask;
+    }
+
+    private void SafeInvoke(Action action, string handlerName)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in {HandlerName} handler", handlerName);
+        }
     }
 
     /// <summary>
@@ -193,9 +250,25 @@ public class MqttService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _isDisposing = true;
+
         if (_mqttClient != null)
         {
-            await _mqttClient.StopAsync();
+            // Unsubscribe from events before disposing
+            _mqttClient.ConnectedAsync -= OnConnectedAsync;
+            _mqttClient.DisconnectedAsync -= OnDisconnectedAsync;
+            _mqttClient.ConnectingFailedAsync -= OnConnectingFailedAsync;
+            _mqttClient.ApplicationMessageReceivedAsync -= OnMessageReceived;
+
+            try
+            {
+                await _mqttClient.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error stopping MQTT client");
+            }
+
             _mqttClient.Dispose();
             _logger.LogInformation("MQTT client disposed");
         }

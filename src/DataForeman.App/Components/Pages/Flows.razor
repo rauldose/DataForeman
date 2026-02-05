@@ -340,6 +340,7 @@
     private List<ConsoleLogMessage> ConsoleMessages = new();
     private ElementReference ConsoleBody;
     private System.Timers.Timer? _simulationTimer;
+    private volatile bool _isDisposed;
 
     private List<FlowDisplay> FlowsList => ConfigService.Flows.Select(f => new FlowDisplay
     {
@@ -353,7 +354,7 @@
     protected override async Task OnInitializedAsync()
     {
         await ConfigService.LoadAllAsync();
-        
+
         // Load flow definition if FlowId is set
         if (!string.IsNullOrEmpty(FlowId) && FlowId != "new")
         {
@@ -362,6 +363,12 @@
             {
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
+            }
+            else
+            {
+                // Flow not found - redirect to list
+                Navigation.NavigateTo("/flows");
+                return;
             }
         }
         else if (FlowId == "new")
@@ -381,6 +388,11 @@
                 CurrentFlow = flow;
                 LoadFlowDefinition(flow);
                 _connectorsAdded = false; // Reset to add connectors after render
+            }
+            else if (flow == null)
+            {
+                // Flow not found - redirect to list
+                Navigation.NavigateTo("/flows");
             }
         }
     }
@@ -1222,7 +1234,9 @@
     
     public void Dispose()
     {
+        _isDisposed = true;
         _simulationTimer?.Dispose();
+        _simulationTimer = null;
     }
 
     public class FlowDisplay

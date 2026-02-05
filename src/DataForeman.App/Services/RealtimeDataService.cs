@@ -13,7 +13,8 @@ public class RealtimeDataService : IDisposable
     private readonly ConcurrentDictionary<string, TagValueCache> _tagValues = new();
     private readonly ConcurrentDictionary<string, ConnectionStatusMessage> _connectionStatuses = new();
     private EngineStatusMessage? _engineStatus;
-    
+    private volatile bool _isDisposed;
+
     public event Action? OnDataChanged;
     public event Action<string>? OnTagValueChanged;
     public event Action<string>? OnConnectionStatusChanged;
@@ -124,6 +125,8 @@ public class RealtimeDataService : IDisposable
 
     private void HandleTagValue(TagValueMessage message)
     {
+        if (_isDisposed) return;
+
         try
         {
             var key = message.TagId;
@@ -140,8 +143,8 @@ public class RealtimeDataService : IDisposable
             cache.Timestamp = message.Timestamp;
             cache.AddToHistory(message.Timestamp, message.Value);
 
-            OnTagValueChanged?.Invoke(key);
-            OnDataChanged?.Invoke();
+            SafeInvoke(() => OnTagValueChanged?.Invoke(key), "OnTagValueChanged");
+            SafeInvoke(() => OnDataChanged?.Invoke(), "OnDataChanged");
         }
         catch (Exception ex)
         {
@@ -151,6 +154,8 @@ public class RealtimeDataService : IDisposable
 
     private void HandleBulkTagValues(BulkTagValueMessage message)
     {
+        if (_isDisposed) return;
+
         try
         {
             foreach (var tagValue in message.Tags)
@@ -170,7 +175,7 @@ public class RealtimeDataService : IDisposable
                 cache.AddToHistory(tagValue.Timestamp, tagValue.Value);
             }
 
-            OnDataChanged?.Invoke();
+            SafeInvoke(() => OnDataChanged?.Invoke(), "OnDataChanged");
         }
         catch (Exception ex)
         {
@@ -180,11 +185,13 @@ public class RealtimeDataService : IDisposable
 
     private void HandleConnectionStatus(ConnectionStatusMessage message)
     {
+        if (_isDisposed) return;
+
         try
         {
             _connectionStatuses[message.ConnectionId] = message;
-            OnConnectionStatusChanged?.Invoke(message.ConnectionId);
-            OnDataChanged?.Invoke();
+            SafeInvoke(() => OnConnectionStatusChanged?.Invoke(message.ConnectionId), "OnConnectionStatusChanged");
+            SafeInvoke(() => OnDataChanged?.Invoke(), "OnDataChanged");
         }
         catch (Exception ex)
         {
@@ -194,11 +201,13 @@ public class RealtimeDataService : IDisposable
 
     private void HandleEngineStatus(EngineStatusMessage message)
     {
+        if (_isDisposed) return;
+
         try
         {
             _engineStatus = message;
-            OnEngineStatusChanged?.Invoke();
-            OnDataChanged?.Invoke();
+            SafeInvoke(() => OnEngineStatusChanged?.Invoke(), "OnEngineStatusChanged");
+            SafeInvoke(() => OnDataChanged?.Invoke(), "OnDataChanged");
         }
         catch (Exception ex)
         {
@@ -206,8 +215,21 @@ public class RealtimeDataService : IDisposable
         }
     }
 
+    private void SafeInvoke(Action action, string handlerName)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in {HandlerName} event handler", handlerName);
+        }
+    }
+
     public void Dispose()
     {
+        _isDisposed = true;
         _mqttService.OnTagValueReceived -= HandleTagValue;
         _mqttService.OnBulkTagValuesReceived -= HandleBulkTagValues;
         _mqttService.OnConnectionStatusReceived -= HandleConnectionStatus;
