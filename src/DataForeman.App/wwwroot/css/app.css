@@ -875,7 +875,17 @@ html, body {
 /* Syncfusion Chart Overrides */
 .e-chart {
     background: transparent !important;
-    font-family: inherit !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Chart text elements - ensure consistent font */
+.e-chart text,
+.e-chart .e-chart-axis-title,
+.e-chart .e-axis-label,
+.e-chart .e-legend-text,
+.e-chart .e-chart-legend-text,
+.e-chart .e-chart-series-name {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 /* Syncfusion Component Font Override */
@@ -1024,15 +1034,46 @@ html, body {
 .e-dashboardlayout .e-panel .e-panel-header {
     background: var(--bg-tertiary) !important;
     border-bottom: 1px solid var(--border-subtle) !important;
-    padding: 0.5rem 0.75rem !important;
+    padding: 0 !important;
     min-height: 36px !important;
-    font-family: inherit !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+/* Dashboard panel header content - proper flex layout for title and buttons */
+.panel-header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.panel-header-content .panel-title {
+    flex: 1;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.panel-header-content .panel-actions {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+}
+
+.panel-header-content.selected {
+    background: rgba(59, 130, 246, 0.1);
 }
 
 .e-dashboardlayout .e-panel .e-panel-content {
     height: calc(100% - 36px) !important;
     overflow: hidden !important;
-    font-family: inherit !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
 }
 
 .dashboard-grid-container.fullscreen {
@@ -1183,27 +1224,33 @@ html, body {
     align-items: center;
     justify-content: center;
     height: 100%;
+    padding: 0.5rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .gauge-svg {
     width: 100%;
-    max-width: 150px;
+    max-width: 120px;
     height: auto;
+    flex-shrink: 0;
 }
 
 .gauge-value {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .gauge-labels {
     display: flex;
     justify-content: space-between;
     width: 100%;
-    max-width: 130px;
-    font-size: 0.7rem;
+    max-width: 100px;
+    font-size: 0.65rem;
     color: var(--text-muted);
+    margin-top: 0.25rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Output Console */
