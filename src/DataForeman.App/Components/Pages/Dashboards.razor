@@ -106,7 +106,7 @@
                                    CellAspectRatio="0.6"
                                    AllowDragging="@IsEditMode"
                                    AllowResizing="@IsEditMode">
-                    <DashboardLayoutEvents OnResizeStop="OnPanelResized" OnChange="OnLayoutChanged"></DashboardLayoutEvents>
+                    <DashboardLayoutEvents OnResizeStop="OnPanelResized" Changed="OnLayoutChanged"></DashboardLayoutEvents>
                     <DashboardLayoutPanels>
                         @foreach (var panel in CurrentDashboard.Panels)
                         {
