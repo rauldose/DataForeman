@@ -18,6 +18,8 @@ public class ConfigService
     private ChartsFile _charts = new();
     private FlowsFile _flows = new();
     private DashboardsFile _dashboards = new();
+    private StateMachinesFile _stateMachines = new();
+    private TrendsFile _trends = new();
     
     public event Action? OnConfigurationChanged;
 
@@ -43,6 +45,8 @@ public class ConfigService
     public IReadOnlyList<ChartConfig> Charts => _charts.Charts.AsReadOnly();
     public IReadOnlyList<FlowConfig> Flows => _flows.Flows.AsReadOnly();
     public IReadOnlyList<DashboardConfig> Dashboards => _dashboards.Dashboards.AsReadOnly();
+    public IReadOnlyList<StateMachineConfig> StateMachines => _stateMachines.StateMachines.AsReadOnly();
+    public IReadOnlyList<TrendConfig> Trends => _trends.Trends.AsReadOnly();
 
     /// <summary>
     /// Loads all configuration files.
@@ -55,6 +59,8 @@ public class ConfigService
         await LoadDashboardsAsync();
         await LoadSubflowsAsync();
         await LoadFlowTemplatesAsync();
+        await LoadStateMachinesAsync();
+        await LoadTrendsAsync();
         _logger.LogInformation("All configuration files loaded from {Directory}", _configDirectory);
     }
 
@@ -937,4 +943,174 @@ public class ConfigService
             }
         };
     }
+
+    #endregion
+
+    #region State Machine Operations
+
+    /// <summary>
+    /// Loads state machines configuration.
+    /// </summary>
+    public async Task LoadStateMachinesAsync()
+    {
+        var filePath = GetConfigFilePath("state-machines.json");
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = await File.ReadAllTextAsync(filePath);
+                _stateMachines = JsonSerializer.Deserialize<StateMachinesFile>(json, _jsonOptions) ?? new StateMachinesFile();
+                _logger.LogInformation("Loaded {Count} state machines from {FilePath}", _stateMachines.StateMachines.Count, filePath);
+            }
+            else
+            {
+                _stateMachines = new StateMachinesFile();
+                await SaveStateMachinesAsync();
+                _logger.LogInformation("Created empty state machines configuration");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading state machines from {FilePath}", filePath);
+            _stateMachines = new StateMachinesFile();
+        }
+    }
+
+    /// <summary>
+    /// Saves state machines configuration.
+    /// </summary>
+    public async Task SaveStateMachinesAsync()
+    {
+        var filePath = GetConfigFilePath("state-machines.json");
+        try
+        {
+            var json = JsonSerializer.Serialize(_stateMachines, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json);
+            _logger.LogDebug("Saved state machines to {FilePath}", filePath);
+            OnConfigurationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving state machines to {FilePath}", filePath);
+        }
+    }
+
+    public StateMachineConfig? GetStateMachine(string id) 
+        => _stateMachines.StateMachines.FirstOrDefault(sm => sm.Id == id);
+
+    public async Task<StateMachineConfig> AddStateMachineAsync(StateMachineConfig stateMachine)
+    {
+        stateMachine.CreatedAt = DateTime.UtcNow;
+        stateMachine.UpdatedAt = DateTime.UtcNow;
+        _stateMachines.StateMachines.Add(stateMachine);
+        await SaveStateMachinesAsync();
+        return stateMachine;
+    }
+
+    public async Task<bool> UpdateStateMachineAsync(StateMachineConfig stateMachine)
+    {
+        var existing = _stateMachines.StateMachines.FindIndex(sm => sm.Id == stateMachine.Id);
+        if (existing == -1) return false;
+        
+        stateMachine.UpdatedAt = DateTime.UtcNow;
+        _stateMachines.StateMachines[existing] = stateMachine;
+        await SaveStateMachinesAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteStateMachineAsync(string id)
+    {
+        var removed = _stateMachines.StateMachines.RemoveAll(sm => sm.Id == id) > 0;
+        if (removed)
+        {
+            await SaveStateMachinesAsync();
+        }
+        return removed;
+    }
+
+    #endregion
+
+    #region Trend Operations
+
+    /// <summary>
+    /// Loads trends configuration.
+    /// </summary>
+    public async Task LoadTrendsAsync()
+    {
+        var filePath = GetConfigFilePath("trends.json");
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = await File.ReadAllTextAsync(filePath);
+                _trends = JsonSerializer.Deserialize<TrendsFile>(json, _jsonOptions) ?? new TrendsFile();
+                _logger.LogInformation("Loaded {Count} trends from {FilePath}", _trends.Trends.Count, filePath);
+            }
+            else
+            {
+                _trends = new TrendsFile();
+                await SaveTrendsAsync();
+                _logger.LogInformation("Created empty trends configuration");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading trends from {FilePath}", filePath);
+            _trends = new TrendsFile();
+        }
+    }
+
+    /// <summary>
+    /// Saves trends configuration.
+    /// </summary>
+    public async Task SaveTrendsAsync()
+    {
+        var filePath = GetConfigFilePath("trends.json");
+        try
+        {
+            var json = JsonSerializer.Serialize(_trends, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json);
+            _logger.LogDebug("Saved trends to {FilePath}", filePath);
+            OnConfigurationChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving trends to {FilePath}", filePath);
+        }
+    }
+
+    public TrendConfig? GetTrend(string id) 
+        => _trends.Trends.FirstOrDefault(t => t.Id == id);
+
+    public async Task<TrendConfig> AddTrendAsync(TrendConfig trend)
+    {
+        trend.CreatedAt = DateTime.UtcNow;
+        trend.UpdatedAt = DateTime.UtcNow;
+        _trends.Trends.Add(trend);
+        await SaveTrendsAsync();
+        return trend;
+    }
+
+    public async Task<bool> UpdateTrendAsync(TrendConfig trend)
+    {
+        var existing = _trends.Trends.FindIndex(t => t.Id == trend.Id);
+        if (existing == -1) return false;
+        
+        trend.UpdatedAt = DateTime.UtcNow;
+        _trends.Trends[existing] = trend;
+        await SaveTrendsAsync();
+        return true;
+    }
+
+    public async Task<bool> DeleteTrendAsync(string id)
+    {
+        var removed = _trends.Trends.RemoveAll(t => t.Id == id) > 0;
+        if (removed)
+        {
+            await SaveTrendsAsync();
+        }
+        return removed;
+    }
+
+    #endregion
 }

@@ -1,0 +1,296 @@
+@page "/state-machines"
+@page "/state-machines/{StateMachineId}"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>State Machines - DataForeman</PageTitle>
+
+<div class="page-container">
+    @if (string.IsNullOrEmpty(StateMachineId))
+    {
+        <div class="page-toolbar">
+            <h2><i class="fa-solid fa-diagram-project"></i> State Machines</h2>
+            <div class="toolbar-actions">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewStateMachine">New State Machine</SfButton>
+            </div>
+        </div>
+        
+        @if (!ConfigService.StateMachines.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>No state machines configured</span>
+                <SfButton CssClass="e-primary e-small" @onclick="CreateNewStateMachine">Create your first state machine</SfButton>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@StateMachinesList" AllowPaging="true">
+                <GridPageSettings PageSize="10"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn Field="@nameof(StateMachineDisplay.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(StateMachineDisplay.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(StateMachineDisplay.StateCount)" HeaderText="States" Width="80"></GridColumn>
+                    <GridColumn HeaderText="Status" Width="100">
+                        <Template>
+                            @{
+                                var item = (context as StateMachineDisplay);
+                                <span class="status-indicator @(item?.Enabled == true ? "enabled" : "disabled")">
+                                    <i class="fa-solid fa-circle"></i> @(item?.Enabled == true ? "Enabled" : "Disabled")
+                                </span>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn HeaderText="Actions" Width="120">
+                        <Template>
+                            @{
+                                var item = (context as StateMachineDisplay);
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditStateMachine(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteStateMachine(item!.Id)"></SfButton>
+                                </div>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        }
+    }
+    else
+    {
+        <div class="state-machine-editor" @key="@StateMachineId">
+            <div class="editor-toolbar">
+                <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentStateMachine.Name" Placeholder="State Machine Name" CssClass="state-machine-name-input"></SfTextBox>
+                <div class="toolbar-spacer"></div>
+                <SfButton CssClass="@(CurrentStateMachine.Enabled ? "e-warning" : "e-success")" 
+                          IconCss="@(CurrentStateMachine.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
+                          Content="@(CurrentStateMachine.Enabled ? "Disable" : "Enable")"
+                          @onclick="ToggleEnabled"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveStateMachine">Save</SfButton>
+            </div>
+            
+            <div class="editor-content">
+                <div class="state-palette">
+                    <div class="palette-header">STATE PALETTE</div>
+                    <div class="palette-item" draggable="true">
+                        <i class="fa-solid fa-circle" style="color: #3b82f6;"></i>
+                        <span>State</span>
+                    </div>
+                    <div class="palette-item" draggable="true">
+                        <i class="fa-solid fa-play-circle" style="color: #22c55e;"></i>
+                        <span>Initial State</span>
+                    </div>
+                    <div class="palette-item" draggable="true">
+                        <i class="fa-solid fa-stop-circle" style="color: #ef4444;"></i>
+                        <span>Final State</span>
+                    </div>
+                </div>
+                
+                <div class="canvas-container">
+                    <div class="canvas-info">
+                        <strong>@CurrentStateMachine.Name</strong>
+                        @if (!string.IsNullOrEmpty(CurrentStateMachine.Description))
+                        {
+                            <span> - @CurrentStateMachine.Description</span>
+                        }
+                        <div class="canvas-stats">
+                            States: @CurrentStateMachine.States.Count | Transitions: @CurrentStateMachine.Transitions.Count
+                        </div>
+                    </div>
+                    <div class="canvas-placeholder">
+                        <i class="fa-solid fa-diagram-project"></i>
+                        <p>Drag states from the palette to build your state machine</p>
+                        <p class="canvas-hint">Connect states by drawing transitions between them</p>
+                    </div>
+                </div>
+                
+                <div class="properties-panel">
+                    <div class="panel-header">PROPERTIES</div>
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>Description</label>
+                            <SfTextBox @bind-Value="CurrentStateMachine.Description" Placeholder="State machine description" Multiline="true"></SfTextBox>
+                        </div>
+                        @if (CurrentStateMachine.States.Any())
+                        {
+                            <div class="form-group">
+                                <label>States (@CurrentStateMachine.States.Count)</label>
+                                <ul class="state-list">
+                                    @foreach (var state in CurrentStateMachine.States)
+                                    {
+                                        <li>
+                                            <i class="fa-solid fa-circle" style="color: @state.Color;"></i>
+                                            @state.Name
+                                            @if (state.IsInitial)
+                                            {
+                                                <span class="badge badge-success">Initial</span>
+                                            }
+                                            @if (state.IsFinal)
+                                            {
+                                                <span class="badge badge-danger">Final</span>
+                                            }
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>Confirm Delete</Header>
+        <Content>
+            <p>Are you sure you want to delete this state machine?</p>
+            <p><strong>@_deletingStateMachineName</strong></p>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="CancelDelete" />
+        <DialogButton Content="Delete" IsPrimary="true" CssClass="e-danger" OnClick="ConfirmDelete" />
+    </DialogButtons>
+</SfDialog>
+
+@code {
+    [Parameter]
+    public string? StateMachineId { get; set; }
+
+    private StateMachineConfig CurrentStateMachine { get; set; } = new();
+    private List<StateMachineDisplay> StateMachinesList { get; set; } = new();
+    private SfDialog? _deleteDialog;
+    private string? _deletingStateMachineId;
+    private string? _deletingStateMachineName;
+
+    protected override void OnInitialized()
+    {
+        LoadStateMachines();
+        if (!string.IsNullOrEmpty(StateMachineId))
+        {
+            LoadStateMachine(StateMachineId);
+        }
+    }
+
+    private void LoadStateMachines()
+    {
+        StateMachinesList = ConfigService.StateMachines
+            .Select(sm => new StateMachineDisplay
+            {
+                Id = sm.Id,
+                Name = sm.Name,
+                Description = sm.Description ?? "",
+                StateCount = sm.States.Count,
+                Enabled = sm.Enabled
+            })
+            .ToList();
+    }
+
+    private void LoadStateMachine(string id)
+    {
+        var stateMachine = ConfigService.GetStateMachine(id);
+        if (stateMachine != null)
+        {
+            CurrentStateMachine = stateMachine;
+        }
+        else
+        {
+            Navigation.NavigateTo("/state-machines");
+        }
+    }
+
+    private void CreateNewStateMachine()
+    {
+        var newId = Guid.NewGuid().ToString();
+        Navigation.NavigateTo($"/state-machines/{newId}");
+        CurrentStateMachine = new StateMachineConfig
+        {
+            Id = newId,
+            Name = "New State Machine",
+            Description = "State machine description"
+        };
+    }
+
+    private void EditStateMachine(string id)
+    {
+        Navigation.NavigateTo($"/state-machines/{id}");
+    }
+
+    private async Task ToggleEnabled()
+    {
+        CurrentStateMachine.Enabled = !CurrentStateMachine.Enabled;
+        await SaveStateMachine();
+    }
+
+    private async Task SaveStateMachine()
+    {
+        CurrentStateMachine.UpdatedAt = DateTime.UtcNow;
+        
+        var existing = ConfigService.GetStateMachine(CurrentStateMachine.Id);
+        if (existing != null)
+        {
+            await ConfigService.UpdateStateMachineAsync(CurrentStateMachine);
+        }
+        else
+        {
+            await ConfigService.AddStateMachineAsync(CurrentStateMachine);
+        }
+        
+        LoadStateMachines();
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/state-machines");
+    }
+
+    private void ConfirmDeleteStateMachine(string id)
+    {
+        var stateMachine = ConfigService.GetStateMachine(id);
+        if (stateMachine != null)
+        {
+            _deletingStateMachineId = id;
+            _deletingStateMachineName = stateMachine.Name;
+            _deleteDialog?.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deletingStateMachineId != null)
+        {
+            await ConfigService.DeleteStateMachineAsync(_deletingStateMachineId);
+            LoadStateMachines();
+            await _deleteDialog!.HideAsync();
+            _deletingStateMachineId = null;
+            _deletingStateMachineName = null;
+        }
+    }
+
+    private async Task CancelDelete()
+    {
+        await _deleteDialog!.HideAsync();
+        _deletingStateMachineId = null;
+        _deletingStateMachineName = null;
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private class StateMachineDisplay
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int StateCount { get; set; }
+        public bool Enabled { get; set; }
+    }
+}
