@@ -29,7 +29,7 @@ public sealed class ManualTriggerRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "trigger.manual",
+        Type = "trigger-manual",
         DisplayName = "Manual Trigger",
         Category = "Triggers",
         Description = "Manually triggers flow execution",
@@ -58,7 +58,7 @@ public sealed class TimerTriggerRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "trigger.timer",
+        Type = "trigger-schedule",
         DisplayName = "Timer",
         Category = "Triggers",
         Description = "Triggers flow execution on a schedule",
@@ -104,7 +104,7 @@ public sealed class TagInputRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "tag.input",
+        Type = "tag-input",
         DisplayName = "Tag Input",
         Category = "Tags",
         Description = "Reads a tag value",
@@ -179,7 +179,7 @@ public sealed class TagOutputRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "tag.output",
+        Type = "tag-output",
         DisplayName = "Tag Output",
         Category = "Tags",
         Description = "Writes a value to a tag",
@@ -262,7 +262,7 @@ public sealed class DebugRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "output.debug",
+        Type = "output-log",
         DisplayName = "Debug",
         Category = "Output",
         Description = "Outputs message to debug console",
@@ -340,7 +340,7 @@ public sealed class CompareRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "logic.compare",
+        Type = "logic-compare",
         DisplayName = "Compare",
         Category = "Logic",
         Description = "Compares a value against a threshold",
@@ -429,7 +429,7 @@ public sealed class MathAddRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "math.add",
+        Type = "math-add",
         DisplayName = "Add",
         Category = "Math",
         Description = "Adds a constant to the input value",
@@ -487,7 +487,7 @@ public sealed class MathMultiplyRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "math.multiply",
+        Type = "math-multiply",
         DisplayName = "Multiply",
         Category = "Math",
         Description = "Multiplies the input value by a constant",
@@ -545,7 +545,7 @@ public sealed class ScaleRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "math.scale",
+        Type = "math-scale",
         DisplayName = "Scale",
         Category = "Math",
         Description = "Linear scaling from input range to output range",
@@ -621,7 +621,7 @@ public sealed class SubflowInputRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "subflow.input",
+        Type = "subflow-input",
         DisplayName = "Subflow Input",
         Category = "Internal",
         Description = "Input port for subflow",
@@ -657,7 +657,7 @@ public sealed class SubflowOutputRuntime : NodeRuntimeBase
 {
     public static NodeDescriptor Descriptor => new()
     {
-        Type = "subflow.output",
+        Type = "subflow-output",
         DisplayName = "Subflow Output",
         Category = "Internal",
         Description = "Output port for subflow",
