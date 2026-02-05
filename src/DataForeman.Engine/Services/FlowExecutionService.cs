@@ -99,11 +99,11 @@ public class FlowExecutionService : IAsyncDisposable
     /// </summary>
     private void RegisterNodeTypes()
     {
-        // MQTT nodes
+        // MQTT nodes (matching UI naming)
         _nodeRegistry.Register(CreateMqttInDescriptor(), () => new MqttInNode());
         _nodeRegistry.Register(CreateMqttOutDescriptor(), () => new MqttOutNode());
         
-        // Built-in nodes
+        // Built-in nodes (using runtime descriptors with dot notation)
         _nodeRegistry.Register(ManualTriggerRuntime.Descriptor, () => new ManualTriggerRuntime());
         _nodeRegistry.Register(TimerTriggerRuntime.Descriptor, () => new TimerTriggerRuntime());
         _nodeRegistry.Register(DebugRuntime.Descriptor, () => new DebugRuntime());
@@ -116,7 +116,46 @@ public class FlowExecutionService : IAsyncDisposable
         _nodeRegistry.Register(SubflowInputRuntime.Descriptor, () => new SubflowInputRuntime());
         _nodeRegistry.Register(SubflowOutputRuntime.Descriptor, () => new SubflowOutputRuntime());
         
-        _logger.LogInformation("Registered {Count} node types", _nodeRegistry.GetAllDescriptors().Count);
+        // Also register with UI naming convention (dashes instead of dots)
+        // This ensures flows created in the UI work correctly
+        RegisterWithAlternateName("trigger-manual", ManualTriggerRuntime.Descriptor, () => new ManualTriggerRuntime());
+        RegisterWithAlternateName("trigger-schedule", TimerTriggerRuntime.Descriptor, () => new TimerTriggerRuntime());
+        RegisterWithAlternateName("output-log", DebugRuntime.Descriptor, () => new DebugRuntime());
+        RegisterWithAlternateName("logic-compare", CompareRuntime.Descriptor, () => new CompareRuntime());
+        RegisterWithAlternateName("math-add", MathAddRuntime.Descriptor, () => new MathAddRuntime());
+        RegisterWithAlternateName("math-multiply", MathMultiplyRuntime.Descriptor, () => new MathMultiplyRuntime());
+        RegisterWithAlternateName("math-scale", ScaleRuntime.Descriptor, () => new ScaleRuntime());
+        RegisterWithAlternateName("tag-input", TagInputRuntime.Descriptor, () => new TagInputRuntime());
+        RegisterWithAlternateName("tag-output", TagOutputRuntime.Descriptor, () => new TagOutputRuntime());
+        RegisterWithAlternateName("subflow-input", SubflowInputRuntime.Descriptor, () => new SubflowInputRuntime());
+        RegisterWithAlternateName("subflow-output", SubflowOutputRuntime.Descriptor, () => new SubflowOutputRuntime());
+        
+        _logger.LogInformation("Registered {Count} node type mappings (13 base types + 11 UI aliases)", 
+            _nodeRegistry.GetAllDescriptors().Count);
+    }
+
+    /// <summary>
+    /// Registers a node type with an alternate name (for UI compatibility).
+    /// Creates a copy of the descriptor with a different type name.
+    /// Note: If NodeDescriptor gains new properties, update this method accordingly.
+    /// </summary>
+    private void RegisterWithAlternateName(string alternateName, NodeDescriptor baseDescriptor, Func<INodeRuntime> runtimeFactory)
+    {
+        var altDescriptor = new NodeDescriptor
+        {
+            Type = alternateName,
+            DisplayName = baseDescriptor.DisplayName,
+            Category = baseDescriptor.Category,
+            Description = baseDescriptor.Description,
+            Icon = baseDescriptor.Icon,
+            Color = baseDescriptor.Color,
+            InputPorts = baseDescriptor.InputPorts,
+            OutputPorts = baseDescriptor.OutputPorts,
+            ConfigSchema = baseDescriptor.ConfigSchema,
+            IsFlowNode = baseDescriptor.IsFlowNode,
+            IsTrigger = baseDescriptor.IsTrigger
+        };
+        _nodeRegistry.Register(altDescriptor, runtimeFactory);
     }
 
     /// <summary>
