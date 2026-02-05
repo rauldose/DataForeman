@@ -71,6 +71,10 @@
                 @if (!string.IsNullOrEmpty(_editingSubflowId))
                 {
                     <span class="editing-subflow-badge"><i class="fa-solid fa-object-group"></i> Editing Subflow</span>
+                    <span class="toolbar-separator"></span>
+                    <SfButton CssClass="e-info e-outline" IconCss="fa-solid fa-right-to-bracket" Content="+ Input" @onclick="AddSubflowInput" title="Add Subflow Input"></SfButton>
+                    <SfButton CssClass="e-info e-outline" IconCss="fa-solid fa-right-from-bracket" Content="+ Output" @onclick="AddSubflowOutput" title="Add Subflow Output"></SfButton>
+                    <span class="toolbar-separator"></span>
                     <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveSubflow">Save Subflow</SfButton>
                     <SfButton CssClass="e-flat" @onclick="CancelSubflowEdit">Cancel</SfButton>
                 }
@@ -1112,6 +1116,94 @@
         _nodeTypes.Clear();
         ConsoleMessages.Clear();
         Navigation.NavigateTo("/flows");
+    }
+    
+    private async Task AddSubflowInput()
+    {
+        var plugin = NodeRegistry.Get("subflow-input");
+        if (plugin == null) return;
+        
+        // Position on the left side of the canvas
+        var existingInputs = Nodes.Count(n => GetNodeType(n.ID) == "subflow-input");
+        double offsetX = 100;
+        double offsetY = 150 + (existingInputs * 100);
+        
+        var nodeId = $"subflow-input-{Guid.NewGuid():N}";
+        var node = CreateSubflowIONode(nodeId, plugin.Name, plugin.Color, offsetX, offsetY, 0, 1, true);
+        
+        NodeProperties[nodeId] = new Dictionary<string, object> { ["name"] = $"Input {existingInputs + 1}" };
+        Nodes.Add(node);
+        AddConsoleMessage("INFO", "System", $"Added subflow input node: Input {existingInputs + 1}");
+        StateHasChanged();
+    }
+    
+    private async Task AddSubflowOutput()
+    {
+        var plugin = NodeRegistry.Get("subflow-output");
+        if (plugin == null) return;
+        
+        // Position on the right side of the canvas
+        var existingOutputs = Nodes.Count(n => GetNodeType(n.ID) == "subflow-output");
+        double offsetX = 700;
+        double offsetY = 150 + (existingOutputs * 100);
+        
+        var nodeId = $"subflow-output-{Guid.NewGuid():N}";
+        var node = CreateSubflowIONode(nodeId, plugin.Name, plugin.Color, offsetX, offsetY, 1, 0, false);
+        
+        NodeProperties[nodeId] = new Dictionary<string, object> { ["name"] = $"Output {existingOutputs + 1}" };
+        Nodes.Add(node);
+        AddConsoleMessage("INFO", "System", $"Added subflow output node: Output {existingOutputs + 1}");
+        StateHasChanged();
+    }
+    
+    private Node CreateSubflowIONode(string id, string label, string color, double x, double y, int inputCount, int outputCount, bool isInput)
+    {
+        var node = new Node
+        {
+            ID = id, OffsetX = x, OffsetY = y, Width = 140, Height = 50,
+            Shape = new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 25 },
+            Style = new ShapeStyle { Fill = "#6b7280", StrokeColor = color, StrokeWidth = 3 },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(), Ports = new DiagramObjectCollection<PointPort>(),
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        node.Annotations.Add(new ShapeAnnotation 
+        { 
+            Content = label, 
+            Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true }, 
+            Offset = new DiagramPoint { X = 0.5, Y = 0.5 }, 
+            HorizontalAlignment = HorizontalAlignment.Center 
+        });
+        
+        // Input node has output port on right, Output node has input port on left
+        if (isInput)
+        {
+            node.Ports.Add(new PointPort 
+            { 
+                ID = "output-0", 
+                Offset = new DiagramPoint { X = 1, Y = 0.5 }, 
+                Visibility = PortVisibility.Visible, 
+                Shape = PortShapes.Circle, 
+                Width = 14, Height = 14, 
+                Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#ffffff", StrokeWidth = 2 }, 
+                Constraints = PortConstraints.Default | PortConstraints.Draw 
+            });
+        }
+        else
+        {
+            node.Ports.Add(new PointPort 
+            { 
+                ID = "input-0", 
+                Offset = new DiagramPoint { X = 0, Y = 0.5 }, 
+                Visibility = PortVisibility.Visible, 
+                Shape = PortShapes.Circle, 
+                Width = 14, Height = 14, 
+                Style = new ShapeStyle { Fill = "#3b82f6", StrokeColor = "#ffffff", StrokeWidth = 2 }, 
+                Constraints = PortConstraints.Default | PortConstraints.Draw 
+            });
+        }
+        
+        return node;
     }
     
     private void ShowTemplates() => ShowTemplateDialog = true;
