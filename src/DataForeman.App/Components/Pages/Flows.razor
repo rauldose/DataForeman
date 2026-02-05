@@ -1212,11 +1212,18 @@
         var offsetX = Nodes.Any() ? Nodes.Max(n => n.OffsetX) + 300 : 200;
         var offsetY = 150;
         
+        // Map from template node IDs to new generated IDs
+        var nodeIdMap = new Dictionary<string, string>();
+        
+        // Add nodes with new IDs
         foreach (var node in template.Nodes)
         {
             var plugin = NodeRegistry.Get(node.Type);
+            var newNodeId = $"{node.Type}-{Guid.NewGuid():N}";
+            nodeIdMap[node.Id] = newNodeId; // Map old ID to new ID
+            
             var diagramNode = CreateFlowNode(
-                $"{node.Type}-{Guid.NewGuid():N}",
+                newNodeId,
                 node.Label ?? plugin?.Name ?? node.Type,
                 plugin?.Color ?? "#9ca3af",
                 node.X + offsetX,
@@ -1225,6 +1232,7 @@
                 plugin?.OutputCount ?? 1
             );
             Nodes.Add(diagramNode);
+            _nodeTypes[newNodeId] = node.Type;
             
             if (node.Properties != null)
             {
@@ -1232,7 +1240,44 @@
             }
         }
         
-        AddConsoleMessage("INFO", "System", $"Applied template: {template.Name}");
+        // Add edges with mapped node IDs
+        if (template.Edges != null && template.Edges.Any())
+        {
+            var connectorsToAdd = new List<Connector>();
+            foreach (var edge in template.Edges)
+            {
+                // Map the source and target node IDs to the new IDs
+                if (nodeIdMap.TryGetValue(edge.SourceNodeId, out var newSourceId) &&
+                    nodeIdMap.TryGetValue(edge.TargetNodeId, out var newTargetId))
+                {
+                    var connector = CreateFlowConnector(
+                        $"edge-{Guid.NewGuid():N}",
+                        newSourceId,
+                        edge.SourcePortId,
+                        newTargetId,
+                        edge.TargetPortId
+                    );
+                    connectorsToAdd.Add(connector);
+                }
+            }
+            
+            // Add connectors to the diagram
+            if (connectorsToAdd.Any() && Diagram != null)
+            {
+                try
+                {
+                    await Task.Delay(100); // Wait for nodes to be rendered
+                    await Diagram.AddDiagramElementsAsync(new DiagramObjectCollection<NodeBase>(connectorsToAdd.Cast<NodeBase>()));
+                    AddConsoleMessage("INFO", "System", $"Added {connectorsToAdd.Count} connectors from template");
+                }
+                catch (Exception ex)
+                {
+                    AddConsoleMessage("ERROR", "System", $"Failed to add connectors: {ex.Message}");
+                }
+            }
+        }
+        
+        AddConsoleMessage("INFO", "System", $"Applied template: {template.Name} ({template.Nodes.Count} nodes)");
         ShowTemplateDialog = false;
         StateHasChanged();
     }
