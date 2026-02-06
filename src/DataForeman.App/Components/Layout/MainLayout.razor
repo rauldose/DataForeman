@@ -16,6 +16,7 @@
         <SfButton CssClass="@NavBtnClass("/flows")" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
         <SfButton CssClass="@NavBtnClass("/state-machines")" @onclick='() => NavigateTo("/state-machines")'>State Machines</SfButton>
         <SfButton CssClass="@NavBtnClass("/trends")" @onclick='() => NavigateTo("/trends")'>Trends</SfButton>
+        <SfButton CssClass="@NavBtnClass("/diagnostic")" @onclick='() => NavigateTo("/diagnostic")'>Diagnostic</SfButton>
         <AppBarSpacer></AppBarSpacer>
         <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
             <span class="status-dot">●</span>

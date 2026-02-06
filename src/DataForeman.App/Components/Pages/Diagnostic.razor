@@ -1,0 +1,391 @@
+@page "/diagnostic"
+@rendermode InteractiveServer
+@inject RealtimeDataService RealtimeData
+@inject ConfigService ConfigService
+@implements IDisposable
+
+<PageTitle>Diagnostic - DataForeman</PageTitle>
+
+<div class="page-container">
+    <SfTab CssClass="df-tabs" @bind-SelectedItem="@_selectedTab">
+        <TabItems>
+            <!-- ── Overview Tab ─────────────────────────────────── -->
+            <TabItem>
+                <ChildContent><TabHeader Text="Overview"></TabHeader></ChildContent>
+                <ContentTemplate>
+                    <div class="diag-panel">
+                        <!-- Service health table -->
+                        <h3 class="diag-section-title">Service Health</h3>
+                        <SfGrid DataSource="@_healthRows" AllowPaging="false" CssClass="diag-grid">
+                            <GridColumns>
+                                <GridColumn Field="Label" HeaderText="Service" Width="180"></GridColumn>
+                                <GridColumn HeaderText="Status" Width="100">
+                                    <Template>
+                                        @{
+                                            var row = context as HealthRow;
+                                            <span class="diag-badge @(row!.Ok ? "badge-ok" : "badge-down")">@row.StatusText</span>
+                                        }
+                                    </Template>
+                                </GridColumn>
+                                <GridColumn Field="Description" HeaderText="Description"></GridColumn>
+                            </GridColumns>
+                        </SfGrid>
+
+                        <!-- Connection statuses -->
+                        <h3 class="diag-section-title" style="margin-top:24px;">Connections</h3>
+                        @if (_connectionRows.Any())
+                        {
+                            <SfGrid DataSource="@_connectionRows" AllowPaging="false" CssClass="diag-grid">
+                                <GridColumns>
+                                    <GridColumn Field="Name" HeaderText="Connection" Width="200"></GridColumn>
+                                    <GridColumn HeaderText="State" Width="120">
+                                        <Template>
+                                            @{
+                                                var row = context as ConnectionRow;
+                                                var cls = row!.State switch
+                                                {
+                                                    "Connected" => "badge-ok",
+                                                    "Connecting" => "badge-warn",
+                                                    _ => "badge-down"
+                                                };
+                                                <span class="diag-badge @cls">@row.State</span>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="ActiveTags" HeaderText="Tags" Width="80"></GridColumn>
+                                    <GridColumn Field="Error" HeaderText="Error"></GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                        else
+                        {
+                            <div class="empty-state"><span class="e-icons e-circle-info"></span> No connections configured</div>
+                        }
+
+                        <!-- Flow deploy statuses -->
+                        <h3 class="diag-section-title" style="margin-top:24px;">Flow Deployments</h3>
+                        @if (_flowDeployRows.Any())
+                        {
+                            <SfGrid DataSource="@_flowDeployRows" AllowPaging="false" CssClass="diag-grid">
+                                <GridColumns>
+                                    <GridColumn Field="Name" HeaderText="Flow" Width="200"></GridColumn>
+                                    <GridColumn HeaderText="Status" Width="120">
+                                        <Template>
+                                            @{
+                                                var row = context as FlowDeployRow;
+                                                var cls = row!.Compiled ? "badge-ok" : "badge-down";
+                                                <span class="diag-badge @cls">@(row.Compiled ? "Compiled" : "Not Compiled")</span>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="Nodes" HeaderText="Nodes" Width="80"></GridColumn>
+                                    <GridColumn Field="CompiledAt" HeaderText="Compiled At" Width="160"></GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                        else
+                        {
+                            <div class="empty-state"><span class="e-icons e-circle-info"></span> No flow deployment status received</div>
+                        }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+
+            <!-- ── Capacity Tab ─────────────────────────────────── -->
+            <TabItem>
+                <ChildContent><TabHeader Text="Capacity"></TabHeader></ChildContent>
+                <ContentTemplate>
+                    <div class="diag-panel">
+                        <h3 class="diag-section-title">Engine Metrics</h3>
+                        @if (EngineStatus != null)
+                        {
+                            <div class="diag-metrics-grid">
+                                <div class="diag-metric">
+                                    <span class="diag-metric-value">@(EngineStatus.IsRunning ? "Running" : "Stopped")</span>
+                                    <span class="diag-metric-label">Engine Status</span>
+                                </div>
+                                <div class="diag-metric">
+                                    <span class="diag-metric-value">@EngineStatus.ActiveConnections</span>
+                                    <span class="diag-metric-label">Active Connections</span>
+                                </div>
+                                <div class="diag-metric">
+                                    <span class="diag-metric-value">@EngineStatus.ActiveTags</span>
+                                    <span class="diag-metric-label">Active Tags</span>
+                                </div>
+                                <div class="diag-metric">
+                                    <span class="diag-metric-value">@EngineStatus.TotalPolls.ToString("N0")</span>
+                                    <span class="diag-metric-label">Total Polls</span>
+                                </div>
+                                <div class="diag-metric">
+                                    <span class="diag-metric-value">@EngineStatus.AveragePollTimeMs.ToString("F2") ms</span>
+                                    <span class="diag-metric-label">Avg Poll Time</span>
+                                </div>
+                                <div class="diag-metric">
+                                    <span class="diag-metric-value">@FormatUptime(EngineStatus.StartTime)</span>
+                                    <span class="diag-metric-label">Uptime</span>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="empty-state"><span class="e-icons e-circle-info"></span> Engine status not available</div>
+                        }
+
+                        <h3 class="diag-section-title" style="margin-top:24px;">Configuration Summary</h3>
+                        <div class="diag-metrics-grid">
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@ConfigService.Connections.Count</span>
+                                <span class="diag-metric-label">Connections</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@ConfigService.Connections.Sum(c => c.Tags.Count)</span>
+                                <span class="diag-metric-label">Configured Tags</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@ConfigService.Charts.Count</span>
+                                <span class="diag-metric-label">Charts</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@ConfigService.Flows.Count</span>
+                                <span class="diag-metric-label">Flows</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@ConfigService.StateMachines.Count</span>
+                                <span class="diag-metric-label">State Machines</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@ConfigService.Dashboards.Count</span>
+                                <span class="diag-metric-label">Dashboards</span>
+                            </div>
+                        </div>
+
+                        <h3 class="diag-section-title" style="margin-top:24px;">Live Data Cache</h3>
+                        <div class="diag-metrics-grid">
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@RealtimeData.GetAllTagValues().Count</span>
+                                <span class="diag-metric-label">Cached Tag Values</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@RealtimeData.GetAllConnectionStatuses().Count</span>
+                                <span class="diag-metric-label">Connection Statuses</span>
+                            </div>
+                            <div class="diag-metric">
+                                <span class="diag-metric-value">@RealtimeData.GetAllMachineStates().Count</span>
+                                <span class="diag-metric-label">Machine States</span>
+                            </div>
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+
+            <!-- ── Jobs Tab ─────────────────────────────────────── -->
+            <TabItem>
+                <ChildContent><TabHeader Text="Jobs"></TabHeader></ChildContent>
+                <ContentTemplate>
+                    <div class="diag-panel">
+                        <!-- State machines -->
+                        <h3 class="diag-section-title">State Machines</h3>
+                        @if (_machineRows.Any())
+                        {
+                            <SfGrid DataSource="@_machineRows" AllowPaging="false" CssClass="diag-grid">
+                                <GridColumns>
+                                    <GridColumn Field="Name" HeaderText="State Machine" Width="200"></GridColumn>
+                                    <GridColumn HeaderText="Current State" Width="160">
+                                        <Template>
+                                            @{
+                                                var row = context as MachineRow;
+                                                <span class="diag-badge badge-ok">@row!.CurrentState</span>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="Transitions" HeaderText="Transitions" Width="100"></GridColumn>
+                                    <GridColumn Field="LastTransition" HeaderText="Last Transition" Width="180"></GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                        else
+                        {
+                            <div class="empty-state"><span class="e-icons e-circle-info"></span> No state machine activity</div>
+                        }
+
+                        <!-- Flow run history -->
+                        <h3 class="diag-section-title" style="margin-top:24px;">Recent Flow Runs</h3>
+                        @if (_flowRunRows.Any())
+                        {
+                            <SfGrid DataSource="@_flowRunRows" AllowPaging="true" CssClass="diag-grid">
+                                <GridPageSettings PageSize="10"></GridPageSettings>
+                                <GridColumns>
+                                    <GridColumn Field="FlowName" HeaderText="Flow" Width="180"></GridColumn>
+                                    <GridColumn HeaderText="Outcome" Width="100">
+                                        <Template>
+                                            @{
+                                                var row = context as FlowRunRow;
+                                                var cls = row!.Outcome == "Success" ? "badge-ok" : "badge-down";
+                                                <span class="diag-badge @cls">@row.Outcome</span>
+                                            }
+                                        </Template>
+                                    </GridColumn>
+                                    <GridColumn Field="Nodes" HeaderText="Nodes" Width="70"></GridColumn>
+                                    <GridColumn Field="Duration" HeaderText="Duration" Width="100"></GridColumn>
+                                    <GridColumn Field="StartedAt" HeaderText="Started" Width="160"></GridColumn>
+                                    <GridColumn Field="Error" HeaderText="Error"></GridColumn>
+                                </GridColumns>
+                            </SfGrid>
+                        }
+                        else
+                        {
+                            <div class="empty-state"><span class="e-icons e-circle-info"></span> No flow run history</div>
+                        }
+                    </div>
+                </ContentTemplate>
+            </TabItem>
+        </TabItems>
+    </SfTab>
+</div>
+
+@code {
+    private int _selectedTab;
+    private DataForeman.Shared.Mqtt.EngineStatusMessage? EngineStatus => RealtimeData.GetEngineStatus();
+
+    // ── Data rows ──────────────────────────────────────────────
+    private List<HealthRow> _healthRows = new();
+    private List<ConnectionRow> _connectionRows = new();
+    private List<FlowDeployRow> _flowDeployRows = new();
+    private List<MachineRow> _machineRows = new();
+    private List<FlowRunRow> _flowRunRows = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConfigService.LoadAllAsync();
+        RealtimeData.OnDataChanged += HandleDataChanged;
+        RealtimeData.OnFlowRunSummaryReceived += HandleFlowRunSummary;
+        RefreshData();
+    }
+
+    private void HandleDataChanged() => InvokeAsync(() => { RefreshData(); StateHasChanged(); });
+    private void HandleFlowRunSummary(DataForeman.Shared.Mqtt.FlowRunSummaryMessage _) =>
+        InvokeAsync(() => { RefreshData(); StateHasChanged(); });
+
+    private void RefreshData()
+    {
+        // Health rows
+        var status = EngineStatus;
+        _healthRows = new List<HealthRow>
+        {
+            new() { Label = "Engine", Ok = status?.IsRunning ?? false, StatusText = status?.IsRunning == true ? "OK" : "DOWN", Description = "DataForeman Engine process" },
+            new() { Label = "MQTT Broker", Ok = status != null, StatusText = status != null ? "OK" : "DOWN", Description = "MQTT messaging (Mosquitto)" },
+            new() { Label = "Poll Engine", Ok = status?.IsRunning ?? false, StatusText = status?.IsRunning == true ? "OK" : "STOPPED", Description = "Tag polling subsystem" },
+        };
+
+        // Connection rows
+        _connectionRows = ConfigService.Connections.Select(c =>
+        {
+            var cs = RealtimeData.GetConnectionStatus(c.Id);
+            return new ConnectionRow
+            {
+                Name = c.Name,
+                State = cs?.State.ToString() ?? "Unknown",
+                ActiveTags = cs?.ActiveTagCount ?? 0,
+                Error = cs?.ErrorMessage ?? ""
+            };
+        }).ToList();
+
+        // Flow deploy rows
+        _flowDeployRows = ConfigService.Flows.Select(f =>
+        {
+            var ds = RealtimeData.GetFlowDeployStatus(f.Id);
+            return new FlowDeployRow
+            {
+                Name = f.Name,
+                Compiled = ds?.IsCompiled ?? false,
+                Nodes = ds?.NodeCount ?? f.Nodes.Count,
+                CompiledAt = ds?.CompiledAtUtc.ToLocalTime().ToString("g") ?? "—"
+            };
+        }).ToList();
+
+        // Machine rows
+        _machineRows = ConfigService.StateMachines.Select(sm =>
+        {
+            var info = RealtimeData.GetMachineState(sm.Id);
+            return new MachineRow
+            {
+                Name = sm.Name,
+                CurrentState = info?.NowStateId ?? "—",
+                Transitions = info?.Audit?.Count ?? 0,
+                LastTransition = info?.Audit?.LastOrDefault()?.When.ToLocalTime().ToString("HH:mm:ss") ?? "—"
+            };
+        }).ToList();
+
+        // Flow run history (all flows combined, sorted by time)
+        _flowRunRows = ConfigService.Flows
+            .SelectMany(f => RealtimeData.GetFlowRunHistory(f.Id))
+            .OrderByDescending(r => r.StartedUtc)
+            .Take(50)
+            .Select(r => new FlowRunRow
+            {
+                FlowName = r.FlowName,
+                Outcome = r.Outcome,
+                Nodes = r.NodesExecuted,
+                Duration = $"{r.DurationMs:F1} ms",
+                StartedAt = r.StartedUtc.ToLocalTime().ToString("HH:mm:ss"),
+                Error = r.ErrorDetail ?? ""
+            }).ToList();
+    }
+
+    private static string FormatUptime(DateTime startTime)
+    {
+        var span = DateTime.UtcNow - startTime;
+        if (span.TotalDays >= 1) return $"{(int)span.TotalDays}d {span.Hours}h {span.Minutes}m";
+        if (span.TotalHours >= 1) return $"{span.Hours}h {span.Minutes}m";
+        return $"{span.Minutes}m {span.Seconds}s";
+    }
+
+    public void Dispose()
+    {
+        RealtimeData.OnDataChanged -= HandleDataChanged;
+        RealtimeData.OnFlowRunSummaryReceived -= HandleFlowRunSummary;
+    }
+
+    // ── Row models ─────────────────────────────────────────────
+    private class HealthRow
+    {
+        public string Label { get; set; } = "";
+        public bool Ok { get; set; }
+        public string StatusText { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+
+    private class ConnectionRow
+    {
+        public string Name { get; set; } = "";
+        public string State { get; set; } = "";
+        public int ActiveTags { get; set; }
+        public string Error { get; set; } = "";
+    }
+
+    private class FlowDeployRow
+    {
+        public string Name { get; set; } = "";
+        public bool Compiled { get; set; }
+        public int Nodes { get; set; }
+        public string CompiledAt { get; set; } = "";
+    }
+
+    private class MachineRow
+    {
+        public string Name { get; set; } = "";
+        public string CurrentState { get; set; } = "";
+        public int Transitions { get; set; }
+        public string LastTransition { get; set; } = "";
+    }
+
+    private class FlowRunRow
+    {
+        public string FlowName { get; set; } = "";
+        public string Outcome { get; set; } = "";
+        public int Nodes { get; set; }
+        public string Duration { get; set; } = "";
+        public string StartedAt { get; set; } = "";
+        public string Error { get; set; } = "";
+    }
+}
