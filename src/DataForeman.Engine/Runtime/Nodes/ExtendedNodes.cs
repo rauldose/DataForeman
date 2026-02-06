@@ -1825,7 +1825,7 @@ public sealed class RoundRuntime : NodeRuntimeBase
 /// </summary>
 public sealed class GateRuntime : NodeRuntimeBase
 {
-    private JsonElement? _previousValue;
+    private JsonElement? _lastPayload;
 
     public static NodeDescriptor Descriptor => new()
     {
@@ -1877,13 +1877,13 @@ public sealed class GateRuntime : NodeRuntimeBase
         var isOpen = NumericHelper.IsTruthy(_lastCondition);
         if (isOpen)
         {
-            _previousValue = _lastInput.Payload;
+            _lastPayload = _lastInput.Payload;
             context.Emitter.Emit("output", _lastInput);
         }
         else
         {
             var mode = cfg?.FalseOutputMode ?? "null";
-            if (mode == "previous" && _previousValue is JsonElement prev)
+            if (mode == "previous" && _lastPayload is JsonElement prev)
             {
                 context.Emitter.Emit("output", _lastInput with { Payload = prev });
             }
@@ -2506,7 +2506,8 @@ public sealed class ArrayOpsRuntime : NodeRuntimeBase
             else
             {
                 // Try parsing as JSON array
-                try { arr = JsonDocument.Parse(p.GetRawText()).RootElement; } catch { /* not an array */ }
+                try { arr = JsonDocument.Parse(p.GetRawText()).RootElement; }
+                catch { context.Logger.Info("Input is not a valid JSON array"); }
             }
         }
 
@@ -2526,7 +2527,7 @@ public sealed class ArrayOpsRuntime : NodeRuntimeBase
             "join" => string.Join(cfg?.Separator ?? ",", Enumerable.Range(0, len).Select(i => arr[i].ToString())),
             "slice" => SliceArray(arr, (int)(cfg?.Start ?? 0), (int)(cfg?.End ?? -1)),
             "includes" => Enumerable.Range(0, len).Any(i => arr[i].ToString() == (cfg?.SearchValue ?? "")),
-            "index-of" => Enumerable.Range(0, len).Cast<int?>().FirstOrDefault(i => arr[i!.Value].ToString() == (cfg?.SearchValue ?? "")) ?? -1,
+            "index-of" => IndexOf(arr, len, cfg?.SearchValue ?? ""),
             _ => len
         };
 
@@ -2554,6 +2555,13 @@ public sealed class ArrayOpsRuntime : NodeRuntimeBase
         start = Math.Clamp(start, 0, len);
         end = Math.Clamp(end, start, len);
         return Enumerable.Range(start, end - start).Select(i => arr[i].ToString()).ToArray();
+    }
+
+    private static int IndexOf(JsonElement arr, int len, string searchValue)
+    {
+        for (int i = 0; i < len; i++)
+            if (arr[i].ToString() == searchValue) return i;
+        return -1;
     }
 
     private sealed class ArrayOpsCfg
