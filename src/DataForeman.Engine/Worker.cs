@@ -60,6 +60,12 @@ public class Worker : BackgroundService
             _mqttPublisher.OnConnectionChanged += connected =>
                 _healthMonitor.SetMqttConnected(connected);
 
+            // Subscribe to config reload commands from the App
+            await _mqttPublisher.SubscribeAsync(
+                DataForeman.Shared.Mqtt.MqttTopics.ConfigReload, 
+                "__engine__", "__reload__", qos: 1);
+            _mqttPublisher.OnMessageReceived += HandleReloadCommand;
+
             // Start MQTT flow trigger service (handles mqtt-in node subscriptions)
             await _mqttFlowTriggerService.StartAsync();
 
@@ -114,8 +120,33 @@ public class Worker : BackgroundService
             _logger.LogInformation("DataForeman Engine shutting down at: {time}", DateTimeOffset.Now);
 
             _stateMachineService.StopScanTimer();
+            _mqttPublisher.OnMessageReceived -= HandleReloadCommand;
             _configWatcher.Stop();
             await _pollEngine.StopAsync();
+        }
+    }
+
+    /// <summary>
+    /// Handles config reload commands received from the App via MQTT.
+    /// </summary>
+    private async void HandleReloadCommand(string topic, string payload)
+    {
+        if (topic != DataForeman.Shared.Mqtt.MqttTopics.ConfigReload) return;
+
+        try
+        {
+            _logger.LogInformation("Received config reload command from App: {Payload}", payload);
+            
+            // Reload flows and recompile
+            await _configService.LoadFlowsAsync();
+            await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
+            _flowExecutionService.RefreshFlows();
+            
+            _logger.LogInformation("Config reload completed — flows recompiled and deployment statuses published");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling config reload command");
         }
     }
 }

@@ -224,7 +224,7 @@
             @if (_showLiveTimeline)
             {
                 <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                    <SignalTimeline />
+                    <SignalTimeline FilterTagIds="@_liveFilterTags" />
                 </div>
             }
             else
@@ -407,6 +407,7 @@
     private string? _deletingTrendName;
     private System.Threading.Timer? _refreshTimer;
     private bool _showLiveTimeline;
+    private HashSet<string>? _liveFilterTags;
 
     private List<TimeRangeOption> TimeRangeOptions { get; set; } = new()
     {
@@ -519,6 +520,14 @@
     private void ToggleLiveTimeline()
     {
         _showLiveTimeline = !_showLiveTimeline;
+        if (_showLiveTimeline)
+        {
+            // Build filter from current trend's series tag paths
+            _liveFilterTags = CurrentTrend.Series
+                .Where(s => !string.IsNullOrEmpty(s.TagPath))
+                .Select(s => s.TagPath)
+                .ToHashSet();
+        }
     }
 
     private void AddSeries()

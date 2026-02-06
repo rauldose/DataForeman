@@ -19,11 +19,10 @@
     <Routes @rendermode="InteractiveServer" />
     <!-- Syncfusion script BEFORE blazor.web.js as per Syncfusion docs -->
     <script src="_content/Syncfusion.Blazor.Core/scripts/syncfusion-blazor.min.js" type="text/javascript"></script>
-    <!-- BlazorMonaco Editor -->
-    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
-    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.nls.js"></script>
-    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/editor/editor.main.js"></script>
+    <!-- BlazorMonaco: jsInterop MUST load first (sets require.paths), then loader, then AMD require -->
     <script src="_content/BlazorMonaco/jsInterop.js"></script>
+    <script src="_content/BlazorMonaco/lib/monaco-editor/min/vs/loader.js"></script>
+    <script>require(['vs/editor/editor.main'], function () { });</script>
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>

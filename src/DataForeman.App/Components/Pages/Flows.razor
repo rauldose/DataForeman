@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject RealtimeDataService RealtimeData
+@inject MqttService MqttService
 @implements IDisposable
 
 <PageTitle>Flows - DataForeman</PageTitle>
@@ -120,6 +121,7 @@
                               @onclick="ToggleEnabled"></SfButton>
                     <span class="@GetDeployBadgeCss()" title="@GetDeployBadgeTooltip()"><i class="@GetDeployBadgeIcon()"></i> @GetDeployBadgeLabel()</span>
                     <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                    <SfButton CssClass="e-info" IconCss="fa-solid fa-rocket" @onclick="DeployFlow" title="Deploy flow to Engine">Deploy</SfButton>
                 }
             </div>
             
@@ -780,6 +782,16 @@
 
         if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
             await layout.ShowToastAsync("Flow saved", "e-toast-success", "Saved");
+    }
+
+    private async Task DeployFlow()
+    {
+        // Save first, then tell the Engine to reload
+        await SaveFlow();
+        await MqttService.PublishConfigReloadAsync("flows");
+        
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Deploy command sent to Engine", "e-toast-info", "Deploying");
     }
 
     private void ConfirmDeleteFlow(string id) { DeleteFlowId = id; ShowDeleteDialog = true; }
