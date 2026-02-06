@@ -114,6 +114,7 @@
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
+                    <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="Show live values on node ports"></SfButton>
                     <span class="toolbar-separator"></span>
                     <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
                               IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
@@ -408,6 +409,10 @@
     private ElementReference ConsoleBody;
     private System.Timers.Timer? _simulationTimer;
 
+    // Live value annotations on diagram nodes
+    private bool _showLiveValues = false;
+    private Dictionary<string, string> _liveNodeValues = new();
+
     private List<FlowDisplay> FlowsList => ConfigService.Flows.Select(f => new FlowDisplay
     {
         Id = f.Id,
@@ -585,6 +590,19 @@
                 }
 
                 AddConsoleMessage(message.Level, nodeLabel, msgText);
+
+                // Update live value annotation on diagram node
+                if (_showLiveValues && node != null && message.OutputData?.Any() == true)
+                {
+                    var valueText = FormatLiveValue(message.OutputData);
+                    _liveNodeValues[message.NodeId] = valueText;
+                    UpdateNodeLiveAnnotation(node, valueText, message.Level == "ERROR");
+                }
+                else if (_showLiveValues && node != null && message.Level == "ERROR")
+                {
+                    _liveNodeValues[message.NodeId] = "ERR";
+                    UpdateNodeLiveAnnotation(node, "ERR", isError: true);
+                }
                 
                 if (!_disposed && _cts?.IsCancellationRequested != true)
                 {
@@ -1468,6 +1486,72 @@
         AddConsoleMessage("INFO", "System", $"Saved as template: {template.Name}");
     }
     
+    // --- Live Value Annotations ---
+
+    private void ToggleLiveValues()
+    {
+        _showLiveValues = !_showLiveValues;
+        if (!_showLiveValues)
+        {
+            ClearAllLiveAnnotations();
+        }
+    }
+
+    private static string FormatLiveValue(Dictionary<string, object> data)
+    {
+        if (data.Count == 1)
+        {
+            var val = data.Values.First();
+            return FormatSingleValue(val);
+        }
+        // Multiple values: show first 2 as key=val pairs
+        var parts = data.Take(2).Select(kv => $"{kv.Key}={FormatSingleValue(kv.Value)}");
+        var result = string.Join(" ", parts);
+        if (data.Count > 2) result += " …";
+        return result;
+    }
+
+    private static string FormatSingleValue(object val)
+    {
+        if (val is double d) return d.ToString(d == Math.Floor(d) ? "F0" : "F2");
+        var s = val?.ToString() ?? "";
+        return s.Length > 20 ? s[..17] + "…" : s;
+    }
+
+    private void UpdateNodeLiveAnnotation(Node node, string text, bool isError)
+    {
+        // The 3rd annotation (index 2) is the live value label
+        // Annotations[0] = node name, [1] = category
+        while (node.Annotations.Count < 3)
+        {
+            node.Annotations.Add(new ShapeAnnotation
+            {
+                Content = "",
+                Style = new TextStyle { Color = "#00e5ff", FontSize = 9 },
+                Offset = new DiagramPoint { X = 1.0, Y = -0.15 },
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom
+            });
+        }
+
+        var liveAnnotation = node.Annotations[2];
+        liveAnnotation.Content = text;
+        liveAnnotation.Style.Color = isError ? "#ef5350" : "#00e5ff";
+    }
+
+    private void ClearAllLiveAnnotations()
+    {
+        _liveNodeValues.Clear();
+        foreach (var node in Nodes)
+        {
+            if (node.Annotations.Count >= 3)
+            {
+                node.Annotations[2].Content = "";
+            }
+        }
+        StateHasChanged();
+    }
+
     public void Dispose()
     {
         // Set disposed flag first to stop any running execution

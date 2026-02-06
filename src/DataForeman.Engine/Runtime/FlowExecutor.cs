@@ -181,9 +181,56 @@ public sealed class FlowExecutor : IFlowExecutor
                     await node.Runtime.ExecuteAsync(context, cts.Token);
 
                     var nodeEndUtc = _timeProvider.UtcNow;
+
+                    // Capture first output payload for live value annotations
+                    Dictionary<string, object>? outputSnapshot = null;
+                    if (emitter.EmittedMessages.Count > 0)
+                    {
+                        try
+                        {
+                            var nullablePayload = emitter.EmittedMessages[0].Message.Payload;
+                            if (nullablePayload.HasValue)
+                            {
+                                var payload = nullablePayload.Value;
+                                if (payload.ValueKind == JsonValueKind.Object)
+                                {
+                                    outputSnapshot = new Dictionary<string, object>();
+                                    foreach (var prop in payload.EnumerateObject())
+                                    {
+                                        outputSnapshot[prop.Name] = prop.Value.ValueKind switch
+                                        {
+                                            JsonValueKind.Number => prop.Value.GetDouble(),
+                                            JsonValueKind.True => true,
+                                            JsonValueKind.False => false,
+                                            JsonValueKind.String => prop.Value.GetString() ?? "",
+                                            _ => prop.Value.ToString()
+                                        };
+                                    }
+                                }
+                                else if (payload.ValueKind != JsonValueKind.Undefined &&
+                                         payload.ValueKind != JsonValueKind.Null)
+                                {
+                                    outputSnapshot = new Dictionary<string, object>
+                                    {
+                                        ["value"] = payload.ToString()
+                                    };
+                                }
+                            }
+                        }
+                        catch (JsonException)
+                        {
+                            // Payload couldn't be deserialized — skip output capture
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Payload structure unexpected — skip output capture
+                        }
+                    }
+
                     var trace = new NodeExecutionResult
                     {
                         RunId = runId,
+                        FlowId = flow.Definition.Id,
                         NodeId = nodeId,
                         NodeType = node.Definition.Type,
                         MessageId = msg.MessageId,
@@ -192,7 +239,8 @@ public sealed class FlowExecutor : IFlowExecutor
                         EndUtc = nodeEndUtc,
                         Status = ExecutionStatus.Success,
                         MessagesEmitted = emitter.EmittedMessages.Count,
-                        ParentTraceId = options.ParentTraceId
+                        ParentTraceId = options.ParentTraceId,
+                        OutputValues = outputSnapshot
                     };
 
                     traces.Add(trace);
@@ -211,6 +259,7 @@ public sealed class FlowExecutor : IFlowExecutor
                     var trace = new NodeExecutionResult
                     {
                         RunId = runId,
+                        FlowId = flow.Definition.Id,
                         NodeId = nodeId,
                         NodeType = node.Definition.Type,
                         MessageId = msg.MessageId,

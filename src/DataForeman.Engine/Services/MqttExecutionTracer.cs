@@ -39,9 +39,12 @@ public class MqttExecutionTracer : IExecutionTracer
         {
             if (!_mqtt.IsConnected) return;
 
+            // Use the actual flow ID (not run ID) so the App can match messages to flows
+            var flowId = trace.FlowId ?? trace.RunId;
+
             var message = new FlowExecutionMessage
             {
-                FlowId = trace.RunId, // Use RunId as the flow execution identifier
+                FlowId = flowId,
                 NodeId = trace.NodeId,
                 NodeType = trace.NodeType,
                 Level = trace.Status == ExecutionStatus.Failed ? "ERROR" : "INFO",
@@ -49,11 +52,11 @@ public class MqttExecutionTracer : IExecutionTracer
                     ? $"Failed: {trace.Error}" 
                     : $"Executed in {trace.Duration.TotalMilliseconds:F1}ms, emitted {trace.MessagesEmitted} messages",
                 InputData = null,
-                OutputData = null,
+                OutputData = trace.OutputValues,
                 Timestamp = trace.EndUtc
             };
 
-            var topic = $"dataforeman/flows/{trace.RunId}/execution";
+            var topic = $"dataforeman/flows/{flowId}/execution";
             var payload = JsonSerializer.Serialize(message, _jsonOptions);
             
             // Publish in background but observe exceptions
