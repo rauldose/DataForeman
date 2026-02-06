@@ -525,7 +525,7 @@
             // Build filter from current trend's series tag paths
             _liveFilterTags = CurrentTrend.Series
                 .Where(s => !string.IsNullOrEmpty(s.TagPath))
-                .Select(s => s.TagPath)
+                .Select(s => s.TagPath!)
                 .ToHashSet();
         }
     }
