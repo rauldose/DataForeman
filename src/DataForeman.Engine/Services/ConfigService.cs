@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataForeman.Shared;
 using DataForeman.Shared.Models;
 
 namespace DataForeman.Engine.Services;
@@ -22,8 +23,7 @@ public class ConfigService
 
     public ConfigService(IConfiguration configuration, ILogger<ConfigService> logger)
     {
-        _configDirectory = configuration.GetValue<string>("ConfigDirectory") 
-            ?? Path.Combine(AppContext.BaseDirectory, "config");
+        _configDirectory = ConfigPathResolver.Resolve(configuration.GetValue<string>("ConfigDirectory"));
         _logger = logger;
         
         _jsonOptions = new JsonSerializerOptions

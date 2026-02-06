@@ -30,9 +30,4 @@
     <ProjectReference Include="..\DataForeman.Shared\DataForeman.Shared.csproj" />
   </ItemGroup>
 
-  <!-- Copy config files to output directory -->
-  <ItemGroup>
-    <Content Update="config\**\*" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>

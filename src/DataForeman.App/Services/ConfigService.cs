@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataForeman.Shared;
 using DataForeman.Shared.Models;
 
 namespace DataForeman.App.Services;
@@ -25,8 +26,7 @@ public class ConfigService
 
     public ConfigService(IConfiguration configuration, ILogger<ConfigService> logger)
     {
-        _configDirectory = configuration.GetValue<string>("ConfigDirectory") 
-            ?? Path.Combine(AppContext.BaseDirectory, "config");
+        _configDirectory = ConfigPathResolver.Resolve(configuration.GetValue<string>("ConfigDirectory"));
         _logger = logger;
         
         _jsonOptions = new JsonSerializerOptions
@@ -683,29 +683,7 @@ public class ConfigService
     }
 
     private string GetConfigFilePath(string fileName)
-    {
-        // Search multiple locations for config files
-        var searchPaths = new[]
-        {
-            _configDirectory,
-            Path.Combine(Directory.GetCurrentDirectory(), "config"),
-            Path.Combine(AppContext.BaseDirectory, "config"),
-            Path.Combine(Path.GetDirectoryName(typeof(ConfigService).Assembly.Location) ?? "", "config")
-        };
-        
-        foreach (var searchPath in searchPaths)
-        {
-            var fullPath = Path.Combine(searchPath, fileName);
-            if (File.Exists(fullPath))
-            {
-                _logger.LogDebug("Found config file {FileName} at {Path}", fileName, fullPath);
-                return fullPath;
-            }
-        }
-        
-        // If not found anywhere, return the default path (for creating new files)
-        return Path.Combine(_configDirectory, fileName);
-    }
+        => Path.Combine(_configDirectory, fileName);
 
     private ConnectionsFile CreateDefaultConnections()
     {
