@@ -1,0 +1,734 @@
+@page "/trends"
+@page "/trends/{TrendId}"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject HistoryService HistoryService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Trend Visualizer - DataForeman</PageTitle>
+
+<style>
+    .timeline-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #1a1a1a;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .timeline-viewer {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .timeline-header {
+        display: flex;
+        border-bottom: 1px solid #333;
+        background: #222;
+        padding: 8px 0;
+    }
+    
+    .timeline-label-column {
+        width: 200px;
+        flex-shrink: 0;
+    }
+    
+    .timeline-axis {
+        flex: 1;
+        position: relative;
+        height: 30px;
+    }
+    
+    .time-markers {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 100%;
+        position: relative;
+    }
+    
+    .time-marker {
+        position: absolute;
+        font-size: 11px;
+        color: #888;
+        transform: translateX(-50%);
+    }
+    
+    .timeline-traces {
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    .timeline-trace-row {
+        display: flex;
+        border-bottom: 1px solid #2a2a2a;
+        min-height: 60px;
+    }
+    
+    .timeline-trace-row:hover {
+        background: #252525;
+    }
+    
+    .trace-label {
+        width: 200px;
+        flex-shrink: 0;
+        padding: 8px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-right: 1px solid #333;
+    }
+    
+    .trace-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        flex-shrink: 0;
+    }
+    
+    .trace-name {
+        font-weight: 600;
+        color: #fff;
+        font-size: 13px;
+    }
+    
+    .trace-tag {
+        font-size: 11px;
+        color: #888;
+        margin-left: auto;
+    }
+    
+    .trace-canvas {
+        flex: 1;
+        padding: 4px;
+        position: relative;
+    }
+    
+    .trace-canvas svg {
+        display: block;
+    }
+    
+    .timeline-scrubber {
+        height: 40px;
+        border-top: 1px solid #333;
+        padding: 8px 12px;
+        background: #1e1e1e;
+        display: flex;
+        align-items: center;
+    }
+    
+    .scrubber-track {
+        flex: 1;
+        height: 8px;
+        background: #2a2a2a;
+        border-radius: 4px;
+        position: relative;
+        margin-left: 200px;
+    }
+    
+    .scrubber-range {
+        position: absolute;
+        height: 100%;
+        background: #3b82f6;
+        border-radius: 4px;
+        opacity: 0.3;
+    }
+    
+    .scrubber-handle {
+        position: absolute;
+        width: 12px;
+        height: 16px;
+        background: #3b82f6;
+        border-radius: 3px;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        cursor: ew-resize;
+        border: 1px solid #fff;
+    }
+    
+    .scrubber-handle:hover {
+        background: #60a5fa;
+    }
+</style>
+
+<div class="page-container">
+    @if (string.IsNullOrEmpty(TrendId))
+    {
+        <div class="page-toolbar">
+            <h2><i class="fa-solid fa-chart-line"></i> Trend Visualizer</h2>
+            <div class="toolbar-actions">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewTrend">New Trend</SfButton>
+            </div>
+        </div>
+        
+        @if (!ConfigService.Trends.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-chart-line"></i>
+                <span>No trends configured</span>
+                <SfButton CssClass="e-primary e-small" @onclick="CreateNewTrend">Create your first trend</SfButton>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@TrendsList" AllowPaging="true">
+                <GridPageSettings PageSize="10"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn Field="@nameof(TrendDisplay.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(TrendDisplay.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(TrendDisplay.SeriesCount)" HeaderText="Series" Width="80"></GridColumn>
+                    <GridColumn Field="@nameof(TrendDisplay.TimeRange)" HeaderText="Time Range" Width="150"></GridColumn>
+                    <GridColumn HeaderText="Actions" Width="120">
+                        <Template>
+                            @{
+                                var item = (context as TrendDisplay);
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-eye" @onclick="() => ViewTrend(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditTrend(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteTrend(item!.Id)"></SfButton>
+                                </div>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        }
+    }
+    else
+    {
+        <div class="trend-viewer" @key="@TrendId">
+            <div class="viewer-toolbar">
+                <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentTrend.Name" Placeholder="Trend Name" CssClass="trend-name-input"></SfTextBox>
+                <div class="toolbar-spacer"></div>
+                
+                <SfDropDownList TValue="TrendTimeRangeType" TItem="TimeRangeOption" 
+                                @bind-Value="CurrentTrend.TimeRange.Type"
+                                DataSource="@TimeRangeOptions"
+                                Placeholder="Time Range">
+                    <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                </SfDropDownList>
+                
+                <SfButton CssClass="e-flat" IconCss="fa-solid fa-rotate" Content="Refresh" @onclick="RefreshData"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveTrend">Save</SfButton>
+            </div>
+            
+            <div class="viewer-content">
+                <div class="timeline-container">
+                    @if (CurrentTrend.Series.Any())
+                    {
+                        <div class="timeline-viewer">
+                            <!-- Timeline header with time markers -->
+                            <div class="timeline-header">
+                                <div class="timeline-label-column"></div>
+                                <div class="timeline-axis">
+                                    <div class="time-markers">
+                                        @for (int i = 0; i <= 10; i++)
+                                        {
+                                            var percent = i * 10;
+                                            <div class="time-marker" style="left: @(percent)%">
+                                                <span>@GetTimeLabel(i)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Timeline traces for each series -->
+                            <div class="timeline-traces">
+                                @foreach (var series in CurrentTrend.Series.Where(s => s.Visible))
+                                {
+                                    <div class="timeline-trace-row">
+                                        <div class="trace-label">
+                                            <span class="trace-color" style="background-color: @series.Color"></span>
+                                            <span class="trace-name">@series.Name</span>
+                                            <span class="trace-tag">@series.TagPath</span>
+                                        </div>
+                                        <div class="trace-canvas">
+                                            <svg width="100%" height="50" preserveAspectRatio="none">
+                                                @{
+                                                    var dataPoints = GetSeriesData(series.Id);
+                                                    if (dataPoints.Any())
+                                                    {
+                                                        var pathData = GenerateTracePathData(dataPoints);
+                                                        <path d="@pathData" 
+                                                              fill="none" 
+                                                              stroke="@series.Color" 
+                                                              stroke-width="2" 
+                                                              vector-effect="non-scaling-stroke" />
+                                                        
+                                                        <!-- Optional: Fill area under trace -->
+                                                        @if (series.Type == TrendSeriesType.Area)
+                                                        {
+                                                            var fillPath = GenerateTraceFillPathData(dataPoints);
+                                                            <path d="@fillPath" 
+                                                                  fill="@series.Color" 
+                                                                  fill-opacity="0.2" 
+                                                                  stroke="none" />
+                                                        }
+                                                    }
+                                                }
+                                            </svg>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            
+                            <!-- Timeline scrubber at bottom -->
+                            <div class="timeline-scrubber">
+                                <div class="scrubber-track">
+                                    <div class="scrubber-range" style="left: 0%; width: 100%"></div>
+                                    <div class="scrubber-handle scrubber-handle-start" style="left: 0%"></div>
+                                    <div class="scrubber-handle scrubber-handle-end" style="left: 100%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="chart-placeholder">
+                            <i class="fa-solid fa-chart-line"></i>
+                            <p>No series configured</p>
+                            <p class="chart-hint">Add series in the configuration panel to visualize data</p>
+                        </div>
+                    }
+                </div>
+                
+                <div class="config-panel">
+                    <div class="panel-header">CONFIGURATION</div>
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label>Description</label>
+                            <SfTextBox @bind-Value="CurrentTrend.Description" Placeholder="Trend description" Multiline="true"></SfTextBox>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Series</label>
+                            <SfButton CssClass="e-small e-success" IconCss="fa-solid fa-plus" Content="Add Series" @onclick="AddSeries"></SfButton>
+                            
+                            @if (CurrentTrend.Series.Any())
+                            {
+                                <div class="series-list">
+                                    @foreach (var series in CurrentTrend.Series)
+                                    {
+                                        <div class="series-item">
+                                            <div class="series-header">
+                                                <input type="checkbox" checked="@series.Visible" @onchange="e => series.Visible = (bool)e.Value!" />
+                                                <input type="color" value="@series.Color" @onchange="e => series.Color = e.Value?.ToString() ?? series.Color" />
+                                                <SfTextBox @bind-Value="series.Name" Placeholder="Series name" CssClass="series-name"></SfTextBox>
+                                                <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => RemoveSeries(series.Id)"></SfButton>
+                                            </div>
+                                            <div class="series-config">
+                                                <SfTextBox @bind-Value="series.TagPath" Placeholder="Tag path" CssClass="tag-path"></SfTextBox>
+                                                <SfDropDownList TValue="TrendSeriesType" TItem="SeriesTypeOption" 
+                                                                @bind-Value="series.Type"
+                                                                DataSource="@SeriesTypeOptions"
+                                                                Placeholder="Type">
+                                                    <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                                                </SfDropDownList>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Display Options</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" @bind="CurrentTrend.DisplayOptions.ShowLegend" /> Show Legend</label>
+                                <label><input type="checkbox" @bind="CurrentTrend.DisplayOptions.ShowGrid" /> Show Grid</label>
+                                <label><input type="checkbox" @bind="CurrentTrend.DisplayOptions.EnableZoom" /> Enable Zoom</label>
+                                <label><input type="checkbox" @bind="CurrentTrend.DisplayOptions.EnablePan" /> Enable Pan</label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Refresh Interval (seconds)</label>
+                            <SfNumericTextBox @bind-Value="CurrentTrend.DisplayOptions.RefreshIntervalSeconds" Min="1" Max="3600"></SfNumericTextBox>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>Confirm Delete</Header>
+        <Content>
+            <p>Are you sure you want to delete this trend?</p>
+            <p><strong>@_deletingTrendName</strong></p>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="CancelDelete" />
+        <DialogButton Content="Delete" IsPrimary="true" CssClass="e-danger" OnClick="ConfirmDelete" />
+    </DialogButtons>
+</SfDialog>
+
+@code {
+    [Parameter]
+    public string? TrendId { get; set; }
+
+    private TrendConfig CurrentTrend { get; set; } = new();
+    private List<TrendDisplay> TrendsList { get; set; } = new();
+    private Dictionary<string, List<TrendDataPoint>> _seriesData = new();
+    private SfDialog? _deleteDialog;
+    private string? _deletingTrendId;
+    private string? _deletingTrendName;
+    private System.Threading.Timer? _refreshTimer;
+
+    private List<TimeRangeOption> TimeRangeOptions { get; set; } = new()
+    {
+        new() { Value = TrendTimeRangeType.Last15Minutes, Label = "Last 15 Minutes" },
+        new() { Value = TrendTimeRangeType.Last1Hour, Label = "Last 1 Hour" },
+        new() { Value = TrendTimeRangeType.Last4Hours, Label = "Last 4 Hours" },
+        new() { Value = TrendTimeRangeType.Last12Hours, Label = "Last 12 Hours" },
+        new() { Value = TrendTimeRangeType.Last24Hours, Label = "Last 24 Hours" },
+        new() { Value = TrendTimeRangeType.Last7Days, Label = "Last 7 Days" },
+        new() { Value = TrendTimeRangeType.Last30Days, Label = "Last 30 Days" },
+        new() { Value = TrendTimeRangeType.Custom, Label = "Custom" }
+    };
+
+    private List<SeriesTypeOption> SeriesTypeOptions { get; set; } = new()
+    {
+        new() { Value = TrendSeriesType.Line, Label = "Line" },
+        new() { Value = TrendSeriesType.Area, Label = "Area" },
+        new() { Value = TrendSeriesType.Column, Label = "Column" },
+        new() { Value = TrendSeriesType.Scatter, Label = "Scatter" }
+    };
+
+    protected override void OnInitialized()
+    {
+        LoadTrends();
+        if (!string.IsNullOrEmpty(TrendId))
+        {
+            LoadTrend(TrendId);
+            StartAutoRefresh();
+        }
+    }
+
+    private void LoadTrends()
+    {
+        TrendsList = ConfigService.Trends
+            .Select(t => new TrendDisplay
+            {
+                Id = t.Id,
+                Name = t.Name,
+                Description = t.Description ?? "",
+                SeriesCount = t.Series.Count,
+                TimeRange = GetTimeRangeLabel(t.TimeRange.Type)
+            })
+            .ToList();
+    }
+
+    private void LoadTrend(string id)
+    {
+        var trend = ConfigService.GetTrend(id);
+        if (trend != null)
+        {
+            CurrentTrend = trend;
+            _ = RefreshData();
+        }
+        else
+        {
+            Navigation.NavigateTo("/trends");
+        }
+    }
+
+    private void CreateNewTrend()
+    {
+        var newId = Guid.NewGuid().ToString();
+        Navigation.NavigateTo($"/trends/{newId}");
+        CurrentTrend = new TrendConfig
+        {
+            Id = newId,
+            Name = "New Trend",
+            Description = "Trend description"
+        };
+    }
+
+    private void ViewTrend(string id)
+    {
+        Navigation.NavigateTo($"/trends/{id}");
+    }
+
+    private void EditTrend(string id)
+    {
+        Navigation.NavigateTo($"/trends/{id}");
+    }
+
+    private async Task SaveTrend()
+    {
+        CurrentTrend.UpdatedAt = DateTime.UtcNow;
+        
+        var existing = ConfigService.GetTrend(CurrentTrend.Id);
+        if (existing != null)
+        {
+            await ConfigService.UpdateTrendAsync(CurrentTrend);
+        }
+        else
+        {
+            await ConfigService.AddTrendAsync(CurrentTrend);
+        }
+        
+        LoadTrends();
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        StopAutoRefresh();
+        Navigation.NavigateTo("/trends");
+    }
+
+    private void AddSeries()
+    {
+        CurrentTrend.Series.Add(new TrendSeries
+        {
+            Name = $"Series {CurrentTrend.Series.Count + 1}",
+            Color = GetRandomColor()
+        });
+        StateHasChanged();
+    }
+
+    private void RemoveSeries(string seriesId)
+    {
+        CurrentTrend.Series.RemoveAll(s => s.Id == seriesId);
+        _seriesData.Remove(seriesId);
+        StateHasChanged();
+    }
+
+    private async Task RefreshData()
+    {
+        // For now, generate sample data. In production, this would fetch from HistoryService
+        _seriesData.Clear();
+        foreach (var series in CurrentTrend.Series)
+        {
+            _seriesData[series.Id] = GenerateSampleData(50);
+        }
+        StateHasChanged();
+    }
+
+    private List<TrendDataPoint> GetSeriesData(string seriesId)
+    {
+        return _seriesData.TryGetValue(seriesId, out var data) ? data : new List<TrendDataPoint>();
+    }
+
+    private List<TrendDataPoint> GenerateSampleData(int points)
+    {
+        var data = new List<TrendDataPoint>();
+        var now = DateTime.UtcNow;
+        var random = new Random();
+        
+        for (int i = 0; i < points; i++)
+        {
+            data.Add(new TrendDataPoint
+            {
+                Timestamp = now.AddMinutes(-points + i),
+                Value = 20 + random.NextDouble() * 60
+            });
+        }
+        
+        return data;
+    }
+
+    private void StartAutoRefresh()
+    {
+        var interval = TimeSpan.FromSeconds(CurrentTrend.DisplayOptions.RefreshIntervalSeconds);
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshData();
+            });
+        }, null, interval, interval);
+    }
+
+    private void StopAutoRefresh()
+    {
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+    }
+
+    private void ConfirmDeleteTrend(string id)
+    {
+        var trend = ConfigService.GetTrend(id);
+        if (trend != null)
+        {
+            _deletingTrendId = id;
+            _deletingTrendName = trend.Name;
+            _deleteDialog?.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deletingTrendId != null)
+        {
+            await ConfigService.DeleteTrendAsync(_deletingTrendId);
+            LoadTrends();
+            await _deleteDialog!.HideAsync();
+            _deletingTrendId = null;
+            _deletingTrendName = null;
+        }
+    }
+
+    private async Task CancelDelete()
+    {
+        await _deleteDialog!.HideAsync();
+        _deletingTrendId = null;
+        _deletingTrendName = null;
+    }
+
+    private string GetTimeLabel(int markerIndex)
+    {
+        // Generate time labels based on time range
+        var now = DateTime.Now;
+        var duration = GetTimeRangeDuration();
+        var timeAtMarker = now.AddMinutes(-(duration.TotalMinutes * (10 - markerIndex) / 10));
+        return timeAtMarker.ToString("HH:mm");
+    }
+    
+    private TimeSpan GetTimeRangeDuration()
+    {
+        return CurrentTrend.TimeRange.Type switch
+        {
+            TrendTimeRangeType.Last15Minutes => TimeSpan.FromMinutes(15),
+            TrendTimeRangeType.Last1Hour => TimeSpan.FromHours(1),
+            TrendTimeRangeType.Last4Hours => TimeSpan.FromHours(4),
+            TrendTimeRangeType.Last12Hours => TimeSpan.FromHours(12),
+            TrendTimeRangeType.Last24Hours => TimeSpan.FromHours(24),
+            TrendTimeRangeType.Last7Days => TimeSpan.FromDays(7),
+            TrendTimeRangeType.Last30Days => TimeSpan.FromDays(30),
+            _ => TimeSpan.FromHours(1)
+        };
+    }
+    
+    private string GenerateTracePathData(List<TrendDataPoint> dataPoints)
+    {
+        if (!dataPoints.Any()) return "";
+        
+        var pathBuilder = new System.Text.StringBuilder();
+        var minValue = dataPoints.Min(p => p.Value);
+        var maxValue = dataPoints.Max(p => p.Value);
+        var valueRange = maxValue - minValue;
+        if (valueRange == 0) valueRange = 1; // Avoid division by zero
+        
+        var minTime = dataPoints.Min(p => p.Timestamp);
+        var maxTime = dataPoints.Max(p => p.Timestamp);
+        var timeRange = (maxTime - minTime).TotalSeconds;
+        if (timeRange == 0) timeRange = 1;
+        
+        for (int i = 0; i < dataPoints.Count; i++)
+        {
+            var point = dataPoints[i];
+            var xPercent = ((point.Timestamp - minTime).TotalSeconds / timeRange) * 100;
+            var yPercent = ((maxValue - point.Value) / valueRange) * 100; // Inverted Y axis
+            
+            if (i == 0)
+            {
+                pathBuilder.Append($"M {xPercent:F2} {yPercent:F2}");
+            }
+            else
+            {
+                pathBuilder.Append($" L {xPercent:F2} {yPercent:F2}");
+            }
+        }
+        
+        return pathBuilder.ToString();
+    }
+    
+    private string GenerateTraceFillPathData(List<TrendDataPoint> dataPoints)
+    {
+        if (!dataPoints.Any()) return "";
+        
+        var pathData = GenerateTracePathData(dataPoints);
+        
+        // Close the path to bottom for area fill
+        var lastPoint = dataPoints.Last();
+        var firstPoint = dataPoints.First();
+        var minTime = dataPoints.Min(p => p.Timestamp);
+        var maxTime = dataPoints.Max(p => p.Timestamp);
+        var timeRange = (maxTime - minTime).TotalSeconds;
+        if (timeRange == 0) timeRange = 1;
+        
+        var lastXPercent = ((lastPoint.Timestamp - minTime).TotalSeconds / timeRange) * 100;
+        var firstXPercent = ((firstPoint.Timestamp - minTime).TotalSeconds / timeRange) * 100;
+        
+        return $"{pathData} L {lastXPercent:F2} 100 L {firstXPercent:F2} 100 Z";
+    }
+
+    private string GetTimeRangeLabel(TrendTimeRangeType type) => type switch
+    {
+        TrendTimeRangeType.Last15Minutes => "Last 15 Minutes",
+        TrendTimeRangeType.Last1Hour => "Last 1 Hour",
+        TrendTimeRangeType.Last4Hours => "Last 4 Hours",
+        TrendTimeRangeType.Last12Hours => "Last 12 Hours",
+        TrendTimeRangeType.Last24Hours => "Last 24 Hours",
+        TrendTimeRangeType.Last7Days => "Last 7 Days",
+        TrendTimeRangeType.Last30Days => "Last 30 Days",
+        TrendTimeRangeType.Custom => "Custom",
+        _ => "Unknown"
+    };
+
+    private Syncfusion.Blazor.Charts.ChartSeriesType GetChartSeriesType(TrendSeriesType type) => type switch
+    {
+        TrendSeriesType.Line => Syncfusion.Blazor.Charts.ChartSeriesType.Line,
+        TrendSeriesType.Area => Syncfusion.Blazor.Charts.ChartSeriesType.Area,
+        TrendSeriesType.Column => Syncfusion.Blazor.Charts.ChartSeriesType.Column,
+        TrendSeriesType.Scatter => Syncfusion.Blazor.Charts.ChartSeriesType.Scatter,
+        _ => Syncfusion.Blazor.Charts.ChartSeriesType.Line
+    };
+
+    private Syncfusion.Blazor.Theme GetChartTheme()
+    {
+        return CurrentTrend.DisplayOptions.Theme == "dark" 
+            ? Syncfusion.Blazor.Theme.MaterialDark 
+            : Syncfusion.Blazor.Theme.Material;
+    }
+
+    private string GetRandomColor()
+    {
+        var colors = new[] { "#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16" };
+        return colors[new Random().Next(colors.Length)];
+    }
+
+    public void Dispose()
+    {
+        StopAutoRefresh();
+    }
+
+    private class TrendDisplay
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int SeriesCount { get; set; }
+        public string TimeRange { get; set; } = string.Empty;
+    }
+
+    private class TrendDataPoint
+    {
+        public DateTime Timestamp { get; set; }
+        public double Value { get; set; }
+    }
+
+    private class TimeRangeOption
+    {
+        public TrendTimeRangeType Value { get; set; }
+        public string Label { get; set; } = string.Empty;
+    }
+
+    private class SeriesTypeOption
+    {
+        public TrendSeriesType Value { get; set; }
+        public string Label { get; set; } = string.Empty;
+    }
+}

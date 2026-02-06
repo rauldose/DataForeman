@@ -1,0 +1,720 @@
+@page "/state-machines"
+@page "/state-machines/{StateMachineId}"
+@rendermode InteractiveServer
+@inject ConfigService ConfigService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>State Machines - DataForeman</PageTitle>
+
+<div class="page-container">
+    @if (string.IsNullOrEmpty(StateMachineId))
+    {
+        <div class="page-toolbar">
+            <h2><i class="fa-solid fa-diagram-project"></i> State Machines</h2>
+            <div class="toolbar-actions">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewStateMachine">New State Machine</SfButton>
+            </div>
+        </div>
+        
+        @if (!ConfigService.StateMachines.Any())
+        {
+            <div class="empty-state">
+                <i class="fa-solid fa-diagram-project"></i>
+                <span>No state machines configured</span>
+                <SfButton CssClass="e-primary e-small" @onclick="CreateNewStateMachine">Create your first state machine</SfButton>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@StateMachinesList" AllowPaging="true">
+                <GridPageSettings PageSize="10"></GridPageSettings>
+                <GridColumns>
+                    <GridColumn Field="@nameof(StateMachineDisplay.Name)" HeaderText="Name" Width="200"></GridColumn>
+                    <GridColumn Field="@nameof(StateMachineDisplay.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(StateMachineDisplay.StateCount)" HeaderText="States" Width="80"></GridColumn>
+                    <GridColumn HeaderText="Status" Width="100">
+                        <Template>
+                            @{
+                                var item = (context as StateMachineDisplay);
+                                <span class="status-indicator @(item?.Enabled == true ? "enabled" : "disabled")">
+                                    <i class="fa-solid fa-circle"></i> @(item?.Enabled == true ? "Enabled" : "Disabled")
+                                </span>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn HeaderText="Actions" Width="120">
+                        <Template>
+                            @{
+                                var item = (context as StateMachineDisplay);
+                                <div class="action-buttons">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditStateMachine(item!.Id)"></SfButton>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteStateMachine(item!.Id)"></SfButton>
+                                </div>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        }
+    }
+    else
+    {
+        <div class="state-machine-editor" @key="@StateMachineId">
+            <div class="editor-toolbar">
+                <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
+                <SfTextBox @bind-Value="CurrentStateMachine.Name" Placeholder="State Machine Name" CssClass="state-machine-name-input"></SfTextBox>
+                <div class="toolbar-spacer"></div>
+                <SfButton CssClass="@(CurrentStateMachine.Enabled ? "e-warning" : "e-success")" 
+                          IconCss="@(CurrentStateMachine.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
+                          Content="@(CurrentStateMachine.Enabled ? "Disable" : "Enable")"
+                          @onclick="ToggleEnabled"></SfButton>
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveStateMachine">Save</SfButton>
+            </div>
+            
+            <div class="editor-content">
+                <div class="state-palette">
+                    <div class="palette-header">STATE PALETTE</div>
+                    <div class="palette-item" draggable="true" @ondragstart="() => OnPaletteDragStart(StateType.Normal)">
+                        <i class="fa-solid fa-circle" style="color: #3b82f6;"></i>
+                        <span>State</span>
+                    </div>
+                    <div class="palette-item" draggable="true" @ondragstart="() => OnPaletteDragStart(StateType.Initial)">
+                        <i class="fa-solid fa-play-circle" style="color: #22c55e;"></i>
+                        <span>Initial State</span>
+                    </div>
+                    <div class="palette-item" draggable="true" @ondragstart="() => OnPaletteDragStart(StateType.Final)">
+                        <i class="fa-solid fa-stop-circle" style="color: #ef4444;"></i>
+                        <span>Final State</span>
+                    </div>
+                </div>
+                
+                <div class="diagram-container" 
+                     id="state-diagram-space"
+                     @ondragover="OnDiagramDragOver"
+                     @ondragover:preventDefault="true"
+                     @ondrop="OnDiagramDrop"
+                     @ondrop:preventDefault="true">
+                    <SfDiagramComponent @ref="StateDiagram" 
+                                        ID="state-diagram"
+                                        Width="100%" 
+                                        Height="100%"
+                                        Nodes="@StateNodes"
+                                        Connectors="@StateConnectors"
+                                        NodeCreating="@OnNodeCreating"
+                                        ConnectorCreating="@OnConnectorCreating"
+                                        SelectionChanged="@OnSelectionChanged"
+                                        ConnectionChanged="@OnConnectionChanged">
+                        <SnapSettings>
+                            <HorizontalGridLines LineColor="#3a4049" LineDashArray="2,4"></HorizontalGridLines>
+                            <VerticalGridLines LineColor="#3a4049" LineDashArray="2,4"></VerticalGridLines>
+                        </SnapSettings>
+                        <ScrollSettings ScrollLimit="ScrollLimitMode.Diagram"></ScrollSettings>
+                    </SfDiagramComponent>
+                </div>
+                
+                <div class="properties-panel">
+                    <div class="panel-header">PROPERTIES</div>
+                    <div class="panel-content">
+                        @if (SelectedStateNode != null)
+                        {
+                            <div class="form-group">
+                                <label>State Name</label>
+                                <SfTextBox @bind-Value="SelectedStateName" Placeholder="State name" @onchange="OnStateNameChanged"></SfTextBox>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <SfTextBox @bind-Value="SelectedStateDescription" Placeholder="State description" Multiline="true"></SfTextBox>
+                            </div>
+                            <div class="form-group">
+                                <label>Color</label>
+                                <input type="color" @bind="SelectedStateColor" class="color-picker" />
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" @bind="SelectedStateIsInitial" @bind:after="OnStateTypeChanged" />
+                                    Initial State
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" @bind="SelectedStateIsFinal" @bind:after="OnStateTypeChanged" />
+                                    Final State
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete State" @onclick="DeleteSelectedState"></SfButton>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-group">
+                                <label>Machine Description</label>
+                                <SfTextBox @bind-Value="CurrentStateMachine.Description" Placeholder="State machine description" Multiline="true"></SfTextBox>
+                            </div>
+                            <div class="info-panel">
+                                <p><strong>States:</strong> @CurrentStateMachine.States.Count</p>
+                                <p><strong>Transitions:</strong> @CurrentStateMachine.Transitions.Count</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+    <DialogTemplates>
+        <Header>Confirm Delete</Header>
+        <Content>
+            <p>Are you sure you want to delete this state machine?</p>
+            <p><strong>@_deletingStateMachineName</strong></p>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" OnClick="CancelDelete" />
+        <DialogButton Content="Delete" IsPrimary="true" CssClass="e-danger" OnClick="ConfirmDelete" />
+    </DialogButtons>
+</SfDialog>
+
+@code {
+    [Parameter]
+    public string? StateMachineId { get; set; }
+
+    private StateMachineConfig CurrentStateMachine { get; set; } = new();
+    private List<StateMachineDisplay> StateMachinesList { get; set; } = new();
+    private SfDialog? _deleteDialog;
+    private string? _deletingStateMachineId;
+    private string? _deletingStateMachineName;
+    
+    // Diagram components
+    private SfDiagramComponent? StateDiagram;
+    private DiagramObjectCollection<Node> StateNodes = new();
+    private DiagramObjectCollection<Connector> StateConnectors = new();
+    private Node? SelectedStateNode;
+    private string SelectedStateName = "";
+    private string SelectedStateDescription = "";
+    private string SelectedStateColor = "#3b82f6";
+    private bool SelectedStateIsInitial = false;
+    private bool SelectedStateIsFinal = false;
+    
+    // Palette state
+    private StateType? _draggingStateType;
+    
+    // State to diagram node mapping
+    private Dictionary<string, string> _stateToNodeMap = new();
+
+    protected override void OnInitialized()
+    {
+        LoadStateMachines();
+        if (!string.IsNullOrEmpty(StateMachineId))
+        {
+            LoadStateMachine(StateMachineId);
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrEmpty(StateMachineId))
+        {
+            await LoadStatesIntoDiagram();
+        }
+    }
+
+    private void LoadStateMachines()
+    {
+        StateMachinesList = ConfigService.StateMachines
+            .Select(sm => new StateMachineDisplay
+            {
+                Id = sm.Id,
+                Name = sm.Name,
+                Description = sm.Description ?? "",
+                StateCount = sm.States.Count,
+                Enabled = sm.Enabled
+            })
+            .ToList();
+    }
+
+    private void LoadStateMachine(string id)
+    {
+        var stateMachine = ConfigService.GetStateMachine(id);
+        if (stateMachine != null)
+        {
+            CurrentStateMachine = stateMachine;
+            StateNodes = new DiagramObjectCollection<Node>();
+            StateConnectors = new DiagramObjectCollection<Connector>();
+            _stateToNodeMap.Clear();
+        }
+        else
+        {
+            Navigation.NavigateTo("/state-machines");
+        }
+    }
+    
+    private async Task LoadStatesIntoDiagram()
+    {
+        if (StateDiagram == null) return;
+        
+        // Load existing states as nodes
+        foreach (var state in CurrentStateMachine.States)
+        {
+            var node = CreateStateNode(state.Id, state.Name, state.Color, state.X, state.Y, state.IsInitial, state.IsFinal);
+            StateNodes.Add(node);
+            _stateToNodeMap[state.Id] = state.Id;
+        }
+        
+        // Load existing transitions as connectors
+        foreach (var transition in CurrentStateMachine.Transitions)
+        {
+            var connector = CreateStateConnector(transition.Id, transition.FromStateId, transition.ToStateId, transition.Event);
+            StateConnectors.Add(connector);
+        }
+        
+        StateHasChanged();
+    }
+
+    private void CreateNewStateMachine()
+    {
+        var newId = Guid.NewGuid().ToString();
+        Navigation.NavigateTo($"/state-machines/{newId}");
+        CurrentStateMachine = new StateMachineConfig
+        {
+            Id = newId,
+            Name = "New State Machine",
+            Description = "State machine description"
+        };
+    }
+
+    private void EditStateMachine(string id)
+    {
+        Navigation.NavigateTo($"/state-machines/{id}");
+    }
+
+    private async Task ToggleEnabled()
+    {
+        CurrentStateMachine.Enabled = !CurrentStateMachine.Enabled;
+        await SaveStateMachine();
+    }
+
+    private async Task SaveStateMachine()
+    {
+        // Sync diagram nodes back to state machine config
+        SyncDiagramToConfig();
+        
+        CurrentStateMachine.UpdatedAt = DateTime.UtcNow;
+        
+        var existing = ConfigService.GetStateMachine(CurrentStateMachine.Id);
+        if (existing != null)
+        {
+            await ConfigService.UpdateStateMachineAsync(CurrentStateMachine);
+        }
+        else
+        {
+            await ConfigService.AddStateMachineAsync(CurrentStateMachine);
+        }
+        
+        LoadStateMachines();
+        StateHasChanged();
+    }
+    
+    private void SyncDiagramToConfig()
+    {
+        // Update state positions from diagram nodes
+        foreach (var node in StateNodes)
+        {
+            var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == node.ID);
+            if (state != null)
+            {
+                state.X = node.OffsetX;
+                state.Y = node.OffsetY;
+            }
+        }
+        
+        // Update transitions from connectors
+        CurrentStateMachine.Transitions.Clear();
+        foreach (var connector in StateConnectors)
+        {
+            if (!string.IsNullOrEmpty(connector.SourceID) && !string.IsNullOrEmpty(connector.TargetID))
+            {
+                var transition = new StateTransition
+                {
+                    Id = connector.ID ?? Guid.NewGuid().ToString(),
+                    FromStateId = connector.SourceID,
+                    ToStateId = connector.TargetID,
+                    Event = "transition",
+                    Priority = 0
+                };
+                CurrentStateMachine.Transitions.Add(transition);
+            }
+        }
+    }
+
+    // Diagram event handlers
+    private void OnPaletteDragStart(StateType stateType)
+    {
+        _draggingStateType = stateType;
+    }
+    
+    private void OnDiagramDragOver(Microsoft.AspNetCore.Components.Web.DragEventArgs e) 
+    { 
+        e.DataTransfer.DropEffect = "copy"; 
+    }
+    
+    private async Task OnDiagramDrop(Microsoft.AspNetCore.Components.Web.DragEventArgs e)
+    {
+        if (_draggingStateType == null || StateDiagram == null) return;
+        
+        try
+        {
+            var diagramRect = await JSRuntime.InvokeAsync<Dictionary<string, double>>("eval", 
+                "(() => { const rect = document.getElementById('state-diagram-space').getBoundingClientRect(); return { left: rect.left, top: rect.top }; })()");
+            double diagramX = e.ClientX - diagramRect["left"];
+            double diagramY = e.ClientY - diagramRect["top"];
+            
+            await AddStateFromPalette(_draggingStateType.Value, diagramX, diagramY);
+        }
+        finally 
+        { 
+            _draggingStateType = null; 
+        }
+    }
+    
+    private async Task AddStateFromPalette(StateType stateType, double x, double y)
+    {
+        if (StateDiagram == null) return;
+        
+        var stateId = Guid.NewGuid().ToString();
+        string stateName = stateType switch
+        {
+            StateType.Initial => "Initial State",
+            StateType.Final => "Final State",
+            _ => $"State {CurrentStateMachine.States.Count + 1}"
+        };
+        
+        string stateColor = stateType switch
+        {
+            StateType.Initial => "#22c55e",
+            StateType.Final => "#ef4444",
+            _ => "#3b82f6"
+        };
+        
+        bool isInitial = stateType == StateType.Initial;
+        bool isFinal = stateType == StateType.Final;
+        
+        // Create diagram node
+        var node = CreateStateNode(stateId, stateName, stateColor, x, y, isInitial, isFinal);
+        StateNodes.Add(node);
+        
+        // Create state in config
+        var state = new MachineState
+        {
+            Id = stateId,
+            Name = stateName,
+            Color = stateColor,
+            X = x,
+            Y = y,
+            IsInitial = isInitial,
+            IsFinal = isFinal
+        };
+        CurrentStateMachine.States.Add(state);
+        
+        _stateToNodeMap[stateId] = stateId;
+        StateHasChanged();
+    }
+    
+    private Node CreateStateNode(string id, string label, string color, double x, double y, bool isInitial, bool isFinal)
+    {
+        var node = new Node
+        {
+            ID = id,
+            OffsetX = x,
+            OffsetY = y,
+            Width = 120,
+            Height = 60,
+            Shape = isInitial || isFinal 
+                ? new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Ellipse }
+                : new BasicShape { Type = NodeShapes.Basic, Shape = NodeBasicShapes.Rectangle, CornerRadius = 8 },
+            Style = new ShapeStyle 
+            { 
+                Fill = "#1e1e1e", 
+                StrokeColor = color, 
+                StrokeWidth = 3 
+            },
+            Annotations = new DiagramObjectCollection<ShapeAnnotation>(),
+            Ports = new DiagramObjectCollection<PointPort>(),
+            Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
+        };
+        
+        // Add label
+        node.Annotations.Add(new ShapeAnnotation 
+        { 
+            Content = label, 
+            Style = new TextStyle { Color = "#ffffff", FontSize = 12, Bold = true }, 
+            Offset = new DiagramPoint { X = 0.5, Y = 0.5 },
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        
+        // Add ports for connections
+        node.Ports.Add(new PointPort 
+        { 
+            ID = "top", 
+            Offset = new DiagramPoint { X = 0.5, Y = 0 }, 
+            Visibility = PortVisibility.Visible,
+            Shape = PortShapes.Circle,
+            Width = 10,
+            Height = 10,
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
+            Constraints = PortConstraints.Default | PortConstraints.Draw
+        });
+        
+        node.Ports.Add(new PointPort 
+        { 
+            ID = "right", 
+            Offset = new DiagramPoint { X = 1, Y = 0.5 }, 
+            Visibility = PortVisibility.Visible,
+            Shape = PortShapes.Circle,
+            Width = 10,
+            Height = 10,
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
+            Constraints = PortConstraints.Default | PortConstraints.Draw
+        });
+        
+        node.Ports.Add(new PointPort 
+        { 
+            ID = "bottom", 
+            Offset = new DiagramPoint { X = 0.5, Y = 1 }, 
+            Visibility = PortVisibility.Visible,
+            Shape = PortShapes.Circle,
+            Width = 10,
+            Height = 10,
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
+            Constraints = PortConstraints.Default | PortConstraints.Draw
+        });
+        
+        node.Ports.Add(new PointPort 
+        { 
+            ID = "left", 
+            Offset = new DiagramPoint { X = 0, Y = 0.5 }, 
+            Visibility = PortVisibility.Visible,
+            Shape = PortShapes.Circle,
+            Width = 10,
+            Height = 10,
+            Style = new ShapeStyle { Fill = color, StrokeColor = "#ffffff", StrokeWidth = 2 },
+            Constraints = PortConstraints.Default | PortConstraints.Draw
+        });
+        
+        return node;
+    }
+    
+    private Connector CreateStateConnector(string id, string fromStateId, string toStateId, string eventLabel)
+    {
+        return new Connector
+        {
+            ID = id,
+            SourceID = fromStateId,
+            TargetID = toStateId,
+            Type = ConnectorSegmentType.Orthogonal,
+            Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 },
+            CornerRadius = 5,
+            TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow, 
+                Width = 10, 
+                Height = 10, 
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } 
+            },
+            Annotations = new DiagramObjectCollection<PathAnnotation>()
+        };
+    }
+    
+    private void OnNodeCreating(IDiagramObject obj)
+    {
+        if (obj is Node node)
+        {
+            node.Style.Fill = "#1e1e1e";
+            if (node.Ports != null)
+            {
+                foreach (var port in node.Ports)
+                {
+                    port.Visibility = PortVisibility.Visible;
+                    port.Width = 10;
+                    port.Height = 10;
+                    port.Constraints = PortConstraints.Default | PortConstraints.Draw;
+                }
+            }
+        }
+    }
+    
+    private void OnConnectorCreating(IDiagramObject obj)
+    {
+        if (obj is Connector connector)
+        {
+            connector.Type = ConnectorSegmentType.Orthogonal;
+            connector.Style = new ShapeStyle { StrokeColor = "#4caf50", StrokeWidth = 2 };
+            connector.CornerRadius = 5;
+            connector.TargetDecorator = new DecoratorSettings 
+            { 
+                Shape = DecoratorShape.Arrow, 
+                Width = 10, 
+                Height = 10, 
+                Style = new ShapeStyle { Fill = "#4caf50", StrokeColor = "#4caf50" } 
+            };
+        }
+    }
+    
+    private void OnConnectionChanged(Syncfusion.Blazor.Diagram.ConnectionChangedEventArgs args)
+    {
+        // Connection created or modified
+        StateHasChanged();
+    }
+    
+    private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
+    {
+        if (args.NewValue?.Count > 0 && args.NewValue[0] is Node node)
+        {
+            SelectedStateNode = node;
+            var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == node.ID);
+            if (state != null)
+            {
+                SelectedStateName = state.Name;
+                SelectedStateDescription = state.Description ?? "";
+                SelectedStateColor = state.Color;
+                SelectedStateIsInitial = state.IsInitial;
+                SelectedStateIsFinal = state.IsFinal;
+            }
+        }
+        else
+        {
+            SelectedStateNode = null;
+            SelectedStateName = "";
+            SelectedStateDescription = "";
+        }
+        StateHasChanged();
+    }
+    
+    private async Task OnStateNameChanged()
+    {
+        if (SelectedStateNode == null) return;
+        
+        var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == SelectedStateNode.ID);
+        if (state != null)
+        {
+            state.Name = SelectedStateName;
+            if (SelectedStateNode.Annotations.Count > 0)
+            {
+                SelectedStateNode.Annotations[0].Content = SelectedStateName;
+            }
+            StateHasChanged();
+        }
+    }
+    
+    private void OnStateTypeChanged()
+    {
+        if (SelectedStateNode == null) return;
+        
+        var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == SelectedStateNode.ID);
+        if (state != null)
+        {
+            state.IsInitial = SelectedStateIsInitial;
+            state.IsFinal = SelectedStateIsFinal;
+            
+            // Update color based on type
+            if (SelectedStateIsInitial)
+            {
+                SelectedStateColor = "#22c55e";
+                state.Color = SelectedStateColor;
+                SelectedStateNode.Style.StrokeColor = SelectedStateColor;
+            }
+            else if (SelectedStateIsFinal)
+            {
+                SelectedStateColor = "#ef4444";
+                state.Color = SelectedStateColor;
+                SelectedStateNode.Style.StrokeColor = SelectedStateColor;
+            }
+            
+            StateHasChanged();
+        }
+    }
+    
+    private async Task DeleteSelectedState()
+    {
+        if (SelectedStateNode == null || StateDiagram == null) return;
+        
+        var stateId = SelectedStateNode.ID;
+        
+        // Remove from diagram
+        StateNodes.Remove(SelectedStateNode);
+        
+        // Remove connected transitions
+        var connectorsToRemove = StateConnectors.Where(c => c.SourceID == stateId || c.TargetID == stateId).ToList();
+        foreach (var conn in connectorsToRemove)
+        {
+            StateConnectors.Remove(conn);
+        }
+        
+        // Remove from config
+        CurrentStateMachine.States.RemoveAll(s => s.Id == stateId);
+        CurrentStateMachine.Transitions.RemoveAll(t => t.FromStateId == stateId || t.ToStateId == stateId);
+        
+        SelectedStateNode = null;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/state-machines");
+    }
+
+    private void ConfirmDeleteStateMachine(string id)
+    {
+        var stateMachine = ConfigService.GetStateMachine(id);
+        if (stateMachine != null)
+        {
+            _deletingStateMachineId = id;
+            _deletingStateMachineName = stateMachine.Name;
+            _deleteDialog?.ShowAsync();
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deletingStateMachineId != null)
+        {
+            await ConfigService.DeleteStateMachineAsync(_deletingStateMachineId);
+            LoadStateMachines();
+            await _deleteDialog!.HideAsync();
+            _deletingStateMachineId = null;
+            _deletingStateMachineName = null;
+        }
+    }
+
+    private async Task CancelDelete()
+    {
+        await _deleteDialog!.HideAsync();
+        _deletingStateMachineId = null;
+        _deletingStateMachineName = null;
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private enum StateType
+    {
+        Normal,
+        Initial,
+        Final
+    }
+
+    private class StateMachineDisplay
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int StateCount { get; set; }
+        public bool Enabled { get; set; }
+    }
+}

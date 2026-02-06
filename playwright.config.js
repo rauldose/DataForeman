@@ -26,7 +26,8 @@ export default defineConfig({
   
   use: {
     // Base URL for the application
-    baseURL: 'http://localhost:8080',
+    // Use environment variable or default to 8080 (frontend) or 5000 (Blazor)
+    baseURL: process.env.BASE_URL || 'http://localhost:5000',
     
     // Collect trace when retrying the failed test
     trace: 'on-first-retry',
