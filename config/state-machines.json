@@ -207,7 +207,8 @@
           "isFinal": false,
           "description": "Heater enabled, raising temperature to 30°C setpoint",
           "onEnterActions": [],
-          "onExitActions": []
+          "onExitActions": [],
+          "onEnterScript": "// Log heater activation with current temperature\nvar temp = ReadTagDouble(\"Default Simulator/Temperature_001\");\nLog($\"Heater ON — current temp: {temp:F1}°C, target: 30°C\");"
         },
         {
           "id": "bp-holding",
@@ -219,7 +220,9 @@
           "isFinal": false,
           "description": "Maintaining temperature at setpoint for reaction time",
           "onEnterActions": [],
-          "onExitActions": []
+          "onExitActions": [],
+          "onEnterScript": "// Record hold start time and monitor temperature drift\nvar temp = ReadTagDouble(\"Default Simulator/Temperature_001\");\nvar pressure = ReadTagDouble(\"Default Simulator/Pressure_001\");\nSetState(\"holdStartUtc\", UtcNow.ToString(\"o\"));\nLog($\"Hold started — T={temp:F1}°C, P={pressure:F2} bar\");",
+          "onExitScript": "// Calculate total hold duration\nvar startStr = GetState<string>(\"holdStartUtc\", \"\");\nif (!string.IsNullOrEmpty(startStr))\n{\n    var elapsed = UtcNow - DateTime.Parse(startStr);\n    Log($\"Hold ended after {elapsed.TotalSeconds:F0}s\");\n}"
         },
         {
           "id": "bp-draining",

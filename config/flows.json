@@ -243,6 +243,83 @@
       ],
       "createdAt": "2026-02-04T19:00:00Z",
       "updatedAt": "2026-02-04T19:00:00Z"
+    },
+    {
+      "id": "flow-csharp-demo",
+      "name": "C# Script Demo",
+      "description": "Demonstrates custom C# scripting: reads temperature, applies exponential moving average and deadband logic in code, then logs the result",
+      "enabled": true,
+      "executionMode": "manual",
+      "scanRateMs": 1000,
+      "nodes": [
+        {
+          "id": "trigger-manual-instance-cs1",
+          "type": "trigger-manual",
+          "label": "Manual Trigger",
+          "x": 80,
+          "y": 150,
+          "properties": {
+            "runOnDeploy": "false"
+          }
+        },
+        {
+          "id": "tag-input-instance-cs-temp",
+          "type": "tag-input",
+          "label": "Temperature",
+          "x": 300,
+          "y": 150,
+          "properties": {
+            "tagPath": "sim-temp-1"
+          }
+        },
+        {
+          "id": "script-csharp-instance-ema",
+          "type": "script-csharp",
+          "label": "EMA + Deadband",
+          "x": 550,
+          "y": 150,
+          "properties": {
+            "code": "// Exponential Moving Average with deadband filter\nvar raw = Input is double d ? d : 0.0;\nvar alpha = 0.3;\nvar prev = GetState<double>(\"ema\", raw);\nvar ema = alpha * raw + (1.0 - alpha) * prev;\nSetState(\"ema\", ema);\n\n// Deadband: only emit when change > 0.5°C\nvar lastEmitted = GetState<double>(\"lastEmitted\", double.MinValue);\nif (Math.Abs(ema - lastEmitted) > 0.5)\n{\n    SetState(\"lastEmitted\", ema);\n    Log($\"EMA={ema:F2}°C (raw={raw:F2})\");\n    return Math.Round(ema, 2);\n}\nreturn null; // suppress output",
+            "timeout": "5000",
+            "onError": "continue"
+          }
+        },
+        {
+          "id": "output-log-instance-cs-out",
+          "type": "output-log",
+          "label": "Log Result",
+          "x": 800,
+          "y": 150,
+          "properties": {
+            "logLevel": "info"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-cs-1",
+          "sourceNodeId": "trigger-manual-instance-cs1",
+          "sourcePortId": "output-0",
+          "targetNodeId": "tag-input-instance-cs-temp",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "edge-cs-2",
+          "sourceNodeId": "tag-input-instance-cs-temp",
+          "sourcePortId": "output-0",
+          "targetNodeId": "script-csharp-instance-ema",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "edge-cs-3",
+          "sourceNodeId": "script-csharp-instance-ema",
+          "sourcePortId": "output-0",
+          "targetNodeId": "output-log-instance-cs-out",
+          "targetPortId": "input-0"
+        }
+      ],
+      "createdAt": "2026-02-06T00:00:00Z",
+      "updatedAt": "2026-02-06T00:00:00Z"
     }
   ]
 }

@@ -5,6 +5,7 @@
 @using Syncfusion.Blazor.CircularGauge
 @inject ConfigService ConfigService
 @inject RealtimeDataService RealtimeData
+@inject MqttService MqttService
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -93,6 +94,7 @@
                     }
                     else
                     {
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-play" Content="Run Flow" @onclick="OpenRunFlowDialog"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-expand" @onclick="ToggleFullscreen"></SfButton>
                     }
@@ -327,6 +329,60 @@
     </SfDialog>
 }
 
+<!-- Run Flow Dialog -->
+@if (ShowRunFlowDialog)
+{
+    <SfDialog @bind-Visible="ShowRunFlowDialog" Width="480px" IsModal="true" ShowCloseIcon="true" Header="Run Flow">
+        <DialogTemplates>
+            <Content>
+                <div class="chart-library">
+                    <div class="form-group">
+                        <SfTextBox @bind-Value="FlowSearch" Placeholder="Search flows..." CssClass="chart-search"></SfTextBox>
+                    </div>
+                    @{
+                        var manualFlows = ConfigService.Flows
+                            .Where(f => f.Nodes.Any(n => n.Type == "trigger-manual"))
+                            .Where(f => string.IsNullOrEmpty(FlowSearch) 
+                                || f.Name.Contains(FlowSearch, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                    }
+                    @if (!manualFlows.Any())
+                    {
+                        <div class="empty-state" style="padding:24px;text-align:center;">
+                            <i class="fa-solid fa-bolt" style="font-size:32px;color:#666;"></i>
+                            <p style="color:#999;margin-top:8px;">@(string.IsNullOrEmpty(FlowSearch) ? "No manual flows available" : "No flows match your search")</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="chart-library-list">
+                            @foreach (var flow in manualFlows)
+                            {
+                                <div class="chart-library-item" @onclick="() => TriggerFlow(flow.Id)">
+                                    <div class="chart-library-item-info">
+                                        <div class="chart-library-item-name">
+                                            <i class="fa-solid fa-bolt" style="color:#f59e0b;margin-right:8px;"></i>
+                                            @flow.Name
+                                        </div>
+                                        <div class="chart-library-item-meta">
+                                            <span class="chart-library-chip">@flow.Nodes.Count nodes</span>
+                                            <span class="chart-library-chip">@(flow.Enabled ? "enabled" : "disabled")</span>
+                                        </div>
+                                    </div>
+                                    <button class="chart-library-add-btn" title="Trigger flow">
+                                        <i class="fa-solid fa-play"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="chart-library-footer">@manualFlows.Count manual flow@(manualFlows.Count != 1 ? "s" : "") available</div>
+                </div>
+            </Content>
+        </DialogTemplates>
+    </SfDialog>
+}
+
 <!-- Delete Confirmation Dialog -->
 @if (ShowDeleteDialog)
 {
@@ -358,8 +414,10 @@
     private bool ShowAddPanelDialog;
     private bool ShowPanelConfigDialog;
     private bool ShowChartLibraryDialog;
+    private bool ShowRunFlowDialog;
     private string DeleteDashboardId = "";
     private string ChartLibrarySearch = "";
+    private string FlowSearch = "";
     private string SelectedTimeRange = "5m";
     private PanelType NewPanelType = PanelType.Stat;
     private string NewPanelTitle = "";
@@ -528,6 +586,18 @@
     {
         ChartLibrarySearch = "";
         ShowChartLibraryDialog = true;
+    }
+    
+    private void OpenRunFlowDialog()
+    {
+        FlowSearch = "";
+        ShowRunFlowDialog = true;
+    }
+    
+    private async Task TriggerFlow(string flowId)
+    {
+        var topic = DataForeman.Shared.Mqtt.MqttTopics.GetFlowManualTriggerTopic(flowId);
+        await MqttService.PublishMessageAsync(topic, "{}");
     }
     
     /// <summary>
