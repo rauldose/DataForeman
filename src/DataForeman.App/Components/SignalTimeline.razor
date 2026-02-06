@@ -203,7 +203,7 @@
 
     @* ── Footer ───────────────────────────────────────── *@
     <div class="sig-tl-footer">
-        <span>Signals: @_tagEntries.Count / @_tagEntries.Count</span>
+        <span>Signals: @_tagEntries.Count / @_totalTagCount</span>
         <span>
             Cursor: @DateTime.UtcNow.ToString("HH:mm:ss.fff")
         </span>
@@ -246,6 +246,7 @@
     // ── state ──
     private bool _followLive = true;
     private long _frameCount;
+    private int _totalTagCount;
     private string[] _timeLabels = Array.Empty<string>();
     private System.Threading.Timer? _ticker;
 
@@ -279,7 +280,7 @@
     private void SyncFromRealtimeService()
     {
         var allTags = RtData.GetAllTagValues();
-        int colourIdx = 0;
+        _totalTagCount = allTags.Count;
 
         foreach (var kvp in allTags)
         {
@@ -313,7 +314,6 @@
                 while (entry.Ring.Count > 0 && entry.Ring[0].T < cutoff)
                     entry.Ring.RemoveAt(0);
             }
-            colourIdx++;
         }
     }
 

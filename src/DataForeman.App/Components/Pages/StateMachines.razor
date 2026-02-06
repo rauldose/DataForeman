@@ -238,7 +238,8 @@
     // Palette state
     private StateType? _draggingStateType;
     
-    // Runtime info from engine (for displaying current state)
+    // Runtime info from engine (populated when the MQTT service delivers
+    // MachineRuntimeInfo messages; stays null when engine is offline)
     private MachineRuntimeInfo? _liveInfo;
     
     // State to diagram node mapping
