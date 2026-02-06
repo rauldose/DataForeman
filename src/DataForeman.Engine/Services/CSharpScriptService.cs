@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DataForeman.Engine.Drivers;
 using DataForeman.Shared.Models;
 using Microsoft.CodeAnalysis;
@@ -12,7 +13,8 @@ namespace DataForeman.Engine.Services;
 
 /// <summary>
 /// Sandboxed globals object exposed to user C# scripts.
-/// Provides safe access to tags, state, and logging.
+/// Provides tag I/O, state management, logging, timing, and string helpers
+/// so that complex multi-method scripts can be written.
 /// </summary>
 public sealed class ScriptGlobals
 {
@@ -35,8 +37,12 @@ public sealed class ScriptGlobals
         Input = input;
     }
 
+    // ─── Input ───────────────────────────────────────────────
+
     /// <summary>The input value passed from a previous node (flows only).</summary>
     public object? Input { get; }
+
+    // ─── Tag Read ────────────────────────────────────────────
 
     /// <summary>Read the current value of a tag ("ConnectionName/TagName").</summary>
     public object? ReadTag(string tagPath)
@@ -44,7 +50,7 @@ public sealed class ScriptGlobals
         return _tagReader?.GetCurrentTagValue(tagPath)?.Value;
     }
 
-    /// <summary>Read the current value of a tag as a double.</summary>
+    /// <summary>Read tag value as a double (returns 0 on failure).</summary>
     public double ReadTagDouble(string tagPath)
     {
         var val = ReadTag(tagPath);
@@ -56,7 +62,7 @@ public sealed class ScriptGlobals
         return 0.0;
     }
 
-    /// <summary>Read the current value of a tag as a boolean.</summary>
+    /// <summary>Read tag value as a boolean (returns false on failure).</summary>
     public bool ReadTagBool(string tagPath)
     {
         var val = ReadTag(tagPath);
@@ -67,6 +73,27 @@ public sealed class ScriptGlobals
         return false;
     }
 
+    /// <summary>Read tag value as a string (returns "" on failure).</summary>
+    public string ReadTagString(string tagPath)
+    {
+        var val = ReadTag(tagPath);
+        return val?.ToString() ?? "";
+    }
+
+    /// <summary>Read tag value as an integer (returns 0 on failure).</summary>
+    public int ReadTagInt(string tagPath)
+    {
+        var val = ReadTag(tagPath);
+        if (val is int i) return i;
+        if (val is double d) return (int)d;
+        if (val is float f) return (int)f;
+        if (val is long l) return (int)l;
+        if (val != null && int.TryParse(val.ToString(), out var parsed)) return parsed;
+        return 0;
+    }
+
+    // ─── Tag Write ───────────────────────────────────────────
+
     /// <summary>Write a value to a tag ("ConnectionName/TagName").</summary>
     public void WriteTag(string tagPath, object value)
     {
@@ -74,10 +101,27 @@ public sealed class ScriptGlobals
         Task.Run(() => _tagWriter.WriteTagValueAsync(tagPath, value)).GetAwaiter().GetResult();
     }
 
+    /// <summary>Write multiple tags at once. Keys are tag paths, values are the values to write.</summary>
+    public void WriteTags(Dictionary<string, object> tagValues)
+    {
+        foreach (var kvp in tagValues)
+            WriteTag(kvp.Key, kvp.Value);
+    }
+
+    // ─── State (persisted across scan cycles) ────────────────
+
     /// <summary>Get a value from the persistent state dictionary.</summary>
     public object? GetState(string key)
     {
         return _state.TryGetValue(key, out var val) ? val : null;
+    }
+
+    /// <summary>Get a typed value from state, with a default.</summary>
+    public T GetState<T>(string key, T defaultValue)
+    {
+        if (_state.TryGetValue(key, out var val) && val is T typed)
+            return typed;
+        return defaultValue;
     }
 
     /// <summary>Set a value in the persistent state dictionary.</summary>
@@ -86,10 +130,64 @@ public sealed class ScriptGlobals
         _state[key] = value;
     }
 
+    /// <summary>Check whether a state key exists.</summary>
+    public bool HasState(string key) => _state.ContainsKey(key);
+
+    /// <summary>Remove a key from persistent state.</summary>
+    public void ClearState(string key) => _state.Remove(key);
+
+    // ─── Logging ─────────────────────────────────────────────
+
     /// <summary>Log a message to the execution output.</summary>
-    public void Log(string message)
+    public void Log(string message) => _log(message);
+
+    /// <summary>Log a formatted message to the execution output.</summary>
+    public void Log(string format, params object[] args) => _log(string.Format(format, args));
+
+    // ─── Timing ──────────────────────────────────────────────
+
+    /// <summary>Current UTC timestamp.</summary>
+    public DateTime UtcNow => DateTime.UtcNow;
+
+    /// <summary>Pause execution for the specified number of milliseconds (max 5000).</summary>
+    public void Delay(int milliseconds)
     {
-        _log(message);
+        var capped = Math.Min(milliseconds, 5000);
+        Thread.Sleep(capped);
+    }
+
+    // ─── String / Math helpers ───────────────────────────────
+
+    /// <summary>Clamp a numeric value between min and max.</summary>
+    public double Clamp(double value, double min, double max)
+        => Math.Max(min, Math.Min(max, value));
+
+    private const double DivisionByZeroGuard = 1e-12;
+
+    /// <summary>Linearly scale a value from one range to another.</summary>
+    public double Scale(double value, double inMin, double inMax, double outMin, double outMax)
+    {
+        if (Math.Abs(inMax - inMin) < DivisionByZeroGuard) return outMin;
+        return (value - inMin) / (inMax - inMin) * (outMax - outMin) + outMin;
+    }
+
+    /// <summary>Parse a JSON string into a dictionary.</summary>
+    public Dictionary<string, object?> ParseJson(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, object?>>(json) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    /// <summary>Serialize an object to a JSON string.</summary>
+    public string ToJson(object? value)
+    {
+        return JsonSerializer.Serialize(value);
     }
 }
 
@@ -136,13 +234,19 @@ public sealed class CSharpScriptService
             typeof(Enumerable).Assembly,
             typeof(Math).Assembly,
             typeof(JsonSerializer).Assembly,
-            typeof(Console).Assembly)
+            typeof(Console).Assembly,
+            typeof(Regex).Assembly,
+            typeof(Task).Assembly,
+            typeof(System.Net.Http.HttpClient).Assembly)
         .AddImports(
             "System",
             "System.Linq",
             "System.Math",
             "System.Collections.Generic",
-            "System.Text.Json");
+            "System.Text",
+            "System.Text.Json",
+            "System.Text.RegularExpressions",
+            "System.Threading.Tasks");
 
     public CSharpScriptService(
         ILogger<CSharpScriptService> logger,
