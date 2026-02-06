@@ -1225,20 +1225,7 @@ public sealed class CSharpScriptRuntime : NodeRuntimeBase
         try
         {
             // Extract input value from message payload
-            object? inputValue = null;
-            if (context.Message.Payload.HasValue)
-            {
-                var p = context.Message.Payload.Value;
-                if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var d))
-                    inputValue = d;
-                else if (p.ValueKind == JsonValueKind.String)
-                    inputValue = p.GetString();
-                else if (p.TryGetProperty("value", out var vp) && vp.ValueKind == JsonValueKind.Number)
-                    inputValue = vp.GetDouble();
-                else
-                    inputValue = p.ToString();
-            }
-
+            var inputValue = NumericHelper.ExtractInputValue(context.Message);
             var timeout = cfg.Timeout > 0 ? cfg.Timeout : 5000;
             var result = await _scriptService.ExecuteAsync(cfg.Code, _nodeState, inputValue, timeout, ct);
 
@@ -1338,23 +1325,12 @@ public sealed class JavaScriptRuntime : NodeRuntimeBase
         try
         {
             // Extract input value
-            object? inputValue = null;
-            if (context.Message.Payload.HasValue)
-            {
-                var p = context.Message.Payload.Value;
-                if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var d))
-                    inputValue = d;
-                else if (p.ValueKind == JsonValueKind.String)
-                    inputValue = p.GetString();
-                else if (p.TryGetProperty("value", out var vp) && vp.ValueKind == JsonValueKind.Number)
-                    inputValue = vp.GetDouble();
-                else
-                    inputValue = p.ToString();
-            }
+            var inputValue = NumericHelper.ExtractInputValue(context.Message);
+            var timeoutSec = cfg.Timeout > 0 ? cfg.Timeout / 1000.0 : 5.0;
 
             var engine = new Jint.Engine(opts =>
             {
-                Jint.ConstraintsOptionsExtensions.TimeoutInterval(opts, TimeSpan.FromSeconds(5));
+                Jint.ConstraintsOptionsExtensions.TimeoutInterval(opts, TimeSpan.FromSeconds(timeoutSec));
                 Jint.ConstraintsOptionsExtensions.MaxStatements(opts, 10000);
                 Jint.OptionsExtensions.LimitRecursion(opts, 64);
             });
@@ -1385,7 +1361,7 @@ public sealed class JavaScriptRuntime : NodeRuntimeBase
         return ValueTask.CompletedTask;
     }
 
-    private sealed class JsCfg { public string? Code { get; set; } }
+    private sealed class JsCfg { public string? Code { get; set; } public int Timeout { get; set; } = 5000; }
 }
 
 /// <summary>
@@ -1767,5 +1743,16 @@ internal static class NumericHelper
             JsonValueKind.Null or JsonValueKind.Undefined => false,
             _ => true
         };
+    }
+
+    /// <summary>Extracts a typed input value from a message payload for script nodes.</summary>
+    public static object? ExtractInputValue(MessageEnvelope message)
+    {
+        if (!message.Payload.HasValue) return null;
+        var p = message.Payload.Value;
+        if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var d)) return d;
+        if (p.ValueKind == JsonValueKind.String) return p.GetString();
+        if (p.TryGetProperty("value", out var vp) && vp.ValueKind == JsonValueKind.Number) return vp.GetDouble();
+        return p.ToString();
     }
 }
