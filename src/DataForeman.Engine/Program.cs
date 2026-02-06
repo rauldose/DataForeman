@@ -12,6 +12,7 @@ builder.Services.AddSingleton<FlowExecutionService>();
 builder.Services.AddSingleton<HistoryStore>();
 builder.Services.AddSingleton<PollEngine>();
 builder.Services.AddSingleton<ConfigWatcher>();
+builder.Services.AddSingleton<StateMachineExecutionService>();
 
 // Add the worker
 builder.Services.AddHostedService<Worker>();

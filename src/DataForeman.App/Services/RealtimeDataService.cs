@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using DataForeman.Shared.Messages;
+using DataForeman.Shared.Models;
 using DataForeman.Shared.Mqtt;
 
 namespace DataForeman.App.Services;
@@ -16,6 +17,8 @@ public class RealtimeDataService : IDisposable
     private readonly ConcurrentDictionary<string, ConnectionStatusMessage> _connectionStatuses = new();
     private readonly ConcurrentDictionary<string, List<FlowExecutionMessage>> _flowExecutionCache = new();
     private readonly ConcurrentDictionary<string, InternalTagValueCache> _internalTagValues = new();
+    private readonly ConcurrentDictionary<string, MachineRuntimeInfo> _machineStates = new();
+    private readonly ConcurrentDictionary<string, List<FlowRunSummaryMessage>> _flowRunHistory = new();
     private EngineStatusMessage? _engineStatus;
     
     public event Action? OnDataChanged;
@@ -23,6 +26,8 @@ public class RealtimeDataService : IDisposable
     public event Action<string>? OnConnectionStatusChanged;
     public event Action? OnEngineStatusChanged;
     public event Action<FlowExecutionMessage>? OnFlowExecutionReceived;
+    public event Action<MachineRuntimeInfo>? OnStateMachineStateChanged;
+    public event Action<FlowRunSummaryMessage>? OnFlowRunSummaryReceived;
 
     public RealtimeDataService(MqttService mqttService, ILogger<RealtimeDataService> logger)
     {
@@ -35,6 +40,8 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnConnectionStatusReceived += HandleConnectionStatus;
         _mqttService.OnEngineStatusReceived += HandleEngineStatus;
         _mqttService.OnFlowExecutionReceived += HandleFlowExecution;
+        _mqttService.OnStateMachineStateReceived += HandleStateMachineState;
+        _mqttService.OnFlowRunSummaryReceived += HandleFlowRunSummary;
     }
 
     /// <summary>
@@ -151,6 +158,36 @@ public class RealtimeDataService : IDisposable
                 traces.Clear();
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the cached runtime state for a state machine.
+    /// </summary>
+    public MachineRuntimeInfo? GetMachineState(string machineId)
+    {
+        _machineStates.TryGetValue(machineId, out var info);
+        return info;
+    }
+
+    /// <summary>
+    /// Gets all cached state machine runtime states.
+    /// </summary>
+    public IReadOnlyDictionary<string, MachineRuntimeInfo> GetAllMachineStates()
+        => _machineStates;
+
+    /// <summary>
+    /// Gets recent flow run summaries for a specific flow.
+    /// </summary>
+    public IReadOnlyList<FlowRunSummaryMessage> GetFlowRunHistory(string flowId, int maxEntries = 50)
+    {
+        if (_flowRunHistory.TryGetValue(flowId, out var runs))
+        {
+            lock (runs)
+            {
+                return runs.TakeLast(maxEntries).ToList();
+            }
+        }
+        return Array.Empty<FlowRunSummaryMessage>();
     }
 
     /// <summary>
@@ -314,6 +351,40 @@ public class RealtimeDataService : IDisposable
         }
     }
 
+    private void HandleStateMachineState(MachineRuntimeInfo info)
+    {
+        try
+        {
+            _machineStates[info.ConfigId] = info;
+            OnStateMachineStateChanged?.Invoke(info);
+            OnDataChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling state machine state for {MachineId}", info.ConfigId);
+        }
+    }
+
+    private void HandleFlowRunSummary(FlowRunSummaryMessage summary)
+    {
+        try
+        {
+            var runs = _flowRunHistory.GetOrAdd(summary.FlowId, _ => new List<FlowRunSummaryMessage>());
+            lock (runs)
+            {
+                runs.Add(summary);
+                if (runs.Count > 200)
+                    runs.RemoveRange(0, runs.Count - 200);
+            }
+            OnFlowRunSummaryReceived?.Invoke(summary);
+            OnDataChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling flow run summary for {FlowId}", summary.FlowId);
+        }
+    }
+
     public void Dispose()
     {
         _mqttService.OnTagValueReceived -= HandleTagValue;
@@ -321,6 +392,8 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnConnectionStatusReceived -= HandleConnectionStatus;
         _mqttService.OnEngineStatusReceived -= HandleEngineStatus;
         _mqttService.OnFlowExecutionReceived -= HandleFlowExecution;
+        _mqttService.OnStateMachineStateReceived -= HandleStateMachineState;
+        _mqttService.OnFlowRunSummaryReceived -= HandleFlowRunSummary;
     }
 }
 

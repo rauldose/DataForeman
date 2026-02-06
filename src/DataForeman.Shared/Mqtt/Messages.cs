@@ -81,6 +81,25 @@ public class ConfigReloadMessage
 }
 
 /// <summary>
+/// MQTT message summarising a completed flow execution run.
+/// Published by Engine to topic: dataforeman/flows/{flowId}/run-summary
+/// </summary>
+public class FlowRunSummaryMessage
+{
+    public string FlowId { get; set; } = string.Empty;
+    public string FlowName { get; set; } = string.Empty;
+    public string TriggerNodeId { get; set; } = string.Empty;
+    public string TriggerTopic { get; set; } = string.Empty;
+    public string Outcome { get; set; } = string.Empty;  // Success, Failure, Timeout
+    public int NodesExecuted { get; set; }
+    public int MessagesHandled { get; set; }
+    public double DurationMs { get; set; }
+    public string? ErrorDetail { get; set; }
+    public DateTime StartedUtc { get; set; } = DateTime.UtcNow;
+    public DateTime CompletedUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 /// MQTT topics used by DataForeman.
 /// </summary>
 public static class MqttTopics
@@ -98,6 +117,14 @@ public static class MqttTopics
     // Command topics
     public const string ConfigReload = "dataforeman/commands/reload";
     
+    // State machine topics
+    public const string StateMachineStatePattern = "dataforeman/statemachines/{machineId}/state";
+    public const string AllStateMachineStateWildcard = "dataforeman/statemachines/+/state";
+    
+    // Flow execution summary topics
+    public const string FlowRunSummaryPattern = "dataforeman/flows/{flowId}/run-summary";
+    public const string AllFlowRunSummaryWildcard = "dataforeman/flows/+/run-summary";
+    
     public static string GetTagValueTopic(string connectionId, string tagId) 
         => $"dataforeman/tags/{connectionId}/{tagId}";
     
@@ -106,4 +133,10 @@ public static class MqttTopics
     
     public static string GetConnectionStatusTopic(string connectionId) 
         => $"dataforeman/status/{connectionId}";
+    
+    public static string GetStateMachineStateTopic(string machineId) 
+        => $"dataforeman/statemachines/{machineId}/state";
+    
+    public static string GetFlowRunSummaryTopic(string flowId) 
+        => $"dataforeman/flows/{flowId}/run-summary";
 }

@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using DataForeman.Engine.Nodes;
 using DataForeman.Engine.Runtime;
 using DataForeman.Engine.Runtime.Nodes;
 using DataForeman.Shared.Definition;
 using DataForeman.Shared.Models;
+using DataForeman.Shared.Mqtt;
 using DataForeman.Shared.Runtime;
 
 namespace DataForeman.Engine.Services;
@@ -308,6 +310,9 @@ public class FlowExecutionService : IAsyncDisposable
     /// </summary>
     private async Task ExecuteFlowAsync(string flowId, string nodeId, string topic, string payload)
     {
+        var startedUtc = DateTime.UtcNow;
+        var sw = Stopwatch.StartNew();
+
         _logger.LogInformation(
             "Executing flow '{FlowId}' triggered by MQTT message on topic '{Topic}'",
             flowId, topic);
@@ -317,6 +322,9 @@ public class FlowExecutionService : IAsyncDisposable
             _logger.LogWarning("Flow '{FlowId}' not found in compiled flows", flowId);
             return;
         }
+
+        // Look up the flow name for the summary message
+        var flowCfg = _configService.Flows.FirstOrDefault(f => f.Id == flowId);
 
         // Create initial message with MQTT payload
         JsonElement payloadElement;
@@ -351,6 +359,8 @@ public class FlowExecutionService : IAsyncDisposable
             options,
             CancellationToken.None);
 
+        sw.Stop();
+
         if (result.Status == ExecutionStatus.Success)
         {
             _logger.LogInformation(
@@ -363,6 +373,23 @@ public class FlowExecutionService : IAsyncDisposable
                 "Flow '{FlowId}' execution completed with status {Status}: {Error}",
                 flowId, result.Status, result.Error);
         }
+
+        // Publish a run summary so the UI knows what happened
+        var summary = new FlowRunSummaryMessage
+        {
+            FlowId = flowId,
+            FlowName = flowCfg?.Name ?? flowId,
+            TriggerNodeId = nodeId,
+            TriggerTopic = topic,
+            Outcome = result.Status.ToString(),
+            NodesExecuted = result.NodesSucceeded,
+            MessagesHandled = result.MessagesProcessed,
+            DurationMs = sw.Elapsed.TotalMilliseconds,
+            ErrorDetail = result.Error,
+            StartedUtc = startedUtc,
+            CompletedUtc = DateTime.UtcNow
+        };
+        await _mqttPublisher.PublishFlowRunSummaryAsync(summary);
     }
 
     public ValueTask DisposeAsync()

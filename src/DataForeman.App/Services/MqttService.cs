@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using DataForeman.Shared.Messages;
+using DataForeman.Shared.Models;
 using DataForeman.Shared.Mqtt;
 using MQTTnet;
 using MQTTnet.Client;
@@ -27,6 +28,8 @@ public class MqttService : IAsyncDisposable
     public event Action<ConnectionStatusMessage>? OnConnectionStatusReceived;
     public event Action<EngineStatusMessage>? OnEngineStatusReceived;
     public event Action<FlowExecutionMessage>? OnFlowExecutionReceived;
+    public event Action<MachineRuntimeInfo>? OnStateMachineStateReceived;
+    public event Action<FlowRunSummaryMessage>? OnFlowRunSummaryReceived;
 
     public MqttService(IConfiguration configuration, ILogger<MqttService> logger)
     {
@@ -74,6 +77,8 @@ public class MqttService : IAsyncDisposable
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllConnectionStatusWildcard).Build() });
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.EngineStatus).Build() });
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic("dataforeman/flows/+/execution").Build() });
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllStateMachineStateWildcard).Build() });
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllFlowRunSummaryWildcard).Build() });
 
                 _logger.LogInformation("Subscribed to MQTT topics");
             };
@@ -161,6 +166,22 @@ public class MqttService : IAsyncDisposable
                 if (message != null)
                 {
                     OnFlowExecutionReceived?.Invoke(message);
+                }
+            }
+            else if (topic.StartsWith("dataforeman/statemachines/") && topic.EndsWith("/state"))
+            {
+                var message = JsonSerializer.Deserialize<MachineRuntimeInfo>(payload, _jsonOptions);
+                if (message != null)
+                {
+                    OnStateMachineStateReceived?.Invoke(message);
+                }
+            }
+            else if (topic.StartsWith("dataforeman/flows/") && topic.EndsWith("/run-summary"))
+            {
+                var message = JsonSerializer.Deserialize<FlowRunSummaryMessage>(payload, _jsonOptions);
+                if (message != null)
+                {
+                    OnFlowRunSummaryReceived?.Invoke(message);
                 }
             }
         }

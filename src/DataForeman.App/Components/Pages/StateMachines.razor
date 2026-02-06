@@ -2,6 +2,7 @@
 @page "/state-machines/{StateMachineId}"
 @rendermode InteractiveServer
 @inject ConfigService ConfigService
+@inject RealtimeDataService RealtimeData
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @implements IDisposable
@@ -252,6 +253,9 @@
         {
             LoadStateMachine(StateMachineId);
         }
+        
+        // Subscribe to state machine runtime updates from the Engine via MQTT
+        RealtimeData.OnStateMachineStateChanged += HandleMachineStateUpdate;
     }
     
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -285,6 +289,8 @@
             StateNodes = new DiagramObjectCollection<Node>();
             StateConnectors = new DiagramObjectCollection<Connector>();
             _stateToNodeMap.Clear();
+            // Grab cached runtime state from the MQTT-synced store
+            _liveInfo = RealtimeData.GetMachineState(id);
         }
         else
         {
@@ -737,8 +743,19 @@
         _deletingStateMachineName = null;
     }
 
+    private void HandleMachineStateUpdate(MachineRuntimeInfo info)
+    {
+        // Only refresh if we're viewing this specific machine
+        if (info.ConfigId == CurrentStateMachine?.Id)
+        {
+            _liveInfo = info;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
     public void Dispose()
     {
+        RealtimeData.OnStateMachineStateChanged -= HandleMachineStateUpdate;
     }
 
     private enum StateType

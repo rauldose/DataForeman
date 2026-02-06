@@ -15,6 +15,7 @@ public class Worker : BackgroundService
     private readonly HistoryStore _historyStore;
     private readonly PollEngine _pollEngine;
     private readonly ConfigWatcher _configWatcher;
+    private readonly StateMachineExecutionService _stateMachineService;
 
     public Worker(
         ILogger<Worker> logger,
@@ -24,7 +25,8 @@ public class Worker : BackgroundService
         FlowExecutionService flowExecutionService,
         HistoryStore historyStore,
         PollEngine pollEngine,
-        ConfigWatcher configWatcher)
+        ConfigWatcher configWatcher,
+        StateMachineExecutionService stateMachineService)
     {
         _logger = logger;
         _configService = configService;
@@ -34,6 +36,7 @@ public class Worker : BackgroundService
         _historyStore = historyStore;
         _pollEngine = pollEngine;
         _configWatcher = configWatcher;
+        _stateMachineService = stateMachineService;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,6 +59,18 @@ public class Worker : BackgroundService
 
             // Start flow execution service (executes flows when MQTT messages trigger them)
             await _flowExecutionService.StartAsync();
+
+            // Load and start state machines, publishing runtime state via MQTT
+            _stateMachineService.ReloadAll(_configService.StateMachines);
+            _stateMachineService.RuntimeInfoUpdated += info =>
+            {
+                _ = _mqttPublisher.PublishStateMachineStateAsync(info);
+            };
+            // Publish initial state snapshots for all loaded machines
+            foreach (var snapshot in _stateMachineService.GetAllRuntimeInfo())
+            {
+                _ = _mqttPublisher.PublishStateMachineStateAsync(snapshot);
+            }
 
             // Start the polling engine
             await _pollEngine.StartAsync();

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using DataForeman.Shared.Models;
 using DataForeman.Shared.Mqtt;
 using MQTTnet;
 using MQTTnet.Client;
@@ -200,6 +201,58 @@ public class MqttPublisher : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error publishing engine status");
+        }
+    }
+
+    /// <summary>
+    /// Publishes a state machine's runtime snapshot so the UI can display
+    /// the current state, previous state, last trigger, and audit trail.
+    /// Retained so newly-connecting clients get the latest state immediately.
+    /// </summary>
+    public async Task PublishStateMachineStateAsync(MachineRuntimeInfo info)
+    {
+        if (_mqttClient == null || !_isConnected) return;
+
+        try
+        {
+            var topic = MqttTopics.GetStateMachineStateTopic(info.ConfigId);
+            var payload = JsonSerializer.Serialize(info, _jsonOptions);
+
+            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .WithRetainFlag(true)
+                .Build());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing state machine state for {MachineId}", info.ConfigId);
+        }
+    }
+
+    /// <summary>
+    /// Publishes a flow execution run summary so the UI can track
+    /// which flows ran, whether they succeeded, and basic metrics.
+    /// </summary>
+    public async Task PublishFlowRunSummaryAsync(FlowRunSummaryMessage summary)
+    {
+        if (_mqttClient == null || !_isConnected) return;
+
+        try
+        {
+            var topic = MqttTopics.GetFlowRunSummaryTopic(summary.FlowId);
+            var payload = JsonSerializer.Serialize(summary, _jsonOptions);
+
+            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .Build());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing flow run summary for {FlowId}", summary.FlowId);
         }
     }
 
