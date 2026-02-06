@@ -100,6 +100,26 @@ public class FlowRunSummaryMessage
 }
 
 /// <summary>
+/// MQTT message reporting the deployment status of a flow on the Engine.
+/// Published by Engine to topic: dataforeman/flows/{flowId}/deploy-status
+/// The App compares the ConfigHash against its local FlowConfig.ComputeContentHash()
+/// to detect drift between UI edits and what is actually running.
+/// </summary>
+public class FlowDeploymentStatusMessage
+{
+    public string FlowId { get; set; } = string.Empty;
+    public string FlowName { get; set; } = string.Empty;
+    /// <summary>SHA-256-based content hash of the flow definition as compiled by the Engine.</summary>
+    public string ConfigHash { get; set; } = string.Empty;
+    /// <summary>Whether the flow was successfully compiled and is running.</summary>
+    public bool IsCompiled { get; set; }
+    /// <summary>Whether the flow was enabled in the loaded config.</summary>
+    public bool IsEnabled { get; set; }
+    public int NodeCount { get; set; }
+    public DateTime CompiledAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 /// MQTT topics used by DataForeman.
 /// </summary>
 public static class MqttTopics
@@ -125,6 +145,10 @@ public static class MqttTopics
     public const string FlowRunSummaryPattern = "dataforeman/flows/{flowId}/run-summary";
     public const string AllFlowRunSummaryWildcard = "dataforeman/flows/+/run-summary";
     
+    // Flow deployment status topics
+    public const string FlowDeployStatusPattern = "dataforeman/flows/{flowId}/deploy-status";
+    public const string AllFlowDeployStatusWildcard = "dataforeman/flows/+/deploy-status";
+    
     public static string GetTagValueTopic(string connectionId, string tagId) 
         => $"dataforeman/tags/{connectionId}/{tagId}";
     
@@ -139,4 +163,7 @@ public static class MqttTopics
     
     public static string GetFlowRunSummaryTopic(string flowId) 
         => $"dataforeman/flows/{flowId}/run-summary";
+    
+    public static string GetFlowDeployStatusTopic(string flowId) 
+        => $"dataforeman/flows/{flowId}/deploy-status";
 }

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DataForeman.Shared.Models;
@@ -39,6 +42,36 @@ public class FlowConfig
                 warnings.Add($"Flow '{Name}': Edge '{edge.Id}' references missing target node '{edge.TargetNodeId}'");
         }
         return warnings;
+    }
+
+    /// <summary>
+    /// Computes a deterministic content hash of the flow's structural definition
+    /// (nodes, edges, properties, enabled state, scan rate).  Excludes timestamps
+    /// so that re-saving without changes produces the same hash.
+    /// </summary>
+    public string ComputeContentHash()
+    {
+        var canonical = new
+        {
+            Name,
+            Enabled,
+            ScanRateMs,
+            Nodes = Nodes
+                .OrderBy(n => n.Id)
+                .Select(n => new { n.Id, n.Type, n.Label, Props = n.Properties.OrderBy(kv => kv.Key).ToList() })
+                .ToList(),
+            Edges = Edges
+                .OrderBy(e => e.Id)
+                .Select(e => new { e.Id, e.SourceNodeId, e.SourcePortId, e.TargetNodeId, e.TargetPortId })
+                .ToList()
+        };
+
+        var json = JsonSerializer.Serialize(canonical, new JsonSerializerOptions { WriteIndented = false });
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        // First 8 bytes (16 hex chars) provide 2^64 uniqueness — sufficient for
+        // drift detection across typical deployment sizes.  A full 32-byte hash
+        // is unnecessary here since false positives merely delay a UI refresh.
+        return Convert.ToHexString(hashBytes, 0, 8).ToLowerInvariant();
     }
 }
 

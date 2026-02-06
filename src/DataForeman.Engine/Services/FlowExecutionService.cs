@@ -308,6 +308,49 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
                     flowConfig.Name, flowConfig.Id, ex.Message);
             }
         }
+
+        // Publish deployment status for every flow (both compiled and non-compiled)
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await PublishAllDeploymentStatusesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish flow deployment statuses after compilation");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Publishes a <see cref="FlowDeploymentStatusMessage"/> for every known flow
+    /// so the App can detect drift between its local edits and the running Engine.
+    /// </summary>
+    private async Task PublishAllDeploymentStatusesAsync()
+    {
+        foreach (var flow in _configService.Flows)
+        {
+            try
+            {
+                var isCompiled = _compiledFlows.ContainsKey(flow.Id);
+                var status = new FlowDeploymentStatusMessage
+                {
+                    FlowId = flow.Id,
+                    FlowName = flow.Name,
+                    ConfigHash = flow.ComputeContentHash(),
+                    IsCompiled = isCompiled,
+                    IsEnabled = flow.Enabled,
+                    NodeCount = flow.Nodes.Count,
+                    CompiledAtUtc = DateTime.UtcNow
+                };
+                await _mqttPublisher.PublishFlowDeploymentStatusAsync(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish deployment status for flow '{FlowId}'", flow.Id);
+            }
+        }
     }
 
     /// <summary>

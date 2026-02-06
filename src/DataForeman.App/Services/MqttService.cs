@@ -30,6 +30,7 @@ public class MqttService : IAsyncDisposable
     public event Action<FlowExecutionMessage>? OnFlowExecutionReceived;
     public event Action<MachineRuntimeInfo>? OnStateMachineStateReceived;
     public event Action<FlowRunSummaryMessage>? OnFlowRunSummaryReceived;
+    public event Action<FlowDeploymentStatusMessage>? OnFlowDeployStatusReceived;
 
     public MqttService(IConfiguration configuration, ILogger<MqttService> logger)
     {
@@ -79,6 +80,7 @@ public class MqttService : IAsyncDisposable
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic("dataforeman/flows/+/execution").Build() });
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllStateMachineStateWildcard).Build() });
                 await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllFlowRunSummaryWildcard).Build() });
+                await _mqttClient.SubscribeAsync(new List<MqttTopicFilter> { new MqttTopicFilterBuilder().WithTopic(MqttTopics.AllFlowDeployStatusWildcard).Build() });
 
                 _logger.LogInformation("Subscribed to MQTT topics");
             };
@@ -182,6 +184,14 @@ public class MqttService : IAsyncDisposable
                 if (message != null)
                 {
                     OnFlowRunSummaryReceived?.Invoke(message);
+                }
+            }
+            else if (topic.StartsWith("dataforeman/flows/") && topic.EndsWith("/deploy-status"))
+            {
+                var message = JsonSerializer.Deserialize<FlowDeploymentStatusMessage>(payload, _jsonOptions);
+                if (message != null)
+                {
+                    OnFlowDeployStatusReceived?.Invoke(message);
                 }
             }
         }

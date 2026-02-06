@@ -257,6 +257,33 @@ public class MqttPublisher : IAsyncDisposable
     }
 
     /// <summary>
+    /// Publishes the deployment status of a flow so the UI can detect
+    /// whether its local config matches what the Engine has compiled.
+    /// Retained so new subscribers get the latest status immediately.
+    /// </summary>
+    public async Task PublishFlowDeploymentStatusAsync(FlowDeploymentStatusMessage status)
+    {
+        if (_mqttClient == null || !_isConnected) return;
+
+        try
+        {
+            var topic = MqttTopics.GetFlowDeployStatusTopic(status.FlowId);
+            var payload = JsonSerializer.Serialize(status, _jsonOptions);
+
+            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .WithRetainFlag(true)
+                .Build());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing flow deployment status for {FlowId}", status.FlowId);
+        }
+    }
+
+    /// <summary>
     /// Publishes a raw message to a topic.
     /// </summary>
     public async Task PublishMessageAsync(string topic, string payload)

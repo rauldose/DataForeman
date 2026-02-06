@@ -46,6 +46,36 @@
                             }
                         </Template>
                     </GridColumn>
+                    <GridColumn HeaderText="Deploy" Width="130">
+                        <Template>
+                            @{
+                                var item = (context as FlowDisplay);
+                                if (item != null)
+                                {
+                                    var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == item.Id);
+                                    if (flow != null)
+                                    {
+                                        var state = RealtimeData.GetFlowDeployState(flow);
+                                        @switch (state)
+                                        {
+                                            case FlowDeployState.Deployed:
+                                                <span class="deploy-badge deployed" title="Config matches Engine"><i class="fa-solid fa-circle-check"></i> Deployed</span>
+                                                break;
+                                            case FlowDeployState.DeployedDisabled:
+                                                <span class="deploy-badge deployed-disabled" title="Config matches Engine but flow is disabled"><i class="fa-solid fa-circle-pause"></i> Synced (Off)</span>
+                                                break;
+                                            case FlowDeployState.Modified:
+                                                <span class="deploy-badge modified" title="Local config differs from Engine — save and reload to deploy"><i class="fa-solid fa-triangle-exclamation"></i> Modified</span>
+                                                break;
+                                            default:
+                                                <span class="deploy-badge unknown" title="Engine status not available"><i class="fa-solid fa-circle-question"></i> Unknown</span>
+                                                break;
+                                        }
+                                    }
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
                     <GridColumn HeaderText="Actions" Width="120">
                         <Template>
                             @{
@@ -88,6 +118,7 @@
                               IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
                               Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
                               @onclick="ToggleEnabled"></SfButton>
+                    <span class="@GetDeployBadgeCss()" title="@GetDeployBadgeTooltip()"><i class="@GetDeployBadgeIcon()"></i> @GetDeployBadgeLabel()</span>
                     <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
                 }
             </div>
@@ -399,6 +430,7 @@
             .ToList();
         RealtimeData.OnTagValueChanged += HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived += HandleFlowExecutionReceived;
+        RealtimeData.OnFlowDeployStatusChanged += HandleDeployStatusChanged;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -567,6 +599,17 @@
         }
     }
 
+    private async void HandleDeployStatusChanged(string flowId)
+    {
+        try
+        {
+            if (_disposed || _cts?.IsCancellationRequested == true) return;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
+        catch (OperationCanceledException) { }
+    }
+
     private void LoadFlowDefinition(FlowConfig flow)
     {
         // FIX: New collection instances
@@ -666,6 +709,40 @@
         if (portName.StartsWith("output", StringComparison.OrdinalIgnoreCase) && portName.Length > 6 && int.TryParse(portName[6..], out var outputNum)) return $"output-{outputNum - 1}";
         return $"{portType}-0";
     }
+
+    private FlowDeployState CurrentDeployState => FlowId != "new" ? RealtimeData.GetFlowDeployState(CurrentFlow) : FlowDeployState.Unknown;
+
+    private string GetDeployBadgeCss() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "deploy-badge deployed",
+        FlowDeployState.DeployedDisabled => "deploy-badge deployed-disabled",
+        FlowDeployState.Modified => "deploy-badge modified",
+        _ => "deploy-badge unknown"
+    };
+
+    private string GetDeployBadgeIcon() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "fa-solid fa-circle-check",
+        FlowDeployState.DeployedDisabled => "fa-solid fa-circle-pause",
+        FlowDeployState.Modified => "fa-solid fa-triangle-exclamation",
+        _ => "fa-solid fa-circle-question"
+    };
+
+    private string GetDeployBadgeLabel() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "Deployed",
+        FlowDeployState.DeployedDisabled => "Synced (Off)",
+        FlowDeployState.Modified => "Modified",
+        _ => "Not Deployed"
+    };
+
+    private string GetDeployBadgeTooltip() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "In sync with Engine",
+        FlowDeployState.DeployedDisabled => "Config matches Engine but flow is disabled",
+        FlowDeployState.Modified => "Local config differs from Engine — save and reload to deploy",
+        _ => "Engine status not available"
+    };
 
     private void CreateNewFlow() => Navigation.NavigateTo("/flows/new");
     private void EditFlow(string id) => Navigation.NavigateTo($"/flows/{id}");
@@ -1377,6 +1454,7 @@
         _simulationTimer?.Dispose();
         RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived -= HandleFlowExecutionReceived;
+        RealtimeData.OnFlowDeployStatusChanged -= HandleDeployStatusChanged;
     }
 
     public class FlowDisplay
