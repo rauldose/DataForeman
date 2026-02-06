@@ -192,6 +192,7 @@
       "name": "Simple Test Flow",
       "description": "Simple flow for end-to-end testing with trigger and debug output",
       "enabled": true,
+      "executionMode": "manual",
       "scanRateMs": 1000,
       "nodes": [
         {
@@ -247,13 +248,13 @@
     {
       "id": "flow-csharp-demo",
       "name": "C# Script Demo",
-      "description": "Demonstrates custom C# scripting: reads temperature, applies exponential moving average and deadband logic in code, then logs the result",
+      "description": "Demonstrates C# scripting: reads temperature, computes a running average, and logs diagnostics",
       "enabled": true,
       "executionMode": "manual",
       "scanRateMs": 1000,
       "nodes": [
         {
-          "id": "trigger-manual-instance-cs1",
+          "id": "trigger-manual-csharp",
           "type": "trigger-manual",
           "label": "Manual Trigger",
           "x": 80,
@@ -263,9 +264,9 @@
           }
         },
         {
-          "id": "tag-input-instance-cs-temp",
+          "id": "tag-input-temp-csharp",
           "type": "tag-input",
-          "label": "Temperature",
+          "label": "Read Temperature",
           "x": 300,
           "y": 150,
           "properties": {
@@ -273,22 +274,21 @@
           }
         },
         {
-          "id": "script-csharp-instance-ema",
+          "id": "script-csharp-avg",
           "type": "script-csharp",
-          "label": "EMA + Deadband",
-          "x": 550,
+          "label": "Running Average",
+          "x": 540,
           "y": 150,
           "properties": {
-            "code": "// Exponential Moving Average with deadband filter\nvar raw = Input is double d ? d : 0.0;\nvar alpha = 0.3;\nvar prev = GetState<double>(\"ema\", raw);\nvar ema = alpha * raw + (1.0 - alpha) * prev;\nSetState(\"ema\", ema);\n\n// Deadband: only emit when change > 0.5°C\nvar lastEmitted = GetState<double>(\"lastEmitted\", double.MinValue);\nif (Math.Abs(ema - lastEmitted) > 0.5)\n{\n    SetState(\"lastEmitted\", ema);\n    Log($\"EMA={ema:F2}°C (raw={raw:F2})\");\n    return Math.Round(ema, 2);\n}\nreturn null; // suppress output",
-            "timeout": "5000",
-            "onError": "continue"
+            "code": "// Read the incoming temperature value\nvar temp = ReadTagDouble(\"Default Simulator/Temperature_001\");\n\n// Keep a running sum and count in persistent state\nvar count = GetState<int>(\"count\", 0) + 1;\nvar sum = GetState<double>(\"sum\", 0.0) + temp;\nSetState(\"count\", count);\nSetState(\"sum\", sum);\n\nvar avg = sum / count;\nLog($\"Sample #{count}: temp={temp:F2}, avg={avg:F2}\");\n\n// Return the average as output\navg",
+            "timeout": "5000"
           }
         },
         {
-          "id": "output-log-instance-cs-out",
+          "id": "output-log-csharp",
           "type": "output-log",
           "label": "Log Result",
-          "x": 800,
+          "x": 780,
           "y": 150,
           "properties": {
             "logLevel": "info"
@@ -298,23 +298,23 @@
       "edges": [
         {
           "id": "edge-cs-1",
-          "sourceNodeId": "trigger-manual-instance-cs1",
+          "sourceNodeId": "trigger-manual-csharp",
           "sourcePortId": "output-0",
-          "targetNodeId": "tag-input-instance-cs-temp",
+          "targetNodeId": "tag-input-temp-csharp",
           "targetPortId": "input-0"
         },
         {
           "id": "edge-cs-2",
-          "sourceNodeId": "tag-input-instance-cs-temp",
+          "sourceNodeId": "tag-input-temp-csharp",
           "sourcePortId": "output-0",
-          "targetNodeId": "script-csharp-instance-ema",
+          "targetNodeId": "script-csharp-avg",
           "targetPortId": "input-0"
         },
         {
           "id": "edge-cs-3",
-          "sourceNodeId": "script-csharp-instance-ema",
+          "sourceNodeId": "script-csharp-avg",
           "sourcePortId": "output-0",
-          "targetNodeId": "output-log-instance-cs-out",
+          "targetNodeId": "output-log-csharp",
           "targetPortId": "input-0"
         }
       ],
