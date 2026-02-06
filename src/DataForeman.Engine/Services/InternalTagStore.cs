@@ -8,7 +8,7 @@ namespace DataForeman.Engine.Services;
 /// In-memory store for internal tags with context scopes (global, flow, node).
 /// Similar to Node-RED's context store functionality.
 /// </summary>
-public class InternalTagStore
+public class InternalTagStore : IDisposable
 {
     private readonly ILogger<InternalTagStore> _logger;
     private readonly ConfigService _configService;
@@ -361,6 +361,34 @@ public class InternalTagStore
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to persist context store to {Path}", _persistPath);
+        }
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    public void Dispose()
+    {
+        _flushTimer?.Dispose();
+        _flushTimer = null;
+
+        // Final synchronous flush so we don't lose pending changes
+        if (_dirty && _persistPath is not null)
+        {
+            try
+            {
+                var toSave = _values
+                    .Where(kvp => kvp.Key.StartsWith("global:"))
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                var json = JsonSerializer.Serialize(toSave, _jsonOpts);
+                File.WriteAllText(_persistPath, json);
+            }
+            catch
+            {
+                // Best-effort flush during shutdown
+            }
         }
     }
 

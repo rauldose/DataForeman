@@ -24,8 +24,9 @@
     </SfAppBar>
 
     <!-- Global toast container for user feedback -->
-    <SfToast @ref="_toast" Position="@(new ToastPosition { X = "Right", Y = "Top" })"
+    <SfToast @ref="_toast"
              CssClass="df-toast" ShowCloseButton="true" NewestOnTop="true">
+        <ToastPosition X="Right" Y="Top"></ToastPosition>
     </SfToast>
     
     <!-- Main Content -->

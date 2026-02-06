@@ -1,3 +1,108 @@
 {
-  "stateMachines": []
+  "stateMachines": [
+    {
+      "id": "sm-sample-1",
+      "name": "Pump Controller",
+      "description": "Controls the main process pump lifecycle: Idle, Starting, Running, Stopping, with Fault handling",
+      "enabled": true,
+      "states": [
+        {
+          "id": "state-idle",
+          "name": "Idle",
+          "color": "#6b7280",
+          "x": 120,
+          "y": 200,
+          "isInitial": true,
+          "isFinal": false,
+          "description": "Pump is off and waiting for start command"
+        },
+        {
+          "id": "state-starting",
+          "name": "Starting",
+          "color": "#f59e0b",
+          "x": 350,
+          "y": 100,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Pump is warming up"
+        },
+        {
+          "id": "state-running",
+          "name": "Running",
+          "color": "#22c55e",
+          "x": 580,
+          "y": 200,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Pump is operational at full speed"
+        },
+        {
+          "id": "state-stopping",
+          "name": "Stopping",
+          "color": "#f59e0b",
+          "x": 350,
+          "y": 320,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Pump is decelerating"
+        },
+        {
+          "id": "state-fault",
+          "name": "Fault",
+          "color": "#ef4444",
+          "x": 580,
+          "y": 400,
+          "isInitial": false,
+          "isFinal": true,
+          "description": "Pump encountered an error"
+        }
+      ],
+      "transitions": [
+        {
+          "id": "t1",
+          "fromStateId": "state-idle",
+          "toStateId": "state-starting",
+          "event": "start",
+          "priority": 0
+        },
+        {
+          "id": "t2",
+          "fromStateId": "state-starting",
+          "toStateId": "state-running",
+          "event": "ready",
+          "priority": 0
+        },
+        {
+          "id": "t3",
+          "fromStateId": "state-running",
+          "toStateId": "state-stopping",
+          "event": "stop",
+          "priority": 0
+        },
+        {
+          "id": "t4",
+          "fromStateId": "state-stopping",
+          "toStateId": "state-idle",
+          "event": "stopped",
+          "priority": 0
+        },
+        {
+          "id": "t5",
+          "fromStateId": "state-running",
+          "toStateId": "state-fault",
+          "event": "error",
+          "priority": 1
+        },
+        {
+          "id": "t6",
+          "fromStateId": "state-starting",
+          "toStateId": "state-fault",
+          "event": "error",
+          "priority": 1
+        }
+      ],
+      "createdAt": "2026-02-06T00:00:00Z",
+      "updatedAt": "2026-02-06T00:00:00Z"
+    }
+  ]
 }

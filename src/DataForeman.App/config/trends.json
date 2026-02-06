@@ -1,3 +1,48 @@
 {
-  "trends": []
+  "trends": [
+    {
+      "id": "trend-sample-1",
+      "name": "Process Overview",
+      "description": "Temperature, Pressure and Level trends for the process plant",
+      "series": [
+        {
+          "id": "s1",
+          "name": "Temperature",
+          "tagPath": "Default Simulator/Temperature_001",
+          "type": "Line",
+          "color": "#3b82f6",
+          "visible": true
+        },
+        {
+          "id": "s2",
+          "name": "Pressure",
+          "tagPath": "Default Simulator/Pressure_001",
+          "type": "StepLine",
+          "color": "#ef4444",
+          "visible": true
+        },
+        {
+          "id": "s3",
+          "name": "Level",
+          "tagPath": "Default Simulator/Level_001",
+          "type": "Area",
+          "color": "#22c55e",
+          "visible": true
+        }
+      ],
+      "timeRange": {
+        "type": "Last1Hour"
+      },
+      "displayOptions": {
+        "showLegend": true,
+        "showGrid": true,
+        "enableZoom": true,
+        "enablePan": true,
+        "refreshIntervalSeconds": 5,
+        "theme": "dark"
+      },
+      "createdAt": "2026-02-06T00:00:00Z",
+      "updatedAt": "2026-02-06T00:00:00Z"
+    }
+  ]
 }

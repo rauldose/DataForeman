@@ -175,7 +175,14 @@ public class PollEngine : IAsyncDisposable
             if (connection == null) return;
 
             Interlocked.Increment(ref _totalPolls);
-            Interlocked.Exchange(ref _totalPollTimeMs, _totalPollTimeMs + pollTimeMs);
+            // Atomic add for double using compare-exchange loop
+            double initial, computed;
+            do
+            {
+                initial = _totalPollTimeMs;
+                computed = initial + pollTimeMs;
+            }
+            while (Interlocked.CompareExchange(ref _totalPollTimeMs, computed, initial) != initial);
 
             // Update current values cache
             foreach (var kvp in values)
