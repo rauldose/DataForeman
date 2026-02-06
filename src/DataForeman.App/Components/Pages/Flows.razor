@@ -1528,9 +1528,12 @@
         {
             return je.ValueKind switch
             {
-                System.Text.Json.JsonValueKind.Number => je.TryGetDouble(out var jd)
-                    ? jd.ToString(jd == Math.Floor(jd) ? "F0" : "F2")
-                    : je.ToString(),
+                System.Text.Json.JsonValueKind.Number when je.TryGetDouble(out var jd)
+                    => jd.ToString(jd == Math.Floor(jd) ? "F0" : "F2"),
+                System.Text.Json.JsonValueKind.Number when je.TryGetInt64(out var ji)
+                    => ji.ToString(),
+                System.Text.Json.JsonValueKind.Number
+                    => je.GetRawText(),
                 System.Text.Json.JsonValueKind.True => "True",
                 System.Text.Json.JsonValueKind.False => "False",
                 System.Text.Json.JsonValueKind.String => TruncateString(je.GetString() ?? ""),
