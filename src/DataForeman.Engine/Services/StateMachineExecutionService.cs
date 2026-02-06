@@ -296,8 +296,9 @@ public class StateMachineExecutionService : IDisposable
                 // Script condition takes priority if both are set
                 if (!string.IsNullOrEmpty(transition.ScriptCondition) && _scriptService != null)
                 {
-                    conditionMet = _scriptService.EvaluateConditionAsync(
-                        transition.ScriptCondition, _scriptState).GetAwaiter().GetResult();
+                    conditionMet = Task.Run(() =>
+                        _scriptService.EvaluateConditionAsync(transition.ScriptCondition, _scriptState))
+                        .GetAwaiter().GetResult();
                 }
                 else if (transition.Trigger != null && _tagReader != null)
                 {
@@ -546,7 +547,8 @@ public class StateMachineExecutionService : IDisposable
 
             try
             {
-                var result = _scriptService.ExecuteAsync(code, _scriptState, input: null, timeoutMs: 5000)
+                var result = Task.Run(() =>
+                    _scriptService.ExecuteAsync(code, _scriptState, input: null, timeoutMs: 5000))
                     .GetAwaiter().GetResult();
 
                 foreach (var msg in result.LogMessages)

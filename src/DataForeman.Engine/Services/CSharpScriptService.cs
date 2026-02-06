@@ -70,7 +70,8 @@ public sealed class ScriptGlobals
     /// <summary>Write a value to a tag ("ConnectionName/TagName").</summary>
     public void WriteTag(string tagPath, object value)
     {
-        _tagWriter?.WriteTagValueAsync(tagPath, value).ConfigureAwait(false).GetAwaiter().GetResult();
+        if (_tagWriter == null) return;
+        Task.Run(() => _tagWriter.WriteTagValueAsync(tagPath, value)).GetAwaiter().GetResult();
     }
 
     /// <summary>Get a value from the persistent state dictionary.</summary>
@@ -309,16 +310,13 @@ public sealed class CSharpScriptService
 
     private Script<object> GetOrCompileScript(string code)
     {
-        var cacheKey = code.GetHashCode().ToString();
-
-        return _compiledCache.GetOrAdd(cacheKey, _ =>
+        return _compiledCache.GetOrAdd(code, key =>
         {
             var script = CSharpScript.Create<object>(
-                code,
+                key,
                 DefaultScriptOptions,
                 globalsType: typeof(ScriptGlobals));
 
-            // Pre-compile to catch errors early and cache the compiled state
             script.Compile();
             return script;
         });
