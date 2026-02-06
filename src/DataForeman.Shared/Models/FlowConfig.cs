@@ -14,6 +14,8 @@ public class FlowConfig
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public bool Enabled { get; set; } = false;
+    /// <summary>Execution mode: "continuous" (default) runs on a timer, "manual" is triggered on demand.</summary>
+    public string ExecutionMode { get; set; } = "continuous";
     public int ScanRateMs { get; set; } = 1000;
     public List<FlowNode> Nodes { get; set; } = new();
     public List<FlowEdge> Edges { get; set; } = new();

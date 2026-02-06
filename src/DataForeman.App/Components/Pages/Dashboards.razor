@@ -5,6 +5,7 @@
 @using Syncfusion.Blazor.CircularGauge
 @inject ConfigService ConfigService
 @inject RealtimeDataService RealtimeData
+@inject MqttService MqttService
 @inject NavigationManager Navigation
 @implements IDisposable
 
@@ -87,6 +88,7 @@
                     @if (IsEditMode)
                     {
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-chart-line" Content="Add Chart" @onclick="ShowChartLibrary"></SfButton>
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-play" Content="Add Flow" @onclick="ShowFlowLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
                         <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
                         <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>
@@ -216,6 +218,63 @@
                         </div>
                     }
                     <div class="chart-library-footer">@filteredCharts.Count chart@(filteredCharts.Count != 1 ? "s" : "") available</div>
+                </div>
+            </Content>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- Flow Library Dialog -->
+@if (ShowFlowLibraryDialog)
+{
+    <SfDialog @bind-Visible="ShowFlowLibraryDialog" Width="480px" IsModal="true" ShowCloseIcon="true" Header="Add Flow to Dashboard">
+        <DialogTemplates>
+            <Content>
+                <div class="chart-library">
+                    <div class="form-group">
+                        <SfTextBox @bind-Value="FlowLibrarySearch" Placeholder="Search flows..." CssClass="chart-search"></SfTextBox>
+                    </div>
+                    @{
+                        var manualFlows = ConfigService.Flows
+                            .Where(f => f.ExecutionMode == "manual")
+                            .Where(f => string.IsNullOrEmpty(FlowLibrarySearch)
+                                || f.Name.Contains(FlowLibrarySearch, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                    }
+                    @if (!manualFlows.Any())
+                    {
+                        <div class="empty-state" style="padding:24px;text-align:center;">
+                            <i class="fa-solid fa-play" style="font-size:32px;color:#666;"></i>
+                            <p style="color:#999;margin-top:8px;">@(string.IsNullOrEmpty(FlowLibrarySearch) ? "No manual flows available" : "No flows match your search")</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="chart-library-list">
+                            @foreach (var flow in manualFlows)
+                            {
+                                <div class="chart-library-item" @onclick="() => AddFlowWidget(flow.Id)">
+                                    <div class="chart-library-item-info">
+                                        <div class="chart-library-item-name">
+                                            <i class="fa-solid fa-play" style="color:#8b5cf6;margin-right:8px;"></i>
+                                            @flow.Name
+                                        </div>
+                                        <div class="chart-library-item-meta">
+                                            <span class="chart-library-chip">@flow.Nodes.Count nodes</span>
+                                            @if (!string.IsNullOrEmpty(flow.Description))
+                                            {
+                                                <span style="font-size:11px;color:#888;margin-left:4px;">@flow.Description</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <button class="chart-library-add-btn" title="Add to dashboard">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="chart-library-footer">@manualFlows.Count manual flow@(manualFlows.Count != 1 ? "s" : "") available</div>
                 </div>
             </Content>
         </DialogTemplates>
@@ -358,8 +417,10 @@
     private bool ShowAddPanelDialog;
     private bool ShowPanelConfigDialog;
     private bool ShowChartLibraryDialog;
+    private bool ShowFlowLibraryDialog;
     private string DeleteDashboardId = "";
     private string ChartLibrarySearch = "";
+    private string FlowLibrarySearch = "";
     private string SelectedTimeRange = "5m";
     private PanelType NewPanelType = PanelType.Stat;
     private string NewPanelTitle = "";
@@ -528,6 +589,42 @@
     {
         ChartLibrarySearch = "";
         ShowChartLibraryDialog = true;
+    }
+    
+    private void ShowFlowLibrary()
+    {
+        FlowLibrarySearch = "";
+        ShowFlowLibraryDialog = true;
+    }
+    
+    /// <summary>
+    /// Adds a flow widget to the dashboard — mirrors React's addFlowWidget(flowId).
+    /// </summary>
+    private void AddFlowWidget(string flowId)
+    {
+        var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == flowId);
+        if (flow == null) return;
+        
+        var panel = new DashboardPanel
+        {
+            Title = flow.Name,
+            Type = PanelType.Flow,
+            GridX = 0,
+            GridY = CurrentDashboard.Panels.Count > 0 
+                ? CurrentDashboard.Panels.Max(p => p.GridY + p.GridHeight) 
+                : 0,
+            GridWidth = 4,
+            GridHeight = 3,
+            FlowConfig = new FlowPanelConfig { FlowId = flowId }
+        };
+        
+        CurrentDashboard.Panels.Add(panel);
+    }
+    
+    private async Task TriggerFlow(string flowId)
+    {
+        var topic = DataForeman.Shared.Mqtt.MqttTopics.GetFlowManualTriggerTopic(flowId);
+        await MqttService.PublishMessageAsync(topic, "{}");
     }
     
     /// <summary>
@@ -782,6 +879,9 @@
                 break;
             case PanelType.Table:
                 RenderTablePanel(builder, panel);
+                break;
+            case PanelType.Flow:
+                RenderFlowPanel(builder, panel);
                 break;
         }
     };
@@ -1079,6 +1179,53 @@
             gridBuilder.CloseComponent();
         }));
         builder.CloseComponent();
+    }
+
+    private void RenderFlowPanel(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DashboardPanel panel)
+    {
+        var config = panel.FlowConfig;
+        if (config == null) return;
+        
+        var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == config.FlowId);
+        var flowName = flow?.Name ?? config.FlowId;
+        var flowDesc = flow?.Description ?? "";
+        
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "flow-panel");
+        
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "flow-panel-info");
+        
+        builder.OpenElement(4, "i");
+        builder.AddAttribute(5, "class", "fa-solid fa-play");
+        builder.AddAttribute(6, "style", "color:#8b5cf6;font-size:24px;");
+        builder.CloseElement();
+        
+        builder.OpenElement(7, "div");
+        builder.AddAttribute(8, "class", "flow-panel-name");
+        builder.AddContent(9, flowName);
+        builder.CloseElement();
+        
+        if (!string.IsNullOrEmpty(flowDesc))
+        {
+            builder.OpenElement(10, "div");
+            builder.AddAttribute(11, "style", "font-size:11px;color:#888;margin-top:2px;");
+            builder.AddContent(12, flowDesc);
+            builder.CloseElement();
+        }
+        
+        builder.CloseElement(); // flow-panel-info
+        
+        builder.OpenElement(13, "button");
+        builder.AddAttribute(14, "class", "flow-trigger-btn");
+        builder.AddAttribute(15, "onclick", Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => TriggerFlow(config.FlowId)));
+        builder.OpenElement(16, "i");
+        builder.AddAttribute(17, "class", "fa-solid fa-play");
+        builder.CloseElement();
+        builder.AddContent(18, " Run");
+        builder.CloseElement();
+        
+        builder.CloseElement(); // flow-panel
     }
 
     private string GetThresholdColor(List<GaugeThreshold>? thresholds, double value)

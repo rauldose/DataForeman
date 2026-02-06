@@ -192,6 +192,7 @@
       "name": "Simple Test Flow",
       "description": "Simple flow for end-to-end testing with trigger and debug output",
       "enabled": true,
+      "executionMode": "manual",
       "scanRateMs": 1000,
       "nodes": [
         {
@@ -243,6 +244,82 @@
       ],
       "createdAt": "2026-02-04T19:00:00Z",
       "updatedAt": "2026-02-04T19:00:00Z"
+    },
+    {
+      "id": "flow-csharp-demo",
+      "name": "C# Script Demo",
+      "description": "Demonstrates C# scripting: reads temperature, computes a running average, and logs diagnostics",
+      "enabled": true,
+      "executionMode": "manual",
+      "scanRateMs": 1000,
+      "nodes": [
+        {
+          "id": "trigger-manual-csharp",
+          "type": "trigger-manual",
+          "label": "Manual Trigger",
+          "x": 80,
+          "y": 150,
+          "properties": {
+            "runOnDeploy": "false"
+          }
+        },
+        {
+          "id": "tag-input-temp-csharp",
+          "type": "tag-input",
+          "label": "Read Temperature",
+          "x": 300,
+          "y": 150,
+          "properties": {
+            "tagPath": "sim-temp-1"
+          }
+        },
+        {
+          "id": "script-csharp-avg",
+          "type": "script-csharp",
+          "label": "Running Average",
+          "x": 540,
+          "y": 150,
+          "properties": {
+            "code": "// Read the incoming temperature value\nvar temp = ReadTagDouble(\"Default Simulator/Temperature_001\");\n\n// Keep a running sum and count in persistent state\nvar count = GetState<int>(\"count\", 0) + 1;\nvar sum = GetState<double>(\"sum\", 0.0) + temp;\nSetState(\"count\", count);\nSetState(\"sum\", sum);\n\nvar avg = sum / count;\nLog($\"Sample #{count}: temp={temp:F2}, avg={avg:F2}\");\n\n// Return the average as output\navg",
+            "timeout": "5000"
+          }
+        },
+        {
+          "id": "output-log-csharp",
+          "type": "output-log",
+          "label": "Log Result",
+          "x": 780,
+          "y": 150,
+          "properties": {
+            "logLevel": "info"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge-cs-1",
+          "sourceNodeId": "trigger-manual-csharp",
+          "sourcePortId": "output-0",
+          "targetNodeId": "tag-input-temp-csharp",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "edge-cs-2",
+          "sourceNodeId": "tag-input-temp-csharp",
+          "sourcePortId": "output-0",
+          "targetNodeId": "script-csharp-avg",
+          "targetPortId": "input-0"
+        },
+        {
+          "id": "edge-cs-3",
+          "sourceNodeId": "script-csharp-avg",
+          "sourcePortId": "output-0",
+          "targetNodeId": "output-log-csharp",
+          "targetPortId": "input-0"
+        }
+      ],
+      "createdAt": "2026-02-06T00:00:00Z",
+      "updatedAt": "2026-02-06T00:00:00Z"
     }
   ]
 }

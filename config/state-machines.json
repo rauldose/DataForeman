@@ -207,7 +207,8 @@
           "isFinal": false,
           "description": "Heater enabled, raising temperature to 30°C setpoint",
           "onEnterActions": [],
-          "onExitActions": []
+          "onExitActions": [],
+          "onEnterScript": "var temp = ReadTagDouble(\"Default Simulator/Temperature_001\");\nvar pressure = ReadTagDouble(\"Default Simulator/Pressure_001\");\nLog($\"Heating started — temp={temp:F1}°C, pressure={pressure:F2} bar\");\nSetState(\"heatStartTemp\", temp);"
         },
         {
           "id": "bp-holding",
@@ -245,7 +246,8 @@
           "onEnterActions": [
             { "tagPath": "Default Simulator/Status_001", "value": "0" }
           ],
-          "onExitActions": []
+          "onExitActions": [],
+          "onEnterScript": "var startTemp = GetState<double>(\"heatStartTemp\", 0);\nvar finalTemp = ReadTagDouble(\"Default Simulator/Temperature_001\");\nvar level = ReadTagDouble(\"Default Simulator/Level_001\");\nLog($\"Batch complete — heated from {startTemp:F1}°C to {finalTemp:F1}°C, final level={level:F1}%\");\nClearState(\"heatStartTemp\");"
         },
         {
           "id": "bp-fault",
