@@ -337,7 +337,14 @@
                                                 <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => RemoveSeries(series.Id)"></SfButton>
                                             </div>
                                             <div class="series-config">
-                                                <SfTextBox @bind-Value="series.TagPath" Placeholder="Tag path" CssClass="tag-path"></SfTextBox>
+                                                <SfDropDownList TItem="TagPathOption" TValue="string"
+                                                                DataSource="@AvailableTagPaths"
+                                                                @bind-Value="series.TagPath"
+                                                                Placeholder="Select tag..."
+                                                                AllowFiltering="true"
+                                                                CssClass="tag-path">
+                                                    <DropDownListFieldSettings Text="Display" Value="Path"></DropDownListFieldSettings>
+                                                </SfDropDownList>
                                                 <SfDropDownList TValue="TrendSeriesType" TItem="SeriesTypeOption" 
                                                                 @bind-Value="series.Type"
                                                                 DataSource="@SeriesTypeOptions"
@@ -423,6 +430,7 @@
 
     protected override void OnInitialized()
     {
+        RefreshAvailableTagPaths();
         LoadTrends();
         if (!string.IsNullOrEmpty(TrendId))
         {
@@ -794,5 +802,25 @@
     {
         public TrendSeriesType Value { get; set; }
         public string Label { get; set; } = string.Empty;
+    }
+
+    private class TagPathOption
+    {
+        public string Path { get; set; } = string.Empty;
+        public string Display { get; set; } = string.Empty;
+    }
+
+    private List<TagPathOption> AvailableTagPaths { get; set; } = new();
+
+    private void RefreshAvailableTagPaths()
+    {
+        AvailableTagPaths = ConfigService.GetAllTagsWithConnection()
+            .Select(t => new TagPathOption
+            {
+                Path = $"{t.Connection.Name}/{t.Tag.Name}",
+                Display = $"{t.Connection.Name} / {t.Tag.Name}"
+            })
+            .OrderBy(t => t.Display)
+            .ToList();
     }
 }
