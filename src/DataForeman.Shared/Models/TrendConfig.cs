@@ -61,6 +61,7 @@ public class TrendDisplayOptions
 public enum TrendSeriesType
 {
     Line,
+    StepLine,
     Area,
     Column,
     Scatter

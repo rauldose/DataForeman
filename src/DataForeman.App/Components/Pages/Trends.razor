@@ -214,9 +214,21 @@
                 </SfDropDownList>
                 
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-rotate" Content="Refresh" @onclick="RefreshData"></SfButton>
+                <SfButton CssClass="@(_showLiveTimeline ? "e-info" : "e-flat")" 
+                          IconCss="fa-solid fa-wave-square" 
+                          Content="@(_showLiveTimeline ? "Hide Live" : "Live")" 
+                          @onclick="ToggleLiveTimeline"></SfButton>
                 <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveTrend">Save</SfButton>
             </div>
             
+            @if (_showLiveTimeline)
+            {
+                <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                    <SignalTimeline />
+                </div>
+            }
+            else
+            {
             <div class="viewer-content">
                 <div class="timeline-container">
                     @if (CurrentTrend.Series.Any())
@@ -254,7 +266,9 @@
                                                     var dataPoints = GetSeriesData(series.Id);
                                                     if (dataPoints.Any())
                                                     {
-                                                        var pathData = GenerateTracePathData(dataPoints);
+                                                        var pathData = series.Type == TrendSeriesType.StepLine
+                                                            ? GenerateStepTracePathData(dataPoints)
+                                                            : GenerateTracePathData(dataPoints);
                                                         <path d="@pathData" 
                                                               fill="none" 
                                                               stroke="@series.Color" 
@@ -354,6 +368,7 @@
                     </div>
                 </div>
             </div>
+            } @* end else (historical view) *@
         </div>
     }
 </div>
@@ -383,6 +398,7 @@
     private string? _deletingTrendId;
     private string? _deletingTrendName;
     private System.Threading.Timer? _refreshTimer;
+    private bool _showLiveTimeline;
 
     private List<TimeRangeOption> TimeRangeOptions { get; set; } = new()
     {
@@ -399,6 +415,7 @@
     private List<SeriesTypeOption> SeriesTypeOptions { get; set; } = new()
     {
         new() { Value = TrendSeriesType.Line, Label = "Line" },
+        new() { Value = TrendSeriesType.StepLine, Label = "Step Line" },
         new() { Value = TrendSeriesType.Area, Label = "Area" },
         new() { Value = TrendSeriesType.Column, Label = "Column" },
         new() { Value = TrendSeriesType.Scatter, Label = "Scatter" }
@@ -486,6 +503,11 @@
     {
         StopAutoRefresh();
         Navigation.NavigateTo("/trends");
+    }
+
+    private void ToggleLiveTimeline()
+    {
+        _showLiveTimeline = !_showLiveTimeline;
     }
 
     private void AddSeries()
@@ -644,6 +666,45 @@
         
         return pathBuilder.ToString();
     }
+
+    /// <summary>
+    /// Generates an SVG path using step (horizontal-then-vertical) segments
+    /// so the trace holds its previous value until the next data point.
+    /// </summary>
+    private string GenerateStepTracePathData(List<TrendDataPoint> dataPoints)
+    {
+        if (!dataPoints.Any()) return "";
+
+        var sb = new System.Text.StringBuilder();
+        var floor = dataPoints.Min(p => p.Value);
+        var ceiling = dataPoints.Max(p => p.Value);
+        var valRange = ceiling - floor;
+        if (valRange == 0) valRange = 1;
+
+        var earliest = dataPoints.Min(p => p.Timestamp);
+        var latest = dataPoints.Max(p => p.Timestamp);
+        var secRange = (latest - earliest).TotalSeconds;
+        if (secRange == 0) secRange = 1;
+
+        for (int idx = 0; idx < dataPoints.Count; idx++)
+        {
+            var pt = dataPoints[idx];
+            double xPct = ((pt.Timestamp - earliest).TotalSeconds / secRange) * 100;
+            double yPct = ((ceiling - pt.Value) / valRange) * 100;
+
+            if (idx == 0)
+            {
+                sb.Append($"M {xPct:F2} {yPct:F2}");
+            }
+            else
+            {
+                // Step: hold previous Y, jump to new X, then move to new Y
+                sb.Append($" H {xPct:F2} V {yPct:F2}");
+            }
+        }
+
+        return sb.ToString();
+    }
     
     private string GenerateTraceFillPathData(List<TrendDataPoint> dataPoints)
     {
@@ -681,6 +742,7 @@
     private Syncfusion.Blazor.Charts.ChartSeriesType GetChartSeriesType(TrendSeriesType type) => type switch
     {
         TrendSeriesType.Line => Syncfusion.Blazor.Charts.ChartSeriesType.Line,
+        TrendSeriesType.StepLine => Syncfusion.Blazor.Charts.ChartSeriesType.StepLine,
         TrendSeriesType.Area => Syncfusion.Blazor.Charts.ChartSeriesType.Area,
         TrendSeriesType.Column => Syncfusion.Blazor.Charts.ChartSeriesType.Column,
         TrendSeriesType.Scatter => Syncfusion.Blazor.Charts.ChartSeriesType.Scatter,

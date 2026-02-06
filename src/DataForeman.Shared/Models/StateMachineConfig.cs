@@ -49,6 +49,38 @@ public class StateTransition
 }
 
 /// <summary>
+/// A point-in-time capture of where a running state machine sits,
+/// plus the last few transitions that occurred.
+/// </summary>
+public class MachineRuntimeInfo
+{
+    public string ConfigId { get; set; } = string.Empty;
+    public string ConfigName { get; set; } = string.Empty;
+    public string? NowStateId { get; set; }
+    public string? NowStateName { get; set; }
+    public string? BeforeStateId { get; set; }
+    public string? BeforeStateName { get; set; }
+    public string? LastTrigger { get; set; }
+    public bool WasSuccessful { get; set; }
+    public DateTime ChangedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime SnapshotUtc { get; set; } = DateTime.UtcNow;
+    public List<TransitionAuditEntry> Audit { get; set; } = new();
+}
+
+/// <summary>
+/// Single entry in a state machine's transition audit trail.
+/// </summary>
+public class TransitionAuditEntry
+{
+    public string SrcId { get; set; } = string.Empty;
+    public string SrcName { get; set; } = string.Empty;
+    public string DstId { get; set; } = string.Empty;
+    public string DstName { get; set; } = string.Empty;
+    public string Trigger { get; set; } = string.Empty;
+    public DateTime When { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 /// Root configuration file structure for state machines.
 /// </summary>
 public class StateMachinesFile

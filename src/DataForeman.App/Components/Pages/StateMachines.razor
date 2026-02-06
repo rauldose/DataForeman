@@ -157,6 +157,41 @@
                                 <p><strong>States:</strong> @CurrentStateMachine.States.Count</p>
                                 <p><strong>Transitions:</strong> @CurrentStateMachine.Transitions.Count</p>
                             </div>
+                            @if (CurrentStateMachine.Enabled && _liveInfo != null)
+                            {
+                                <div class="panel-header" style="margin-top:12px;">RUNTIME STATUS</div>
+                                <div class="info-panel" style="border:1px solid #333; border-radius:6px; padding:8px; background:#1a1a1a;">
+                                    <p><strong>Current State:</strong> <span style="color:#22c55e;">@(_liveInfo.NowStateName ?? "—")</span></p>
+                                    <p><strong>Previous State:</strong> @(_liveInfo.BeforeStateName ?? "—")</p>
+                                    <p><strong>Last Event:</strong> @(_liveInfo.LastTrigger ?? "—")</p>
+                                    <p><strong>Last Changed:</strong> @_liveInfo.ChangedAtUtc.ToString("HH:mm:ss")</p>
+                                    @if (_liveInfo.Audit.Any())
+                                    {
+                                        <div style="margin-top:8px;">
+                                            <strong>Recent Transitions:</strong>
+                                            <div style="max-height:120px; overflow-y:auto; margin-top:4px;">
+                                                @foreach (var entry in _liveInfo.Audit.AsEnumerable().Reverse().Take(10))
+                                                {
+                                                    <div style="font-size:11px; color:#9ca3af; padding:2px 0; border-bottom:1px solid #222;">
+                                                        <span style="color:#6b7280;">@entry.When.ToString("HH:mm:ss")</span>
+                                                        <span style="color:#ef4444;">@entry.SrcName</span>
+                                                        →
+                                                        <span style="color:#22c55e;">@entry.DstName</span>
+                                                        <span style="color:#6b7280;">[@entry.Trigger]</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else if (CurrentStateMachine.Enabled)
+                            {
+                                <div class="panel-header" style="margin-top:12px;">RUNTIME STATUS</div>
+                                <div class="info-panel" style="color:#6b7280;">
+                                    <p>Waiting for engine connection…</p>
+                                </div>
+                            }
                         }
                     </div>
                 </div>
@@ -202,6 +237,9 @@
     
     // Palette state
     private StateType? _draggingStateType;
+    
+    // Runtime info from engine (for displaying current state)
+    private MachineRuntimeInfo? _liveInfo;
     
     // State to diagram node mapping
     private Dictionary<string, string> _stateToNodeMap = new();
