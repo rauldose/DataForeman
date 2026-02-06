@@ -164,7 +164,7 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
             Outcome = result.Status.ToString(),
             NodesExecuted = result.NodesSucceeded,
             MessagesHandled = result.MessagesProcessed,
-            DurationMs = 0,
+            DurationMs = (DateTime.UtcNow - initialMsg.CreatedUtc).TotalMilliseconds,
             StartedUtc = initialMsg.CreatedUtc,
             CompletedUtc = DateTime.UtcNow
         };

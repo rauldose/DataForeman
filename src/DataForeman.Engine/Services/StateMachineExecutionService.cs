@@ -40,6 +40,7 @@ public class StateMachineExecutionService : IDisposable
     private readonly IFlowRunner? _flowRunner;
     private readonly Dictionary<string, StateMachineRuntime> _runtimes = new();
     private readonly object _lock = new();
+    private readonly CancellationTokenSource _cts = new();
     private Timer? _scanTimer;
     private bool _disposed;
 
@@ -96,7 +97,7 @@ public class StateMachineExecutionService : IDisposable
                 return;
             }
 
-            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter, _scriptService, _flowRunner);
+            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter, _scriptService, _flowRunner, _cts.Token);
             _runtimes[config.Id] = runtime;
             _logger.LogInformation("Loaded state machine: {Name} with {StateCount} states, {TransitionCount} transitions",
                 config.Name, config.States.Count, config.Transitions.Count);
@@ -225,7 +226,9 @@ public class StateMachineExecutionService : IDisposable
     {
         if (!_disposed)
         {
+            _cts.Cancel();
             _scanTimer?.Dispose();
+            _cts.Dispose();
             _disposed = true;
         }
     }
@@ -240,6 +243,7 @@ public class StateMachineExecutionService : IDisposable
         private readonly IStateMachineTagWriter? _tagWriter;
         private readonly CSharpScriptService? _scriptService;
         private readonly IFlowRunner? _flowRunner;
+        private readonly CancellationToken _ct;
         private readonly Dictionary<string, object?> _scriptState = new();
         private string? _currentStateId;
         private string? _prevStateId;
@@ -258,7 +262,8 @@ public class StateMachineExecutionService : IDisposable
             IStateMachineTagReader? tagReader,
             IStateMachineTagWriter? tagWriter,
             CSharpScriptService? scriptService,
-            IFlowRunner? flowRunner)
+            IFlowRunner? flowRunner,
+            CancellationToken ct)
         {
             _config = config;
             _logger = logger;
@@ -266,6 +271,7 @@ public class StateMachineExecutionService : IDisposable
             _tagWriter = tagWriter;
             _scriptService = scriptService;
             _flowRunner = flowRunner;
+            _ct = ct;
 
             // Initialize to the designated initial state
             _currentStateId = config.InitialStateId
@@ -594,12 +600,13 @@ public class StateMachineExecutionService : IDisposable
                     {
                         await _flowRunner.TriggerFlowAsync(capturedId, triggerSource);
                     }
+                    catch (OperationCanceledException) { /* shutdown */ }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "Failed to trigger flow {FlowId} during {Phase}({Context})",
                             capturedId, phase, context);
                     }
-                });
+                }, _ct);
 
                 _logger.LogDebug("{Phase}({Context}): triggering flow {FlowId}", phase, context, flowId);
             }
