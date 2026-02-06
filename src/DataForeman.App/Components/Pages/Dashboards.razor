@@ -205,7 +205,7 @@
                                         </div>
                                         <div class="chart-library-item-meta">
                                             <span class="chart-library-chip">@chart.ChartType</span>
-                                            <span class="chart-library-chip">@chart.Series.Count tag@(chart.Series.Count != 1 ? "s" : "")</span>
+                                            <span class="chart-library-chip">@chart.Series.Count series</span>
                                         </div>
                                     </div>
                                     <button class="chart-library-add-btn" title="Add to dashboard">
@@ -215,7 +215,7 @@
                             }
                         </div>
                     }
-                    <div style="padding:8px 0 0;color:#888;font-size:12px;">@filteredCharts.Count chart@(filteredCharts.Count != 1 ? "s" : "") available</div>
+                    <div class="chart-library-footer">@filteredCharts.Count chart@(filteredCharts.Count != 1 ? "s" : "") available</div>
                 </div>
             </Content>
         </DialogTemplates>
