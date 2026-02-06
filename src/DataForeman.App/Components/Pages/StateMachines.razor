@@ -447,7 +447,7 @@
     private StateMachineConfig CurrentStateMachine { get; set; } = new();
     private List<StateMachineDisplay> StateMachinesList { get; set; } = new();
     private SfDialog? _deleteDialog;
-    private bool _deleteDialogVisible;
+    private bool _deleteDialogVisible = false;
     private string? _deletingStateMachineId;
     private string? _deletingStateMachineName;
     

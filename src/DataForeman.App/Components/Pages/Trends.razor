@@ -402,7 +402,7 @@
     private List<TrendDisplay> TrendsList { get; set; } = new();
     private Dictionary<string, List<TrendDataPoint>> _seriesData = new();
     private SfDialog? _deleteDialog;
-    private bool _deleteDialogVisible;
+    private bool _deleteDialogVisible = false;
     private string? _deletingTrendId;
     private string? _deletingTrendName;
     private System.Threading.Timer? _refreshTimer;
