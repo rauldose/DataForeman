@@ -114,8 +114,7 @@
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
-                    <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="Show live values on node ports"></SfButton>
-                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-bolt" Content="Run Now" @onclick="RunFlowNow" title="Trigger a single flow execution now"></SfButton>
+                    <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="Show live signal timeline panel"></SfButton>
                     <span class="toolbar-separator"></span>
                     <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
                               IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
@@ -196,64 +195,73 @@
                     </SfDiagramComponent>
                 </div>
                 
-                <div class="properties-panel">
-                    <h3>Properties</h3>
-                    @if (SelectedNode != null)
-                    {
-                        var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
-                        <div class="property-header">
-                            <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
-                                <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
-                                @(plugin?.Name ?? GetNodeType(SelectedNode))
-                            </span>
-                        </div>
-                        
-                        @if (plugin != null)
+                @if (_showLiveValues)
+                {
+                    <div class="signal-timeline-panel">
+                        <SignalTimeline />
+                    </div>
+                }
+                else
+                {
+                    <div class="properties-panel">
+                        <h3>Properties</h3>
+                        @if (SelectedNode != null)
                         {
-                            <p class="plugin-description">@plugin.Description</p>
-                        }
-                        
-                        <div class="property-group">
-                            <label>Label</label>
-                            <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
-                        </div>
-                        
-                        @if (plugin != null)
-                        {
-                            @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
+                            var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
+                            <div class="property-header">
+                                <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
+                                    <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
+                                    @(plugin?.Name ?? GetNodeType(SelectedNode))
+                                </span>
+                            </div>
+                            
+                            @if (plugin != null)
                             {
-                                <div class="property-group">
-                                    <label>@prop.Label @(prop.Required ? "*" : "")</label>
-                                    @RenderPropertyInput(prop)
-                                    @if (!string.IsNullOrEmpty(prop.HelpText))
-                                    {
-                                        <span class="property-hint">@prop.HelpText</span>
-                                    }
-                                </div>
+                                <p class="plugin-description">@plugin.Description</p>
                             }
+                            
+                            <div class="property-group">
+                                <label>Label</label>
+                                <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
+                            </div>
+                            
+                            @if (plugin != null)
+                            {
+                                @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
+                                {
+                                    <div class="property-group">
+                                        <label>@prop.Label @(prop.Required ? "*" : "")</label>
+                                        @RenderPropertyInput(prop)
+                                        @if (!string.IsNullOrEmpty(prop.HelpText))
+                                        {
+                                            <span class="property-hint">@prop.HelpText</span>
+                                        }
+                                    </div>
+                                }
+                            }
+                            
+                            <div class="property-actions">
+                                <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="no-selection">Select a node to view properties</p>
                         }
                         
-                        <div class="property-actions">
-                            <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="no-selection">Select a node to view properties</p>
-                    }
-                    
-                    <div class="flow-settings">
-                        <h4>Flow Settings</h4>
-                        <div class="property-group">
-                            <label>Description</label>
-                            <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
-                        </div>
-                        <div class="property-group">
-                            <label>Scan Rate (ms)</label>
-                            <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
+                        <div class="flow-settings">
+                            <h4>Flow Settings</h4>
+                            <div class="property-group">
+                                <label>Description</label>
+                                <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
+                            </div>
+                            <div class="property-group">
+                                <label>Scan Rate (ms)</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
             </div>
             
             <div class="output-console @(ConsoleExpanded ? "expanded" : "collapsed")">
@@ -1488,32 +1496,6 @@
     }
     
     // --- Live Value Annotations ---
-
-    private async Task RunFlowNow()
-    {
-        if (CurrentFlow == null || string.IsNullOrEmpty(FlowId) || FlowId == "new")
-        {
-            AddConsoleMessage("WARN", "System", "Save and deploy the flow before running it");
-            return;
-        }
-
-        try
-        {
-            var topic = MqttTopics.GetFlowManualTriggerTopic(CurrentFlow.Id);
-            await MqttService.PublishMessageAsync(topic, "{\"source\":\"ui\"}");
-            AddConsoleMessage("INFO", "System", $"Sent manual trigger for flow '{CurrentFlow.Name}'");
-            
-            // Auto-enable live values to see results
-            if (!_showLiveValues)
-            {
-                _showLiveValues = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            AddConsoleMessage("ERROR", "System", $"Failed to send trigger: {ex.Message}");
-        }
-    }
 
     private void ToggleLiveValues()
     {
