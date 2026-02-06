@@ -490,6 +490,9 @@
     // MachineRuntimeInfo messages; stays null when engine is offline)
     private MachineRuntimeInfo? _liveInfo;
     
+    // ID of the state node currently highlighted as "active" on the diagram
+    private string? _highlightedStateId;
+    
     // State to diagram node mapping
     private Dictionary<string, string> _stateToNodeMap = new();
     
@@ -605,6 +608,10 @@
             var connector = CreateStateConnector(transition.Id, transition.FromStateId, transition.ToStateId, transition.Event);
             StateConnectors.Add(connector);
         }
+        
+        // If we already have live info, highlight the active state
+        if (_liveInfo != null)
+            HighlightActiveState(_liveInfo.NowStateId);
         
         StateHasChanged();
     }
@@ -1079,8 +1086,46 @@
         if (info.ConfigId == CurrentStateMachine?.Id)
         {
             _liveInfo = info;
+            HighlightActiveState(info.NowStateId);
             InvokeAsync(StateHasChanged);
         }
+    }
+    
+    /// <summary>
+    /// Visually highlights the active state node on the diagram and restores
+    /// the previous active node to its original style.
+    /// </summary>
+    private void HighlightActiveState(string? activeStateId)
+    {
+        // Restore previous highlighted node
+        if (_highlightedStateId != null && _highlightedStateId != activeStateId)
+        {
+            var prevNode = StateNodes.FirstOrDefault(n => n.ID == _highlightedStateId);
+            var prevState = CurrentStateMachine.States.FirstOrDefault(s => s.Id == _highlightedStateId);
+            if (prevNode != null && prevState != null)
+            {
+                prevNode.Style.StrokeColor = prevState.Color;
+                prevNode.Style.StrokeWidth = 3;
+                // Restore annotation to plain white
+                if (prevNode.Annotations.Count > 0)
+                    prevNode.Annotations[0].Style.Color = "#ffffff";
+            }
+        }
+        
+        // Highlight the new active node
+        if (!string.IsNullOrEmpty(activeStateId))
+        {
+            var node = StateNodes.FirstOrDefault(n => n.ID == activeStateId);
+            if (node != null)
+            {
+                node.Style.StrokeColor = "#00e676";
+                node.Style.StrokeWidth = 5;
+                if (node.Annotations.Count > 0)
+                    node.Annotations[0].Style.Color = "#00e676";
+            }
+        }
+        
+        _highlightedStateId = activeStateId;
     }
     
     private async Task DeleteSelectedTransition()
