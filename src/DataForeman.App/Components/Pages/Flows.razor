@@ -356,14 +356,8 @@
     private string PendingSubflowId = "";
     private List<FlowTemplate> AvailableTemplates => ConfigService.FlowTemplates.ToList();
 
-    private List<FlowTagPathOption> FlowTagPathOptions => ConfigService.GetAllTagsWithConnection()
-        .Select(t => new FlowTagPathOption
-        {
-            Path = $"{t.Connection.Name}/{t.Tag.Name}",
-            Label = $"{t.Connection.Name} / {t.Tag.Name}"
-        })
-        .OrderBy(t => t.Label)
-        .ToList();
+    private List<FlowTagPathOption> _flowTagPathOptions = new();
+    private List<FlowTagPathOption> FlowTagPathOptions => _flowTagPathOptions;
     
     // Node property values storage
     private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
@@ -395,6 +389,14 @@
         _cts = new CancellationTokenSource();
         _disposed = false; // Reset in case component is reused
         await ConfigService.LoadAllAsync();
+        _flowTagPathOptions = ConfigService.GetAllTagsWithConnection()
+            .Select(t => new FlowTagPathOption
+            {
+                Path = $"{t.Connection.Name}/{t.Tag.Name}",
+                Label = $"{t.Connection.Name} / {t.Tag.Name}"
+            })
+            .OrderBy(t => t.Label)
+            .ToList();
         RealtimeData.OnTagValueChanged += HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived += HandleFlowExecutionReceived;
     }
