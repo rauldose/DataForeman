@@ -32,6 +32,9 @@ public class DashboardPanel
     public int GridWidth { get; set; } = 6;
     public int GridHeight { get; set; } = 4;
     
+    /// <summary>Reference to a pre-configured chart ID (from charts.json) for Chart panels.</summary>
+    public string? ChartRefId { get; set; }
+    
     // Panel-specific configuration
     public ChartPanelConfig? ChartConfig { get; set; }
     public GaugePanelConfig? GaugeConfig { get; set; }

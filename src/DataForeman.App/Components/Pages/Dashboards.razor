@@ -154,15 +154,24 @@
                             <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                         </SfDropDownList>
                     </div>
+                    @if (NewPanelType == PanelType.Chart && ConfigService.Charts.Any())
+                    {
+                        <div class="form-group">
+                            <label>Chart</label>
+                            <SfDropDownList TItem="ChartConfig" TValue="string" DataSource="@ConfigService.Charts" @bind-Value="SelectedChartId" Placeholder="Select a pre-configured chart">
+                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
+                            </SfDropDownList>
+                        </div>
+                    }
                     <div class="form-group">
                         <label>Title</label>
-                        <SfTextBox @bind-Value="NewPanelTitle"></SfTextBox>
+                        <SfTextBox @bind-Value="NewPanelTitle" Placeholder="@(NewPanelType == PanelType.Chart && !string.IsNullOrEmpty(SelectedChartId) ? ConfigService.Charts.FirstOrDefault(c => c.Id == SelectedChartId)?.Name ?? "" : "")"></SfTextBox>
                     </div>
                 </div>
             </Content>
             <FooterTemplate>
                 <SfButton @onclick="() => ShowAddPanelDialog = false">Cancel</SfButton>
-                <SfButton CssClass="e-primary" @onclick="AddPanel">Add</SfButton>
+                <SfButton CssClass="e-primary" @onclick="AddPanel" Disabled="@(NewPanelType == PanelType.Chart && ConfigService.Charts.Any() && string.IsNullOrEmpty(SelectedChartId))">Add</SfButton>
             </FooterTemplate>
         </DialogTemplates>
     </SfDialog>
@@ -304,6 +313,7 @@
     private bool ShowAddPanelDialog;
     private bool ShowPanelConfigDialog;
     private string DeleteDashboardId = "";
+    private string SelectedChartId = "";
     private string SelectedTimeRange = "5m";
     private PanelType NewPanelType = PanelType.Stat;
     private string NewPanelTitle = "";
@@ -466,14 +476,23 @@
     {
         NewPanelType = PanelType.Stat;
         NewPanelTitle = "";
+        SelectedChartId = "";
         ShowAddPanelDialog = true;
     }
     
     private void AddPanel()
     {
+        // If chart type selected with a pre-configured chart, use its name as default title
+        var defaultTitle = NewPanelType.ToString();
+        if (NewPanelType == PanelType.Chart && !string.IsNullOrEmpty(SelectedChartId))
+        {
+            var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == SelectedChartId);
+            if (chart != null) defaultTitle = chart.Name;
+        }
+        
         var panel = new DashboardPanel
         {
-            Title = string.IsNullOrEmpty(NewPanelTitle) ? NewPanelType.ToString() : NewPanelTitle,
+            Title = string.IsNullOrEmpty(NewPanelTitle) ? defaultTitle : NewPanelTitle,
             Type = NewPanelType,
             GridX = 0,
             GridY = CurrentDashboard.Panels.Count > 0 
@@ -493,7 +512,8 @@
                 panel.GaugeConfig = new GaugePanelConfig();
                 break;
             case PanelType.Chart:
-                panel.ChartConfig = new ChartPanelConfig();
+                panel.ChartConfig = BuildChartPanelConfig(SelectedChartId);
+                panel.ChartRefId = string.IsNullOrEmpty(SelectedChartId) ? null : SelectedChartId;
                 break;
             case PanelType.Table:
                 panel.TableConfig = new TablePanelConfig();
@@ -502,6 +522,46 @@
         
         CurrentDashboard.Panels.Add(panel);
         ShowAddPanelDialog = false;
+    }
+    
+    /// <summary>
+    /// Builds a ChartPanelConfig from a pre-configured chart, or returns empty config if not found.
+    /// </summary>
+    private ChartPanelConfig BuildChartPanelConfig(string? chartId)
+    {
+        if (string.IsNullOrEmpty(chartId)) return new ChartPanelConfig();
+        
+        var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == chartId);
+        if (chart == null) return new ChartPanelConfig();
+        
+        return new ChartPanelConfig
+        {
+            ChartType = chart.ChartType,
+            ShowLegend = chart.Settings.ShowLegend,
+            LegendPosition = chart.Settings.LegendPosition,
+            EnableZoom = chart.Settings.EnableZoom,
+            FillArea = chart.ChartType == "Area",
+            DataSources = chart.Series.Select(s => new PanelDataSource
+            {
+                TagId = s.TagId,
+                DisplayName = s.DisplayName,
+                Color = s.Color,
+                YAxisId = s.YAxisId,
+                LineWidth = s.LineWidth
+            }).ToList(),
+            YAxes = chart.YAxes.Select(a => new ChartAxisConfig
+            {
+                Id = a.Id,
+                Name = a.Name,
+                Position = a.Position,
+                Minimum = a.Minimum,
+                Maximum = a.Maximum,
+                Unit = a.Unit,
+                Color = a.Color,
+                AutoScale = a.AutoScale,
+                LabelFormat = a.LabelFormat
+            }).ToList()
+        };
     }
     
     private void ConfigurePanel(DashboardPanel panel)
