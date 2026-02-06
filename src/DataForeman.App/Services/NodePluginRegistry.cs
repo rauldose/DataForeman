@@ -837,6 +837,254 @@ public class NodePluginRegistry
                 new() { Key = "outputName", Label = "Output Name", Type = PropertyType.Text, DefaultValue = "output", Group = "Definition" }
             }
         });
+
+        // === MATH (EXTENDED) NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "clamp",
+            Name = "Clamp",
+            ShortLabel = "Clamp",
+            Category = "Math",
+            Description = "Limits a numeric value to a min/max range",
+            Icon = "fa-solid fa-compress-arrows-alt",
+            Color = "#9C27B0",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "min", Label = "Minimum", Type = PropertyType.Decimal, DefaultValue = "0", Group = "Range" },
+                new() { Key = "max", Label = "Maximum", Type = PropertyType.Decimal, DefaultValue = "100", Group = "Range" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "round",
+            Name = "Round",
+            ShortLabel = "Round",
+            Category = "Math",
+            Description = "Rounds a numeric value with configurable precision and mode",
+            Icon = "fa-solid fa-circle-dot",
+            Color = "#00897B",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "mode", Label = "Mode", Type = PropertyType.Select, DefaultValue = "round", Options = new() { new() { Value = "round", Label = "Round" }, new() { Value = "floor", Label = "Floor" }, new() { Value = "ceil", Label = "Ceiling" }, new() { Value = "trunc", Label = "Truncate" } }, Group = "Settings" },
+                new() { Key = "precision", Label = "Decimal Places", Type = PropertyType.Integer, DefaultValue = "0", Min = -10, Max = 15, Group = "Settings" }
+            }
+        });
+
+        // === LOGIC (EXTENDED) NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "gate",
+            Name = "Gate",
+            ShortLabel = "Gate",
+            Category = "Logic",
+            Description = "Passes data when condition is true, blocks or holds when false",
+            Icon = "fa-solid fa-door-open",
+            Color = "#00BCD4",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "falseOutputMode", Label = "When False", Type = PropertyType.Select, DefaultValue = "null", Options = new() { new() { Value = "null", Label = "Block (null)" }, new() { Value = "previous", Label = "Hold Previous" } }, Group = "Behavior" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "merge",
+            Name = "Merge",
+            ShortLabel = "Merge",
+            Category = "Logic",
+            Description = "Combines multiple inputs using various strategies",
+            Icon = "fa-solid fa-code-merge",
+            Color = "#7B1FA2",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "strategy", Label = "Strategy", Type = PropertyType.Select, DefaultValue = "first-valid", Options = new() { new() { Value = "first-valid", Label = "First Valid" }, new() { Value = "latest", Label = "Latest" }, new() { Value = "min", Label = "Minimum" }, new() { Value = "max", Label = "Maximum" }, new() { Value = "average", Label = "Average" }, new() { Value = "sum", Label = "Sum" } }, Group = "Strategy" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "state-machine",
+            Name = "State Machine",
+            ShortLabel = "FSM",
+            Category = "Logic",
+            Description = "Finite state machine with event-driven transitions",
+            Icon = "fa-solid fa-diagram-project",
+            Color = "#7B1FA2",
+            InputCount = 2,
+            OutputCount = 2,
+            Properties = new()
+            {
+                new() { Key = "initialState", Label = "Initial State", Type = PropertyType.Text, DefaultValue = "idle", Group = "States" },
+                new() { Key = "transitions", Label = "Transitions", Type = PropertyType.Text, DefaultValue = "idle:start->running,running:stop->idle", HelpText = "Format: source:event->target, comma-separated", Group = "States" },
+                new() { Key = "resetOnInvalid", Label = "Reset on Invalid", Type = PropertyType.Boolean, DefaultValue = "false", Group = "Behavior" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "range-check",
+            Name = "Range Check",
+            ShortLabel = "Range",
+            Category = "Logic",
+            Description = "Checks if a value falls within a min/max range",
+            Icon = "fa-solid fa-ruler-combined",
+            Color = "#4CAF50",
+            InputCount = 1,
+            OutputCount = 2,
+            Properties = new()
+            {
+                new() { Key = "min", Label = "Minimum", Type = PropertyType.Decimal, DefaultValue = "0", Group = "Range" },
+                new() { Key = "max", Label = "Maximum", Type = PropertyType.Decimal, DefaultValue = "100", Group = "Range" },
+                new() { Key = "rangeMode", Label = "Range Mode", Type = PropertyType.Select, DefaultValue = "inclusive", Options = new() { new() { Value = "inclusive", Label = "[min, max]" }, new() { Value = "exclusive", Label = "(min, max)" }, new() { Value = "minInclusive", Label = "[min, max)" }, new() { Value = "maxInclusive", Label = "(min, max]" } }, Group = "Range" },
+                new() { Key = "outputMode", Label = "Output Mode", Type = PropertyType.Select, DefaultValue = "both", Options = new() { new() { Value = "boolean", Label = "Boolean Only" }, new() { Value = "both", Label = "Boolean + Value" } }, Group = "Output" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "boolean-logic",
+            Name = "Boolean Logic",
+            ShortLabel = "Bool",
+            Category = "Logic",
+            Description = "Logical operations: AND, OR, XOR, NOT, NAND, NOR",
+            Icon = "fa-solid fa-microchip",
+            Color = "#9C27B0",
+            InputCount = 2,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = "and", Options = new() { new() { Value = "and", Label = "AND" }, new() { Value = "or", Label = "OR" }, new() { Value = "xor", Label = "XOR" }, new() { Value = "not", Label = "NOT" }, new() { Value = "nand", Label = "NAND" }, new() { Value = "nor", Label = "NOR" } }, Group = "Operation" }
+            }
+        });
+
+        // === DATA TRANSFORM NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "type-convert",
+            Name = "Type Convert",
+            ShortLabel = "Convert",
+            Category = "Data Transform",
+            Description = "Converts values between number, string, and boolean types",
+            Icon = "fa-solid fa-exchange-alt",
+            Color = "#00BCD4",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "targetType", Label = "Target Type", Type = PropertyType.Select, DefaultValue = "string", Options = new() { new() { Value = "number", Label = "Number" }, new() { Value = "string", Label = "String" }, new() { Value = "boolean", Label = "Boolean" } }, Group = "Conversion" },
+                new() { Key = "onError", Label = "On Error", Type = PropertyType.Select, DefaultValue = "null", Options = new() { new() { Value = "null", Label = "Output Null" }, new() { Value = "original", Label = "Keep Original" }, new() { Value = "default", Label = "Use Default" } }, Group = "Conversion" },
+                new() { Key = "defaultValue", Label = "Default Value", Type = PropertyType.Text, DefaultValue = "", Group = "Conversion" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "string-ops",
+            Name = "String Operations",
+            ShortLabel = "String",
+            Category = "Data Transform",
+            Description = "String manipulation: case, trim, replace, split, and more",
+            Icon = "fa-solid fa-font",
+            Color = "#795548",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = "uppercase", Options = new() { new() { Value = "uppercase", Label = "Uppercase" }, new() { Value = "lowercase", Label = "Lowercase" }, new() { Value = "trim", Label = "Trim" }, new() { Value = "length", Label = "Length" }, new() { Value = "contains", Label = "Contains" }, new() { Value = "replace", Label = "Replace" }, new() { Value = "substring", Label = "Substring" }, new() { Value = "split", Label = "Split" }, new() { Value = "startsWith", Label = "Starts With" }, new() { Value = "endsWith", Label = "Ends With" }, new() { Value = "reverse", Label = "Reverse" } }, Group = "Operation" },
+                new() { Key = "searchText", Label = "Search Text", Type = PropertyType.Text, DefaultValue = "", Group = "Parameters" },
+                new() { Key = "replaceWith", Label = "Replace With", Type = PropertyType.Text, DefaultValue = "", Group = "Parameters" },
+                new() { Key = "startIndex", Label = "Start Index", Type = PropertyType.Integer, DefaultValue = "0", Group = "Parameters" },
+                new() { Key = "endIndex", Label = "End Index", Type = PropertyType.Integer, DefaultValue = "-1", Group = "Parameters" },
+                new() { Key = "delimiter", Label = "Delimiter", Type = PropertyType.Text, DefaultValue = ",", Group = "Parameters" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "array-ops",
+            Name = "Array Operations",
+            ShortLabel = "Array",
+            Category = "Data Transform",
+            Description = "Array operations: get, length, first, last, join, slice",
+            Icon = "fa-solid fa-layer-group",
+            Color = "#1976D2",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = "length", Options = new() { new() { Value = "get-element", Label = "Get Element" }, new() { Value = "length", Label = "Length" }, new() { Value = "first", Label = "First" }, new() { Value = "last", Label = "Last" }, new() { Value = "join", Label = "Join" }, new() { Value = "slice", Label = "Slice" }, new() { Value = "includes", Label = "Includes" }, new() { Value = "index-of", Label = "Index Of" } }, Group = "Operation" },
+                new() { Key = "index", Label = "Index", Type = PropertyType.Integer, DefaultValue = "0", Group = "Parameters" },
+                new() { Key = "separator", Label = "Separator", Type = PropertyType.Text, DefaultValue = ",", Group = "Parameters" },
+                new() { Key = "start", Label = "Start", Type = PropertyType.Integer, DefaultValue = "0", Group = "Parameters" },
+                new() { Key = "end", Label = "End", Type = PropertyType.Integer, DefaultValue = "-1", Group = "Parameters" },
+                new() { Key = "searchValue", Label = "Search Value", Type = PropertyType.Text, DefaultValue = "", Group = "Parameters" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "json-ops",
+            Name = "JSON Operations",
+            ShortLabel = "JSON",
+            Category = "Data Transform",
+            Description = "Parse, stringify, and access JSON properties",
+            Icon = "fa-solid fa-code",
+            Color = "#FF6F00",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new() { Key = "operation", Label = "Operation", Type = PropertyType.Select, DefaultValue = "get-property", Options = new() { new() { Value = "parse", Label = "Parse" }, new() { Value = "stringify", Label = "Stringify" }, new() { Value = "get-property", Label = "Get Property" }, new() { Value = "has-property", Label = "Has Property" }, new() { Value = "keys", Label = "Keys" }, new() { Value = "values", Label = "Values" } }, Group = "Operation" },
+                new() { Key = "path", Label = "Property Path", Type = PropertyType.Text, DefaultValue = "", HelpText = "Dot notation, e.g. user.address.city", Group = "Operation" }
+            }
+        });
+
+        Register(new NodePluginDefinition
+        {
+            Id = "timeline",
+            Name = "Timeline",
+            ShortLabel = "Timeline",
+            Category = "Data Transform",
+            Description = "Buffers values over time or count for trend analysis",
+            Icon = "fa-solid fa-chart-line",
+            Color = "#0288D1",
+            InputCount = 1,
+            OutputCount = 2,
+            Properties = new()
+            {
+                new() { Key = "maxEntries", Label = "Max Entries", Type = PropertyType.Integer, DefaultValue = "100", Min = 1, Max = 10000, Group = "Buffer" },
+                new() { Key = "windowMs", Label = "Window (ms)", Type = PropertyType.Integer, DefaultValue = "0", HelpText = "0 = no time limit", Group = "Buffer" },
+                new() { Key = "aggregation", Label = "Aggregation", Type = PropertyType.Select, DefaultValue = "last", Options = new() { new() { Value = "last", Label = "Last" }, new() { Value = "first", Label = "First" }, new() { Value = "avg", Label = "Average" }, new() { Value = "min", Label = "Minimum" }, new() { Value = "max", Label = "Maximum" }, new() { Value = "sum", Label = "Sum" }, new() { Value = "count", Label = "Count" }, new() { Value = "range", Label = "Range" } }, Group = "Aggregation" }
+            }
+        });
+
+        // === UTILITY (EXTENDED) NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "comment",
+            Name = "Comment",
+            ShortLabel = "Note",
+            Category = "Utility",
+            Description = "Annotation node for documentation — does not execute",
+            Icon = "fa-solid fa-comment",
+            Color = "#FFC107",
+            InputCount = 0,
+            OutputCount = 0,
+            Properties = new()
+            {
+                new() { Key = "text", Label = "Comment Text", Type = PropertyType.Text, DefaultValue = "", Group = "Content" },
+                new() { Key = "fontSize", Label = "Font Size", Type = PropertyType.Select, DefaultValue = "medium", Options = new() { new() { Value = "small", Label = "Small" }, new() { Value = "medium", Label = "Medium" }, new() { Value = "large", Label = "Large" } }, Group = "Appearance" }
+            }
+        });
     }
 
     /// <summary>

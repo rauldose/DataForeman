@@ -251,6 +251,21 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         _nodeRegistry.Register(StorageFileRuntime.Descriptor, () => new StorageFileRuntime());
         _nodeRegistry.Register(StorageSqliteRuntime.Descriptor, () => new StorageSqliteRuntime());
 
+        // ── New nodes ──
+        _nodeRegistry.Register(ClampRuntime.Descriptor, () => new ClampRuntime());
+        _nodeRegistry.Register(RoundRuntime.Descriptor, () => new RoundRuntime());
+        _nodeRegistry.Register(GateRuntime.Descriptor, () => new GateRuntime());
+        _nodeRegistry.Register(MergeRuntime.Descriptor, () => new MergeRuntime());
+        _nodeRegistry.Register(StateMachineNodeRuntime.Descriptor, () => new StateMachineNodeRuntime());
+        _nodeRegistry.Register(RangeCheckRuntime.Descriptor, () => new RangeCheckRuntime());
+        _nodeRegistry.Register(BooleanLogicRuntime.Descriptor, () => new BooleanLogicRuntime());
+        _nodeRegistry.Register(TypeConvertRuntime.Descriptor, () => new TypeConvertRuntime());
+        _nodeRegistry.Register(StringOpsRuntime.Descriptor, () => new StringOpsRuntime());
+        _nodeRegistry.Register(ArrayOpsRuntime.Descriptor, () => new ArrayOpsRuntime());
+        _nodeRegistry.Register(JsonOpsRuntime.Descriptor, () => new JsonOpsRuntime());
+        _nodeRegistry.Register(TimelineRuntime.Descriptor, () => new TimelineRuntime());
+        _nodeRegistry.Register(CommentRuntime.Descriptor, () => new CommentRuntime());
+
         _logger.LogInformation("Registered {Count} node types", _nodeRegistry.GetAllDescriptors().Count);
     }
 
