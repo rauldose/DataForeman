@@ -475,6 +475,7 @@ html, body {
     background: var(--bg-primary);
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 /* Ensure chart takes full available space */
@@ -500,6 +501,33 @@ html, body {
     margin-left: auto;
     display: flex;
     gap: 0.25rem;
+}
+
+/* Chart empty hint (shown when no series) */
+.chart-empty-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.chart-empty-hint i {
+    font-size: 2rem;
+    opacity: 0.4;
+}
+
+/* Config panel toggle transition */
+.config-sidebar {
+    transition: width 0.15s ease;
 }
 
 /* Tag List */

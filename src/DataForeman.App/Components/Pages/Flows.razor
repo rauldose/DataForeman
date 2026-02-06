@@ -687,7 +687,11 @@
         if (FlowId == "new") await ConfigService.AddFlowAsync(CurrentFlow);
         else await ConfigService.UpdateFlowAsync(CurrentFlow);
         
-        Navigation.NavigateTo("/flows");
+        if (FlowId == "new")
+            Navigation.NavigateTo($"/flows/{CurrentFlow.Id}", replace: true);
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Flow saved", "e-toast-success", "Saved");
     }
 
     private void ConfirmDeleteFlow(string id) { DeleteFlowId = id; ShowDeleteDialog = true; }
@@ -1102,7 +1106,9 @@
         
         AddConsoleMessage("INFO", "System", $"Saved subflow: {existingSubflow.Name}");
         _editingSubflowId = null;
-        Navigation.NavigateTo("/flows");
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Subflow saved", "e-toast-success", "Saved");
     }
     
     private void CancelSubflowEdit()

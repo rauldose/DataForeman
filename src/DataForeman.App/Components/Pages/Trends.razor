@@ -496,7 +496,9 @@
         }
         
         LoadTrends();
-        StateHasChanged();
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Trend saved", "e-toast-success", "Saved");
     }
 
     private void GoBack()

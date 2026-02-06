@@ -361,7 +361,9 @@
         }
         
         LoadStateMachines();
-        StateHasChanged();
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("State machine saved", "e-toast-success", "Saved");
     }
     
     private void SyncDiagramToConfig()

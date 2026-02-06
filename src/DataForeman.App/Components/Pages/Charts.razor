@@ -73,55 +73,13 @@
                               @onclick="() => SetMode(TrendingMode.Historical)"></SfButton>
                 </div>
                 
+                <SfButton CssClass="@(_showConfigPanel ? "e-info" : "e-flat")" IconCss="fa-solid fa-sliders" 
+                          @onclick="() => _showConfigPanel = !_showConfigPanel" title="Toggle config panel"></SfButton>
                 <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
             </div>
             
             <div class="editor-content">
-                <!-- Left Sidebar - Tags & Axes -->
-                <div class="editor-sidebar">
-                    <SfAccordion>
-                        <AccordionItems>
-                            <AccordionItem Expanded="true">
-                                <HeaderTemplate>
-                                    <div class="panel-header"><i class="fa-solid fa-tags"></i> Available Tags</div>
-                                </HeaderTemplate>
-                                <ContentTemplate>
-                                    <SfTextBox @bind-Value="TagSearchQuery" Placeholder="Search tags..." CssClass="search-box"></SfTextBox>
-                                    <div class="tag-list">
-                                        @foreach (var tag in FilteredTags)
-                                        {
-                                            <div class="tag-item" @onclick="() => AddTagToChart(tag)">
-                                                <i class="fa-solid fa-tag"></i>
-                                                <span class="tag-name">@tag.Name</span>
-                                                <i class="fa-solid fa-plus add-icon"></i>
-                                            </div>
-                                        }
-                                    </div>
-                                </ContentTemplate>
-                            </AccordionItem>
-                            <AccordionItem Expanded="true">
-                                <HeaderTemplate>
-                                    <div class="panel-header"><i class="fa-solid fa-ruler-vertical"></i> Y-Axes (@CurrentChart.YAxes.Count)</div>
-                                </HeaderTemplate>
-                                <ContentTemplate>
-                                    <SfButton CssClass="e-small e-outline" IconCss="fa-solid fa-plus" @onclick="AddAxis">Add Axis</SfButton>
-                                    <div class="axis-list">
-                                        @foreach (var axis in CurrentChart.YAxes)
-                                        {
-                                            <div class="axis-item" @onclick="() => SelectAxis(axis)">
-                                                <div class="axis-color" style="background-color: @axis.Color"></div>
-                                                <span class="axis-name">@axis.Name</span>
-                                                <span class="axis-position">@axis.Position</span>
-                                            </div>
-                                        }
-                                    </div>
-                                </ContentTemplate>
-                            </AccordionItem>
-                        </AccordionItems>
-                    </SfAccordion>
-                </div>
-                
-                <!-- Chart Area -->
+                <!-- Chart Area (takes full width when panel hidden) -->
                 <div class="chart-area">
                     @if (CurrentChart.Settings.Mode == TrendingMode.Historical)
                     {
@@ -139,6 +97,14 @@
                         </div>
                     }
                     
+                    @if (!CurrentChart.Series.Any())
+                    {
+                        <div class="chart-empty-hint">
+                            <i class="fa-solid fa-chart-line"></i>
+                            <span>No series yet — open the <strong>config panel</strong> <i class="fa-solid fa-sliders"></i> and add tags from the list</span>
+                        </div>
+                    }
+
                     <SfChart Theme="Syncfusion.Blazor.Theme.TailwindDark" Width="100%" Height="100%">
                         <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="HH:mm:ss">
                             <ChartAxisMajorGridLines Width="0.5" Color="#374151"></ChartAxisMajorGridLines>
@@ -183,10 +149,30 @@
                     </SfChart>
                 </div>
                 
-                <!-- Right Sidebar - Series Config -->
+                <!-- Unified Right Config Panel (collapsible) -->
+                @if (_showConfigPanel)
+                {
                 <div class="config-sidebar">
                     <SfAccordion>
                         <AccordionItems>
+                            <AccordionItem Expanded="true">
+                                <HeaderTemplate>
+                                    <div class="panel-header"><i class="fa-solid fa-tags"></i> Available Tags</div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <SfTextBox @bind-Value="TagSearchQuery" Placeholder="Search tags..." CssClass="search-box"></SfTextBox>
+                                    <div class="tag-list">
+                                        @foreach (var tag in FilteredTags)
+                                        {
+                                            <div class="tag-item" @onclick="() => AddTagToChart(tag)">
+                                                <i class="fa-solid fa-tag"></i>
+                                                <span class="tag-name">@tag.Name</span>
+                                                <i class="fa-solid fa-plus add-icon"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                </ContentTemplate>
+                            </AccordionItem>
                             <AccordionItem Expanded="true">
                                 <HeaderTemplate>
                                     <div class="panel-header"><i class="fa-solid fa-layer-group"></i> Series (@CurrentChart.Series.Count)</div>
@@ -226,13 +212,24 @@
                                     }
                                 </ContentTemplate>
                             </AccordionItem>
-                            @if (SelectedAxis != null)
-                            {
-                                <AccordionItem Expanded="true">
-                                    <HeaderTemplate>
-                                        <div class="panel-header"><i class="fa-solid fa-sliders"></i> Axis: @SelectedAxis.Name</div>
-                                    </HeaderTemplate>
-                                    <ContentTemplate>
+                            <AccordionItem Expanded="true">
+                                <HeaderTemplate>
+                                    <div class="panel-header"><i class="fa-solid fa-ruler-vertical"></i> Y-Axes (@CurrentChart.YAxes.Count)</div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <SfButton CssClass="e-small e-outline" IconCss="fa-solid fa-plus" @onclick="AddAxis">Add Axis</SfButton>
+                                    <div class="axis-list">
+                                        @foreach (var axis in CurrentChart.YAxes)
+                                        {
+                                            <div class="axis-item @(SelectedAxis?.Id == axis.Id ? "selected" : "")" @onclick="() => SelectAxis(axis)">
+                                                <div class="axis-color" style="background-color: @axis.Color"></div>
+                                                <span class="axis-name">@axis.Name</span>
+                                                <span class="axis-position">@axis.Position</span>
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (SelectedAxis != null)
+                                    {
                                         <div class="axis-config">
                                             <div class="config-row">
                                                 <label>Name</label>
@@ -266,12 +263,13 @@
                                             </div>
                                             <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="RemoveAxis">Remove Axis</SfButton>
                                         </div>
-                                    </ContentTemplate>
-                                </AccordionItem>
-                            }
+                                    }
+                                </ContentTemplate>
+                            </AccordionItem>
                         </AccordionItems>
                     </SfAccordion>
                 </div>
+                }
             </div>
         </div>
     }
@@ -305,6 +303,7 @@
     private bool ShowDeleteDialog;
     private string DeleteChartId = "";
     private System.Timers.Timer? _refreshTimer;
+    private bool _showConfigPanel = true;
     
     private List<string> AxisPositions = new() { "Left", "Right" };
     
@@ -505,11 +504,18 @@
         CurrentChart.UpdatedAt = DateTime.UtcNow;
         
         if (ChartId == "new")
+        {
             await ConfigService.AddChartAsync(CurrentChart);
+            // Navigate to the saved chart's URL so the user stays in the editor
+            Navigation.NavigateTo($"/charts/{CurrentChart.Id}", replace: true);
+        }
         else
+        {
             await ConfigService.UpdateChartAsync(CurrentChart);
-        
-        Navigation.NavigateTo("/charts");
+        }
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Chart saved", "e-toast-success", "Saved");
     }
 
     private void ConfirmDeleteChart(string id)
