@@ -38,7 +38,7 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
     private readonly RegistryRuntimeFactory _runtimeFactory;
     private readonly FlowCompiler _flowCompiler;
     private readonly FlowExecutor _flowExecutor;
-    private readonly InMemoryExecutionTracer _tracer;
+    private readonly MqttExecutionTracer _tracer;
     
     // Compiled flows cache: FlowId -> CompiledFlow
     private readonly ConcurrentDictionary<string, CompiledFlow> _compiledFlows = new();
@@ -50,7 +50,8 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         ConfigService configService,
         MqttFlowTriggerService mqttFlowTriggerService,
         MqttPublisher mqttPublisher,
-        InternalTagStore internalTagStore)
+        InternalTagStore internalTagStore,
+        ILoggerFactory loggerFactory)
     {
         _logger = logger;
         _configService = configService;
@@ -62,7 +63,7 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         _nodeRegistry = new NodeRegistry();
         _runtimeFactory = new RegistryRuntimeFactory(_nodeRegistry);
         _flowCompiler = new FlowCompiler();
-        _tracer = new InMemoryExecutionTracer();
+        _tracer = new MqttExecutionTracer(mqttPublisher, loggerFactory.CreateLogger<MqttExecutionTracer>());
         
         // Create implementations for node context services
         var timeProvider = new SystemTimeProvider();
