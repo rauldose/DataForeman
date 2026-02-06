@@ -33,6 +33,8 @@ public class FlowExecutionService : IAsyncDisposable
     
     // Compiled flows cache: FlowId -> CompiledFlow
     private readonly ConcurrentDictionary<string, CompiledFlow> _compiledFlows = new();
+    // FlowId -> Name lookup built during compilation to avoid repeated list scans
+    private readonly ConcurrentDictionary<string, string> _flowNames = new();
 
     public FlowExecutionService(
         ILogger<FlowExecutionService> logger,
@@ -202,6 +204,7 @@ public class FlowExecutionService : IAsyncDisposable
     private void CompileAllFlows()
     {
         _compiledFlows.Clear();
+        _flowNames.Clear();
         
         var enabledFlows = _configService.Flows.Where(f => f.Enabled).ToList();
         _logger.LogInformation("Compiling {Count} enabled flows out of {Total} total flows", 
@@ -211,6 +214,9 @@ public class FlowExecutionService : IAsyncDisposable
         {
             try
             {
+                // Cache the name for later use in summaries
+                _flowNames[flowConfig.Id] = flowConfig.Name;
+
                 // Check if flow has mqtt-in nodes
                 var mqttInNodes = flowConfig.Nodes.Where(n => n.Type == "mqtt-in").ToList();
                 if (mqttInNodes.Count > 0)
@@ -323,8 +329,8 @@ public class FlowExecutionService : IAsyncDisposable
             return;
         }
 
-        // Look up the flow name for the summary message
-        var flowCfg = _configService.Flows.FirstOrDefault(f => f.Id == flowId);
+        // Look up the flow name from the cached dictionary
+        _flowNames.TryGetValue(flowId, out var flowName);
 
         // Create initial message with MQTT payload
         JsonElement payloadElement;
@@ -378,7 +384,7 @@ public class FlowExecutionService : IAsyncDisposable
         var summary = new FlowRunSummaryMessage
         {
             FlowId = flowId,
-            FlowName = flowCfg?.Name ?? flowId,
+            FlowName = flowName ?? flowId,
             TriggerNodeId = nodeId,
             TriggerTopic = topic,
             Outcome = result.Status.ToString(),

@@ -62,14 +62,16 @@ public class Worker : BackgroundService
 
             // Load and start state machines, publishing runtime state via MQTT
             _stateMachineService.ReloadAll(_configService.StateMachines);
-            _stateMachineService.RuntimeInfoUpdated += info =>
+            _stateMachineService.RuntimeInfoUpdated += async info =>
             {
-                _ = _mqttPublisher.PublishStateMachineStateAsync(info);
+                try { await _mqttPublisher.PublishStateMachineStateAsync(info); }
+                catch (Exception ex) { _logger.LogError(ex, "Failed to publish state machine state for {Id}", info.ConfigId); }
             };
             // Publish initial state snapshots for all loaded machines
-            foreach (var snapshot in _stateMachineService.GetAllRuntimeInfo())
+            var initSnapshots = _stateMachineService.GetAllRuntimeInfo();
+            foreach (var snapshot in initSnapshots)
             {
-                _ = _mqttPublisher.PublishStateMachineStateAsync(snapshot);
+                await _mqttPublisher.PublishStateMachineStateAsync(snapshot);
             }
 
             // Start the polling engine
