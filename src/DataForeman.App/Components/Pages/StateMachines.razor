@@ -211,6 +211,48 @@
                                 </div>
                             }
 
+                            @* ── State Flow Triggers ─────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">FLOW TRIGGERS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Flows started on state entry or exit</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                <label style="font-size:12px; color:#d1d5db;">On Enter Flows</label>
+                                @for (int idx = 0; idx < SelectedMachineState.OnEnterFlowIds.Count; idx++)
+                                {
+                                    var flowIdx = idx;
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="FlowOption" TValue="string" Value="@SelectedMachineState.OnEnterFlowIds[flowIdx]"
+                                                        ValueChanged="@((string val) => SelectedMachineState.OnEnterFlowIds[flowIdx] = val)"
+                                                        DataSource="@_availableFlowOptions" AllowFiltering="true" PopupWidth="260px" CssClass="e-small"
+                                                        Placeholder="Select flow">
+                                            <DropDownListFieldSettings Text="Name" Value="Id"/>
+                                        </SfDropDownList>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnEnterFlowIds.RemoveAt(flowIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Flow"
+                                          @onclick="() => SelectedMachineState.OnEnterFlowIds.Add(string.Empty)"/>
+
+                                <label style="font-size:12px; color:#d1d5db; margin-top:8px; display:block;">On Exit Flows</label>
+                                @for (int idx = 0; idx < SelectedMachineState.OnExitFlowIds.Count; idx++)
+                                {
+                                    var flowIdx = idx;
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="FlowOption" TValue="string" Value="@SelectedMachineState.OnExitFlowIds[flowIdx]"
+                                                        ValueChanged="@((string val) => SelectedMachineState.OnExitFlowIds[flowIdx] = val)"
+                                                        DataSource="@_availableFlowOptions" AllowFiltering="true" PopupWidth="260px" CssClass="e-small"
+                                                        Placeholder="Select flow">
+                                            <DropDownListFieldSettings Text="Name" Value="Id"/>
+                                        </SfDropDownList>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnExitFlowIds.RemoveAt(flowIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Flow"
+                                          @onclick="() => SelectedMachineState.OnExitFlowIds.Add(string.Empty)"/>
+                            }
+
                             <div style="margin-top:12px;">
                                 <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete State" @onclick="DeleteSelectedState"></SfButton>
                             </div>
@@ -306,6 +348,26 @@
                                               EditorId="@($"trans-action-{_selectedTransition.Id}")"
                                               Height="150px" />
                             </div>
+
+                            @* ── Transition Flow Triggers ──────── *@
+                            <div class="panel-header" style="margin-top:12px;">FLOW TRIGGERS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Flows started when this transition fires</div>
+                            @for (int idx = 0; idx < _selectedTransition.FlowIds.Count; idx++)
+                            {
+                                var flowIdx = idx;
+                                <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                    <SfDropDownList TItem="FlowOption" TValue="string" Value="@_selectedTransition.FlowIds[flowIdx]"
+                                                    ValueChanged="@((string val) => _selectedTransition.FlowIds[flowIdx] = val)"
+                                                    DataSource="@_availableFlowOptions" AllowFiltering="true" PopupWidth="260px" CssClass="e-small"
+                                                    Placeholder="Select flow">
+                                        <DropDownListFieldSettings Text="Name" Value="Id"/>
+                                    </SfDropDownList>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                              @onclick="() => _selectedTransition.FlowIds.RemoveAt(flowIdx)"/>
+                                </div>
+                            }
+                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Flow"
+                                      @onclick="() => _selectedTransition.FlowIds.Add(string.Empty)"/>
 
                             <div style="margin-top:12px;">
                                 <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete Transition" @onclick="DeleteSelectedTransition"/>
@@ -409,6 +471,9 @@
     // Available tag paths for dropdowns
     private List<string> _availableTagPaths = new();
     
+    // Available flows for trigger dropdowns
+    private List<FlowOption> _availableFlowOptions = new();
+    
     // Operator options for trigger dropdown
     private static readonly List<OperatorOption> _operatorOptions = new()
     {
@@ -445,6 +510,12 @@
         _availableTagPaths = ConfigService.GetAllTagsWithConnection()
             .Select(ct => $"{ct.Connection.Name}/{ct.Tag.Name}")
             .OrderBy(p => p)
+            .ToList();
+        
+        // Build available flows for flow trigger dropdowns
+        _availableFlowOptions = ConfigService.Flows
+            .Select(f => new FlowOption { Id = f.Id, Name = f.Name })
+            .OrderBy(f => f.Name)
             .ToList();
         
         // Subscribe to state machine runtime updates from the Engine via MQTT
@@ -1025,5 +1096,11 @@
     {
         public TriggerOperator Op { get; set; }
         public string Label { get; set; } = string.Empty;
+    }
+
+    private class FlowOption
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
     }
 }

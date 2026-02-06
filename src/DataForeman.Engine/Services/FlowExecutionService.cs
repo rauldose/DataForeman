@@ -12,11 +12,20 @@ using DataForeman.Shared.Runtime;
 namespace DataForeman.Engine.Services;
 
 /// <summary>
+/// Allows external services (e.g. state machines) to trigger flow execution by ID.
+/// </summary>
+public interface IFlowRunner
+{
+    /// <summary>Triggers execution of a compiled flow.  Returns true if the flow was found and started.</summary>
+    Task<bool> TriggerFlowAsync(string flowId, string triggerSource);
+}
+
+/// <summary>
 /// Service responsible for executing flows, including MQTT-triggered flows.
 /// Connects MqttFlowTriggerService events to actual flow execution and
 /// handles MQTT publishing from mqtt-out nodes.
 /// </summary>
-public class FlowExecutionService : IAsyncDisposable
+public class FlowExecutionService : IFlowRunner, IAsyncDisposable
 {
     private readonly ILogger<FlowExecutionService> _logger;
     private readonly ConfigService _configService;
@@ -101,6 +110,67 @@ public class FlowExecutionService : IAsyncDisposable
     {
         _logger.LogInformation("Refreshing compiled flows");
         CompileAllFlows();
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> TriggerFlowAsync(string flowId, string triggerSource)
+    {
+        if (!_compiledFlows.TryGetValue(flowId, out var compiled))
+        {
+            _logger.LogWarning("TriggerFlowAsync: flow '{FlowId}' not found in compiled flows", flowId);
+            return false;
+        }
+
+        _flowNames.TryGetValue(flowId, out var flowName);
+        _logger.LogInformation("Flow '{FlowName}' triggered by {Source}", flowName ?? flowId, triggerSource);
+
+        // Find the first trigger node as the entry point,
+        // or fall back to the first node if none found.
+        var triggerNodeId = compiled.TriggerNodes.FirstOrDefault()?.Definition.Id
+            ?? compiled.Nodes.Keys.FirstOrDefault();
+
+        if (triggerNodeId == null)
+        {
+            _logger.LogWarning("Flow '{FlowId}' has no nodes to execute", flowId);
+            return false;
+        }
+
+        var initialMsg = MessageEnvelope.Create(
+            createdUtc: DateTime.UtcNow,
+            payload: System.Text.Json.JsonSerializer.SerializeToElement(new { source = triggerSource }),
+            correlationId: Guid.NewGuid().ToString("N"));
+
+        var opts = new FlowExecutionOptions
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxMessages = 100,
+            StopOnError = false
+        };
+
+        var result = await _flowExecutor.ExecuteAsync(compiled, triggerNodeId, initialMsg, opts, CancellationToken.None);
+
+        if (result.Status == ExecutionStatus.Success)
+            _logger.LogInformation("Flow '{FlowName}' completed OK ({Nodes} nodes)", flowName ?? flowId, result.NodesSucceeded);
+        else
+            _logger.LogWarning("Flow '{FlowName}' ended with {Status}: {Error}", flowName ?? flowId, result.Status, result.Error);
+
+        // Publish summary so the UI gets notified
+        var summary = new FlowRunSummaryMessage
+        {
+            FlowId = flowId,
+            FlowName = flowName ?? flowId,
+            TriggerNodeId = triggerNodeId,
+            TriggerTopic = triggerSource,
+            Outcome = result.Status.ToString(),
+            NodesExecuted = result.NodesSucceeded,
+            MessagesHandled = result.MessagesProcessed,
+            DurationMs = 0,
+            StartedUtc = initialMsg.CreatedUtc,
+            CompletedUtc = DateTime.UtcNow
+        };
+        await _mqttPublisher.PublishFlowRunSummaryAsync(summary);
+
+        return result.Status == ExecutionStatus.Success;
     }
 
     /// <summary>

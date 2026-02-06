@@ -37,6 +37,7 @@ public class StateMachineExecutionService : IDisposable
     private readonly IStateMachineTagReader? _tagReader;
     private readonly IStateMachineTagWriter? _tagWriter;
     private readonly CSharpScriptService? _scriptService;
+    private readonly IFlowRunner? _flowRunner;
     private readonly Dictionary<string, StateMachineRuntime> _runtimes = new();
     private readonly object _lock = new();
     private Timer? _scanTimer;
@@ -49,12 +50,14 @@ public class StateMachineExecutionService : IDisposable
         ILogger<StateMachineExecutionService> logger,
         IStateMachineTagReader? tagReader = null,
         IStateMachineTagWriter? tagWriter = null,
-        CSharpScriptService? scriptService = null)
+        CSharpScriptService? scriptService = null,
+        IFlowRunner? flowRunner = null)
     {
         _logger = logger;
         _tagReader = tagReader;
         _tagWriter = tagWriter;
         _scriptService = scriptService;
+        _flowRunner = flowRunner;
     }
 
     /// <summary>
@@ -93,7 +96,7 @@ public class StateMachineExecutionService : IDisposable
                 return;
             }
 
-            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter, _scriptService);
+            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter, _scriptService, _flowRunner);
             _runtimes[config.Id] = runtime;
             _logger.LogInformation("Loaded state machine: {Name} with {StateCount} states, {TransitionCount} transitions",
                 config.Name, config.States.Count, config.Transitions.Count);
@@ -236,6 +239,7 @@ public class StateMachineExecutionService : IDisposable
         private readonly IStateMachineTagReader? _tagReader;
         private readonly IStateMachineTagWriter? _tagWriter;
         private readonly CSharpScriptService? _scriptService;
+        private readonly IFlowRunner? _flowRunner;
         private readonly Dictionary<string, object?> _scriptState = new();
         private string? _currentStateId;
         private string? _prevStateId;
@@ -253,13 +257,15 @@ public class StateMachineExecutionService : IDisposable
             ILogger logger,
             IStateMachineTagReader? tagReader,
             IStateMachineTagWriter? tagWriter,
-            CSharpScriptService? scriptService)
+            CSharpScriptService? scriptService,
+            IFlowRunner? flowRunner)
         {
             _config = config;
             _logger = logger;
             _tagReader = tagReader;
             _tagWriter = tagWriter;
             _scriptService = scriptService;
+            _flowRunner = flowRunner;
 
             // Initialize to the designated initial state
             _currentStateId = config.InitialStateId
@@ -404,12 +410,16 @@ public class StateMachineExecutionService : IDisposable
                 RunTagActions(oldState.OnExitActions, "OnExit", oldStateName);
             if (!string.IsNullOrEmpty(oldState?.OnExitScript))
                 RunScript(oldState.OnExitScript, "OnExitScript", oldStateName);
+            if (oldState?.OnExitFlowIds.Count > 0)
+                TriggerFlows(oldState.OnExitFlowIds, "OnExit", oldStateName);
 
             // 2. Execute transition actions
             if (transition.Actions.Count > 0)
                 RunTagActions(transition.Actions, "Transition", triggerLabel);
             if (!string.IsNullOrEmpty(transition.ScriptAction))
                 RunScript(transition.ScriptAction, "TransitionScript", triggerLabel);
+            if (transition.FlowIds.Count > 0)
+                TriggerFlows(transition.FlowIds, "Transition", triggerLabel);
 
             // Legacy single-string action (backward-compat)
             if (!string.IsNullOrEmpty(transition.Action))
@@ -428,6 +438,8 @@ public class StateMachineExecutionService : IDisposable
                 RunTagActions(newState.OnEnterActions, "OnEnter", newStateName);
             if (!string.IsNullOrEmpty(newState?.OnEnterScript))
                 RunScript(newState.OnEnterScript, "OnEnterScript", newStateName);
+            if (newState?.OnEnterFlowIds.Count > 0)
+                TriggerFlows(newState.OnEnterFlowIds, "OnEnter", newStateName);
 
             // 5. Audit trail
             _auditLog.Add(new TransitionAuditEntry
@@ -560,6 +572,36 @@ public class StateMachineExecutionService : IDisposable
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error running script {Phase}({Context})", phase, context);
+            }
+        }
+
+        // ── Flow triggering ───────────────────────────────────────────
+
+        private void TriggerFlows(List<string> flowIds, string phase, string context)
+        {
+            if (_flowRunner == null || flowIds.Count == 0) return;
+
+            var machineName = _config.Name;
+            foreach (var flowId in flowIds)
+            {
+                if (string.IsNullOrEmpty(flowId)) continue;
+
+                var capturedId = flowId;
+                var triggerSource = $"StateMachine:{machineName}/{phase}({context})";
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _flowRunner.TriggerFlowAsync(capturedId, triggerSource);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to trigger flow {FlowId} during {Phase}({Context})",
+                            capturedId, phase, context);
+                    }
+                });
+
+                _logger.LogDebug("{Phase}({Context}): triggering flow {FlowId}", phase, context, flowId);
             }
         }
 

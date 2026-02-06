@@ -44,6 +44,12 @@ public class MachineState
 
     /// <summary>C# script executed when leaving this state.</summary>
     public string? OnExitScript { get; set; }
+
+    /// <summary>Flow IDs to start when entering this state.</summary>
+    public List<string> OnEnterFlowIds { get; set; } = new();
+
+    /// <summary>Flow IDs to start when leaving this state.</summary>
+    public List<string> OnExitFlowIds { get; set; } = new();
 }
 
 /// <summary>
@@ -70,6 +76,9 @@ public class StateTransition
 
     /// <summary>C# script executed when this transition fires. Has access to ReadTag/WriteTag/Log.</summary>
     public string? ScriptAction { get; set; }
+
+    /// <summary>Flow IDs to start when this transition fires.</summary>
+    public List<string> FlowIds { get; set; } = new();
 }
 
 /// <summary>
