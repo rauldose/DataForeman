@@ -380,7 +380,7 @@
     }
 </div>
 
-<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @ref="_deleteDialog" @bind-Visible="_deleteDialogVisible" Width="400px" IsModal="true" ShowCloseIcon="true">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>
@@ -402,6 +402,7 @@
     private List<TrendDisplay> TrendsList { get; set; } = new();
     private Dictionary<string, List<TrendDataPoint>> _seriesData = new();
     private SfDialog? _deleteDialog;
+    private bool _deleteDialogVisible;
     private string? _deletingTrendId;
     private string? _deletingTrendName;
     private System.Threading.Timer? _refreshTimer;
@@ -596,7 +597,7 @@
         {
             _deletingTrendId = id;
             _deletingTrendName = trend.Name;
-            _deleteDialog?.ShowAsync();
+            _deleteDialogVisible = true;
         }
     }
 
@@ -606,17 +607,18 @@
         {
             await ConfigService.DeleteTrendAsync(_deletingTrendId);
             LoadTrends();
-            await _deleteDialog!.HideAsync();
+            _deleteDialogVisible = false;
             _deletingTrendId = null;
             _deletingTrendName = null;
         }
     }
 
-    private async Task CancelDelete()
+    private Task CancelDelete()
     {
-        await _deleteDialog!.HideAsync();
+        _deleteDialogVisible = false;
         _deletingTrendId = null;
         _deletingTrendName = null;
+        return Task.CompletedTask;
     }
 
     private string GetTimeLabel(int markerIndex)

@@ -426,7 +426,7 @@
     }
 </div>
 
-<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @ref="_deleteDialog" @bind-Visible="_deleteDialogVisible" Width="400px" IsModal="true" ShowCloseIcon="true">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>
@@ -447,6 +447,7 @@
     private StateMachineConfig CurrentStateMachine { get; set; } = new();
     private List<StateMachineDisplay> StateMachinesList { get; set; } = new();
     private SfDialog? _deleteDialog;
+    private bool _deleteDialogVisible;
     private string? _deletingStateMachineId;
     private string? _deletingStateMachineName;
     
@@ -1024,7 +1025,7 @@
         {
             _deletingStateMachineId = id;
             _deletingStateMachineName = stateMachine.Name;
-            _deleteDialog?.ShowAsync();
+            _deleteDialogVisible = true;
         }
     }
 
@@ -1034,17 +1035,18 @@
         {
             await ConfigService.DeleteStateMachineAsync(_deletingStateMachineId);
             LoadStateMachines();
-            await _deleteDialog!.HideAsync();
+            _deleteDialogVisible = false;
             _deletingStateMachineId = null;
             _deletingStateMachineName = null;
         }
     }
 
-    private async Task CancelDelete()
+    private Task CancelDelete()
     {
-        await _deleteDialog!.HideAsync();
+        _deleteDialogVisible = false;
         _deletingStateMachineId = null;
         _deletingStateMachineName = null;
+        return Task.CompletedTask;
     }
 
     private void HandleMachineStateUpdate(MachineRuntimeInfo info)
