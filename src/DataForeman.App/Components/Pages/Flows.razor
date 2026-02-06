@@ -887,6 +887,7 @@
             Constraints = NodeConstraints.Default | NodeConstraints.AllowDrop
         };
         
+        // Annotations[0] = node name, [1] = category
         node.Annotations.Add(new ShapeAnnotation { Content = label, Style = new TextStyle { Color = "#ffffff", FontSize = 13, Bold = true }, Offset = new DiagramPoint { X = 0.5, Y = 0.35 }, HorizontalAlignment = HorizontalAlignment.Center });
         node.Annotations.Add(new ShapeAnnotation { Content = plugin?.Category ?? "Node", Style = new TextStyle { Color = "#9d9d9d", FontSize = 10, Italic = true }, Offset = new DiagramPoint { X = 0.5, Y = 0.7 }, HorizontalAlignment = HorizontalAlignment.Center });
         
@@ -901,6 +902,35 @@
             var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
             node.Ports.Add(new PointPort { ID = $"output-{i}", Offset = new DiagramPoint { X = 1, Y = yOffset }, Visibility = PortVisibility.Visible, Shape = PortShapes.Circle, Width = 12, Height = 12, Style = new ShapeStyle { Fill = "#f59e0b", StrokeColor = "#ffffff", StrokeWidth = 2 }, Constraints = PortConstraints.Default | PortConstraints.Draw });
         }
+        
+        // Annotations[2..2+inputCount-1] = input port live values (pre-created with empty content)
+        for (int i = 0; i < inputCount; i++)
+        {
+            var yOffset = inputCount == 1 ? 0.5 : (i + 1.0) / (inputCount + 1);
+            node.Annotations.Add(new ShapeAnnotation
+            {
+                Content = "",
+                Style = new TextStyle { Color = "#00e5ff", FontSize = 9 },
+                Offset = new DiagramPoint { X = 0, Y = yOffset },
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new DiagramThickness { Right = 15 }
+            });
+        }
+        
+        // Annotations[2+inputCount..2+inputCount+outputCount-1] = output port live values
+        for (int i = 0; i < outputCount; i++)
+        {
+            var yOffset = outputCount == 1 ? 0.5 : (i + 1.0) / (outputCount + 1);
+            node.Annotations.Add(new ShapeAnnotation
+            {
+                Content = "",
+                Style = new TextStyle { Color = "#00e5ff", FontSize = 9 },
+                Offset = new DiagramPoint { X = 1, Y = yOffset },
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new DiagramThickness { Left = 15 }
+            });
+        }
+        
         return node;
     }
 
@@ -1560,21 +1590,12 @@
         var outputPorts = node.Ports.Where(p => p.ID.StartsWith("output-")).ToList();
         var totalAnnotationsNeeded = 2 + inputPorts.Count + outputPorts.Count;
 
-        // Ensure we have enough annotations
-        while (node.Annotations.Count < totalAnnotationsNeeded)
-        {
-            node.Annotations.Add(new ShapeAnnotation
-            {
-                Content = "",
-                Style = new TextStyle { Color = "#00e5ff", FontSize = 9 },
-                Offset = new DiagramPoint { X = 0, Y = 0.5 },
-                HorizontalAlignment = HorizontalAlignment.Center
-            });
-        }
+        // Annotations were pre-created in CreateFlowNode; bail if they're missing
+        if (node.Annotations.Count < totalAnnotationsNeeded) return;
 
         var valueColor = isError ? "#ef5350" : "#00e5ff";
 
-        // Set input port annotations
+        // Update input port annotations (indices 2..2+inputCount-1)
         for (int i = 0; i < inputPorts.Count; i++)
         {
             var ann = node.Annotations[2 + i];
@@ -1582,14 +1603,10 @@
             if (ann.Style != null)
             {
                 ann.Style.Color = valueColor;
-                ann.Style.FontSize = 9;
             }
-            ann.Offset = new DiagramPoint { X = 0, Y = inputPorts[i].Offset.Y };
-            ann.HorizontalAlignment = HorizontalAlignment.Right;
-            ann.Margin = new DiagramThickness { Right = 15 };
         }
 
-        // Set output port annotations
+        // Update output port annotations (indices 2+inputCount..end)
         for (int i = 0; i < outputPorts.Count; i++)
         {
             var ann = node.Annotations[2 + inputPorts.Count + i];
@@ -1597,11 +1614,7 @@
             if (ann.Style != null)
             {
                 ann.Style.Color = valueColor;
-                ann.Style.FontSize = 9;
             }
-            ann.Offset = new DiagramPoint { X = 1, Y = outputPorts[i].Offset.Y };
-            ann.HorizontalAlignment = HorizontalAlignment.Left;
-            ann.Margin = new DiagramThickness { Left = 15 };
         }
     }
 
@@ -1611,10 +1624,10 @@
         foreach (var node in Nodes)
         {
             if (node.Annotations == null) continue;
-            // Remove all annotations beyond the base 2 (name + category)
-            while (node.Annotations.Count > 2)
+            // Clear content of port value annotations (indices 2+) without removing them
+            for (int i = 2; i < node.Annotations.Count; i++)
             {
-                node.Annotations.RemoveAt(node.Annotations.Count - 1);
+                node.Annotations[i].Content = "";
             }
         }
         StateHasChanged();
