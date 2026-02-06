@@ -32,6 +32,7 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
     private readonly MqttFlowTriggerService _mqttFlowTriggerService;
     private readonly MqttPublisher _mqttPublisher;
     private readonly InternalTagStore _internalTagStore;
+    private readonly CSharpScriptService _scriptService;
     
     // Flow infrastructure
     private readonly NodeRegistry _nodeRegistry;
@@ -51,13 +52,16 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         MqttFlowTriggerService mqttFlowTriggerService,
         MqttPublisher mqttPublisher,
         InternalTagStore internalTagStore,
-        ILoggerFactory loggerFactory)
+        ILoggerFactory loggerFactory,
+        PollEngineTagAdapter tagAdapter,
+        CSharpScriptService scriptService)
     {
         _logger = logger;
         _configService = configService;
         _mqttFlowTriggerService = mqttFlowTriggerService;
         _mqttPublisher = mqttPublisher;
         _internalTagStore = internalTagStore;
+        _scriptService = scriptService;
         
         // Initialize flow infrastructure
         _nodeRegistry = new NodeRegistry();
@@ -68,8 +72,8 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         // Create implementations for node context services
         var timeProvider = new SystemTimeProvider();
         var historian = new NoOpHistorianWriter();
-        var tagReader = new NoOpTagValueReader();
-        var tagWriter = new NoOpTagValueWriter();
+        var tagReader = new PollEngineTagValueReader(tagAdapter);
+        var tagWriter = new PollEngineTagValueWriter(tagAdapter);
         var nodeMqttPublisher = new MqttPublisherAdapter(mqttPublisher);
         var contextStore = new ContextStoreAdapter(internalTagStore);
         
@@ -237,7 +241,7 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         _nodeRegistry.Register(HttpRequestRuntime.Descriptor, () => new HttpRequestRuntime());
 
         // Extended nodes — scripts
-        _nodeRegistry.Register(CSharpScriptRuntime.Descriptor, () => new CSharpScriptRuntime());
+        _nodeRegistry.Register(CSharpScriptRuntime.Descriptor, () => new CSharpScriptRuntime(_scriptService));
 
         // Extended nodes — integration stubs
         _nodeRegistry.Register(JavaScriptRuntime.Descriptor, () => new JavaScriptRuntime());
@@ -587,19 +591,44 @@ internal sealed class NoOpHistorianWriter : IHistorianWriter
 }
 
 /// <summary>
-/// No-op tag value reader for flows that don't need tag access.
+/// Adapts PollEngineTagAdapter (IStateMachineTagReader) to ITagValueReader for flow nodes.
+/// Converts from Drivers.TagValue to Shared.Runtime.TagValue.
 /// </summary>
-internal sealed class NoOpTagValueReader : ITagValueReader
+internal sealed class PollEngineTagValueReader : ITagValueReader
 {
+    private readonly PollEngineTagAdapter _adapter;
+
+    public PollEngineTagValueReader(PollEngineTagAdapter adapter) => _adapter = adapter;
+
     public ValueTask<TagValue?> GetValueAsync(string tagPath, CancellationToken ct)
-        => ValueTask.FromResult<TagValue?>(null);
+    {
+        var driverValue = _adapter.GetCurrentTagValue(tagPath);
+        if (driverValue == null)
+            return ValueTask.FromResult<TagValue?>(null);
+
+        var sharedValue = new TagValue
+        {
+            TagPath = tagPath,
+            Value = driverValue.Value,
+            TimestampUtc = driverValue.Timestamp,
+            Quality = driverValue.Quality
+        };
+        return ValueTask.FromResult<TagValue?>(sharedValue);
+    }
 }
 
 /// <summary>
-/// No-op tag value writer for flows that don't need tag access.
+/// Adapts PollEngineTagAdapter (IStateMachineTagWriter) to ITagValueWriter for flow nodes.
 /// </summary>
-internal sealed class NoOpTagValueWriter : ITagValueWriter
+internal sealed class PollEngineTagValueWriter : ITagValueWriter
 {
-    public ValueTask WriteValueAsync(string tagPath, object value, CancellationToken ct)
-        => ValueTask.CompletedTask;
+    private readonly PollEngineTagAdapter _adapter;
+
+    public PollEngineTagValueWriter(PollEngineTagAdapter adapter) => _adapter = adapter;
+
+    public async ValueTask WriteValueAsync(string tagPath, object value, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        await _adapter.WriteTagValueAsync(tagPath, value);
+    }
 }

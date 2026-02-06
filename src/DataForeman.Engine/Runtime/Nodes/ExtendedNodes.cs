@@ -2,6 +2,7 @@
 // Implements all node types defined in the App's NodePluginRegistry
 // that were previously missing from the Engine.
 
+using DataForeman.Engine.Services;
 using DataForeman.Shared.Definition;
 using DataForeman.Shared.Runtime;
 using System.Collections.Concurrent;
@@ -1162,6 +1163,14 @@ public sealed class HttpRequestRuntime : NodeRuntimeBase
 /// </summary>
 public sealed class CSharpScriptRuntime : NodeRuntimeBase
 {
+    private readonly CSharpScriptService? _scriptService;
+    private readonly Dictionary<string, object?> _nodeState = new();
+
+    public CSharpScriptRuntime(CSharpScriptService? scriptService = null)
+    {
+        _scriptService = scriptService;
+    }
+
     public static NodeDescriptor Descriptor => new()
     {
         Type = "script-csharp",
@@ -1196,23 +1205,75 @@ public sealed class CSharpScriptRuntime : NodeRuntimeBase
         }
     };
 
-    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    public override async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
         var cfg = context.GetConfig<ScriptCfg>();
         if (string.IsNullOrWhiteSpace(cfg?.Code))
         {
             context.Logger.Warn("C# Script: no code configured");
             context.Emitter.Emit("output", context.Message);
-            return ValueTask.CompletedTask;
+            return;
+        }
+
+        if (_scriptService == null)
+        {
+            context.Logger.Warn("C# Script: CSharpScriptService not available — passing through");
+            context.Emitter.Emit("output", context.Message);
+            return;
         }
 
         try
         {
-            // Forward message — actual script execution happens via CSharpScriptService
-            // integration at the FlowExecutionService level when available
-            const int LogPreviewLength = 80;
-            context.Logger.Info($"Script executing: {cfg.Code[..Math.Min(cfg.Code.Length, LogPreviewLength)]}...");
-            context.Emitter.Emit("output", context.Message);
+            // Extract input value from message payload
+            object? inputValue = null;
+            if (context.Message.Payload.HasValue)
+            {
+                var p = context.Message.Payload.Value;
+                if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var d))
+                    inputValue = d;
+                else if (p.ValueKind == JsonValueKind.String)
+                    inputValue = p.GetString();
+                else if (p.TryGetProperty("value", out var vp) && vp.ValueKind == JsonValueKind.Number)
+                    inputValue = vp.GetDouble();
+                else
+                    inputValue = p.ToString();
+            }
+
+            var timeout = cfg.Timeout > 0 ? cfg.Timeout : 5000;
+            var result = await _scriptService.ExecuteAsync(cfg.Code, _nodeState, inputValue, timeout, ct);
+
+            // Log script output
+            foreach (var logMsg in result.LogMessages)
+                context.Logger.Info($"[script] {logMsg}");
+
+            if (result.Success)
+            {
+                if (result.ReturnValue != null)
+                {
+                    var outPayload = CreatePayload(result.ReturnValue);
+                    var outMessage = context.Message with { Payload = outPayload };
+                    context.Emitter.Emit("output", outMessage);
+                }
+                else
+                {
+                    // null return = suppress output (deadband-style)
+                    context.Logger.Info("Script returned null — output suppressed");
+                }
+            }
+            else
+            {
+                var ex = new InvalidOperationException(result.ErrorMessage ?? "Script execution failed");
+                if ((cfg.OnError ?? "stop") == "continue")
+                {
+                    context.Logger.Warn($"Script error (continuing): {result.ErrorMessage}");
+                    context.Emitter.Emit("output", context.Message);
+                }
+                else
+                {
+                    context.Logger.Error($"Script error: {result.ErrorMessage}");
+                    context.Emitter.EmitError(ex, context.Message);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1227,18 +1288,15 @@ public sealed class CSharpScriptRuntime : NodeRuntimeBase
                 context.Emitter.EmitError(ex, context.Message);
             }
         }
-
-        return ValueTask.CompletedTask;
     }
 
     private sealed class ScriptCfg { public string? Code { get; set; } public int Timeout { get; set; } = 5000; public string? OnError { get; set; } }
 }
 
-// ─── Passthrough stubs for less-common nodes ────────────────────
+// ─── Script and function nodes ──────────────────────────────────
 
 /// <summary>
-/// JavaScript function node — placeholder that passes through messages.
-/// Full JS execution requires a JavaScript engine integration.
+/// JavaScript function node — executes user JS code via Jint interpreter.
 /// </summary>
 public sealed class JavaScriptRuntime : NodeRuntimeBase
 {
@@ -1247,7 +1305,7 @@ public sealed class JavaScriptRuntime : NodeRuntimeBase
         Type = "func-javascript",
         DisplayName = "JavaScript",
         Category = "Function",
-        Description = "Runs JavaScript code (placeholder — passes through)",
+        Description = "Runs JavaScript code via Jint interpreter",
         Icon = "fa-js",
         Color = "#f7df1e",
         InputPorts = new[]
@@ -1269,10 +1327,65 @@ public sealed class JavaScriptRuntime : NodeRuntimeBase
 
     public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
-        context.Logger.Warn("JavaScript node: runtime execution not yet available — passing message through");
-        context.Emitter.Emit("output", context.Message);
+        var cfg = context.GetConfig<JsCfg>();
+        if (string.IsNullOrWhiteSpace(cfg?.Code))
+        {
+            context.Logger.Warn("JavaScript: no code configured");
+            context.Emitter.Emit("output", context.Message);
+            return ValueTask.CompletedTask;
+        }
+
+        try
+        {
+            // Extract input value
+            object? inputValue = null;
+            if (context.Message.Payload.HasValue)
+            {
+                var p = context.Message.Payload.Value;
+                if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var d))
+                    inputValue = d;
+                else if (p.ValueKind == JsonValueKind.String)
+                    inputValue = p.GetString();
+                else if (p.TryGetProperty("value", out var vp) && vp.ValueKind == JsonValueKind.Number)
+                    inputValue = vp.GetDouble();
+                else
+                    inputValue = p.ToString();
+            }
+
+            var engine = new Jint.Engine(opts =>
+            {
+                Jint.ConstraintsOptionsExtensions.TimeoutInterval(opts, TimeSpan.FromSeconds(5));
+                Jint.ConstraintsOptionsExtensions.MaxStatements(opts, 10000);
+                Jint.OptionsExtensions.LimitRecursion(opts, 64);
+            });
+
+            // Expose input value and logging to script
+            engine.SetValue("input", inputValue);
+            engine.SetValue("log", new Action<object>(msg => context.Logger.Info($"[js] {msg}")));
+
+            var result = engine.Evaluate(cfg.Code);
+            var nativeResult = result.ToObject();
+
+            if (nativeResult != null)
+            {
+                var payload = CreatePayload(nativeResult);
+                context.Emitter.Emit("output", context.Message with { Payload = payload });
+            }
+            else
+            {
+                context.Emitter.Emit("output", context.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"JavaScript error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+
         return ValueTask.CompletedTask;
     }
+
+    private sealed class JsCfg { public string? Code { get; set; } }
 }
 
 /// <summary>
@@ -1444,11 +1557,77 @@ public sealed class StorageFileRuntime : NodeRuntimeBase
         }
     };
 
-    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    public override async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
-        context.Logger.Warn("File Storage node: file I/O not yet implemented — passing through");
-        context.Emitter.Emit("output", context.Message);
-        return ValueTask.CompletedTask;
+        var cfg = context.GetConfig<FileCfg>();
+        if (string.IsNullOrWhiteSpace(cfg?.FilePath))
+        {
+            context.Logger.Warn("File Storage: no file path configured");
+            context.Emitter.Emit("output", context.Message);
+            return;
+        }
+
+        // Resolve relative paths against the config directory
+        var filePath = Path.GetFullPath(cfg.FilePath);
+        var operation = cfg.Operation ?? "read";
+
+        try
+        {
+            switch (operation.ToLowerInvariant())
+            {
+                case "read":
+                {
+                    if (!File.Exists(filePath))
+                    {
+                        context.Logger.Warn($"File not found: {filePath}");
+                        context.Emitter.Emit("output", context.Message);
+                        return;
+                    }
+                    var content = await File.ReadAllTextAsync(filePath, ct);
+                    context.Logger.Info($"Read {content.Length} chars from {filePath}");
+                    var payload = CreatePayload(content);
+                    context.Emitter.Emit("output", context.Message with { Payload = payload });
+                    break;
+                }
+                case "write":
+                {
+                    var data = context.Message.Payload?.ToString() ?? "";
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir))
+                        Directory.CreateDirectory(dir);
+                    await File.WriteAllTextAsync(filePath, data, ct);
+                    context.Logger.Info($"Wrote {data.Length} chars to {filePath}");
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+                }
+                case "append":
+                {
+                    var data = context.Message.Payload?.ToString() ?? "";
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir))
+                        Directory.CreateDirectory(dir);
+                    await File.AppendAllTextAsync(filePath, data + Environment.NewLine, ct);
+                    context.Logger.Info($"Appended {data.Length} chars to {filePath}");
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+                }
+                default:
+                    context.Logger.Warn($"Unknown file operation: {operation}");
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"File Storage error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+    }
+
+    private sealed class FileCfg
+    {
+        public string? FilePath { get; set; }
+        public string? Operation { get; set; }
     }
 }
 
@@ -1483,11 +1662,73 @@ public sealed class StorageSqliteRuntime : NodeRuntimeBase
         }
     };
 
-    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    public override async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
-        context.Logger.Warn("SQLite Storage node: database I/O not yet implemented — passing through");
-        context.Emitter.Emit("output", context.Message);
-        return ValueTask.CompletedTask;
+        var cfg = context.GetConfig<SqliteCfg>();
+        if (string.IsNullOrWhiteSpace(cfg?.Database))
+        {
+            context.Logger.Warn("SQLite Storage: no database path configured");
+            context.Emitter.Emit("output", context.Message);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(cfg.Query))
+        {
+            context.Logger.Warn("SQLite Storage: no SQL query configured");
+            context.Emitter.Emit("output", context.Message);
+            return;
+        }
+
+        var dbPath = Path.GetFullPath(cfg.Database);
+        var connStr = $"Data Source={dbPath}";
+
+        try
+        {
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connStr);
+            await connection.OpenAsync(ct);
+
+            var isSelect = cfg.Query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
+
+            if (isSelect)
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = cfg.Query;
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+
+                var rows = new List<Dictionary<string, object?>>();
+                while (await reader.ReadAsync(ct))
+                {
+                    var row = new Dictionary<string, object?>();
+                    for (var i = 0; i < reader.FieldCount; i++)
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    rows.Add(row);
+                }
+
+                context.Logger.Info($"SQLite query returned {rows.Count} rows from {dbPath}");
+                var payload = CreatePayload(rows);
+                context.Emitter.Emit("output", context.Message with { Payload = payload });
+            }
+            else
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = cfg.Query;
+                var affected = await cmd.ExecuteNonQueryAsync(ct);
+                context.Logger.Info($"SQLite execute affected {affected} rows in {dbPath}");
+                var payload = CreatePayload(affected);
+                context.Emitter.Emit("output", context.Message with { Payload = payload });
+            }
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"SQLite Storage error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+    }
+
+    private sealed class SqliteCfg
+    {
+        public string? Database { get; set; }
+        public string? Query { get; set; }
     }
 }
 
