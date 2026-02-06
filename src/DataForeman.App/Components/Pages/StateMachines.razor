@@ -189,6 +189,28 @@
                                           @onclick="() => SelectedMachineState.OnExitActions.Add(new TagAction())"/>
                             }
                             
+                            @* ── State Scripts ────────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">C# SCRIPTS</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                <div class="form-group">
+                                    <label>On Enter Script</label>
+                                    <CSharpEditor Code="@(SelectedMachineState.OnEnterScript ?? "")"
+                                                  CodeChanged="@(val => SelectedMachineState.OnEnterScript = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                                  Label="On Enter"
+                                                  EditorId="@($"state-enter-{SelectedStateNode?.ID}")"
+                                                  Height="150px" />
+                                </div>
+                                <div class="form-group">
+                                    <label>On Exit Script</label>
+                                    <CSharpEditor Code="@(SelectedMachineState.OnExitScript ?? "")"
+                                                  CodeChanged="@(val => SelectedMachineState.OnExitScript = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                                  Label="On Exit"
+                                                  EditorId="@($"state-exit-{SelectedStateNode?.ID}")"
+                                                  Height="150px" />
+                                </div>
+                            }
+
                             <div style="margin-top:12px;">
                                 <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete State" @onclick="DeleteSelectedState"></SfButton>
                             </div>
@@ -266,6 +288,25 @@
                             <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
                                       @onclick="() => _selectedTransition.Actions.Add(new TagAction())"/>
                             
+                            @* ── Transition Scripts ──────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">C# SCRIPTS</div>
+                            <div class="form-group">
+                                <label>Script Condition <span style="font-size:10px; color:#6b7280;">(must return bool)</span></label>
+                                <CSharpEditor Code="@(_selectedTransition.ScriptCondition ?? "")"
+                                              CodeChanged="@(val => _selectedTransition.ScriptCondition = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                              Label="Condition"
+                                              EditorId="@($"trans-cond-{_selectedTransition.Id}")"
+                                              Height="150px" />
+                            </div>
+                            <div class="form-group">
+                                <label>Script Action</label>
+                                <CSharpEditor Code="@(_selectedTransition.ScriptAction ?? "")"
+                                              CodeChanged="@(val => _selectedTransition.ScriptAction = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                              Label="Action"
+                                              EditorId="@($"trans-action-{_selectedTransition.Id}")"
+                                              Height="150px" />
+                            </div>
+
                             <div style="margin-top:12px;">
                                 <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete Transition" @onclick="DeleteSelectedTransition"/>
                             </div>

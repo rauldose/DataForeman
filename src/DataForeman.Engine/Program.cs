@@ -16,6 +16,7 @@ builder.Services.AddSingleton<PollEngineTagAdapter>();
 builder.Services.AddSingleton<IStateMachineTagReader>(sp => sp.GetRequiredService<PollEngineTagAdapter>());
 builder.Services.AddSingleton<IStateMachineTagWriter>(sp => sp.GetRequiredService<PollEngineTagAdapter>());
 builder.Services.AddSingleton<StateMachineExecutionService>();
+builder.Services.AddSingleton<CSharpScriptService>();
 builder.Services.AddSingleton<EngineHealthMonitor>();
 
 // Add the worker

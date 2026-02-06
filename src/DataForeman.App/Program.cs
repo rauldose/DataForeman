@@ -16,6 +16,7 @@ builder.Services.AddSingleton<MqttService>();
 builder.Services.AddSingleton<RealtimeDataService>();
 builder.Services.AddSingleton<NodePluginRegistry>();
 builder.Services.AddSingleton<HistoryService>();
+builder.Services.AddSingleton<ScriptValidationService>();
 
 var app = builder.Build();
 

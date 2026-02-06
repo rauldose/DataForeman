@@ -36,6 +36,7 @@ public class StateMachineExecutionService : IDisposable
     private readonly ILogger<StateMachineExecutionService> _logger;
     private readonly IStateMachineTagReader? _tagReader;
     private readonly IStateMachineTagWriter? _tagWriter;
+    private readonly CSharpScriptService? _scriptService;
     private readonly Dictionary<string, StateMachineRuntime> _runtimes = new();
     private readonly object _lock = new();
     private Timer? _scanTimer;
@@ -47,11 +48,13 @@ public class StateMachineExecutionService : IDisposable
     public StateMachineExecutionService(
         ILogger<StateMachineExecutionService> logger,
         IStateMachineTagReader? tagReader = null,
-        IStateMachineTagWriter? tagWriter = null)
+        IStateMachineTagWriter? tagWriter = null,
+        CSharpScriptService? scriptService = null)
     {
         _logger = logger;
         _tagReader = tagReader;
         _tagWriter = tagWriter;
+        _scriptService = scriptService;
     }
 
     /// <summary>
@@ -90,7 +93,7 @@ public class StateMachineExecutionService : IDisposable
                 return;
             }
 
-            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter);
+            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter, _scriptService);
             _runtimes[config.Id] = runtime;
             _logger.LogInformation("Loaded state machine: {Name} with {StateCount} states, {TransitionCount} transitions",
                 config.Name, config.States.Count, config.Transitions.Count);
@@ -232,6 +235,8 @@ public class StateMachineExecutionService : IDisposable
         private readonly ILogger _logger;
         private readonly IStateMachineTagReader? _tagReader;
         private readonly IStateMachineTagWriter? _tagWriter;
+        private readonly CSharpScriptService? _scriptService;
+        private readonly Dictionary<string, object?> _scriptState = new();
         private string? _currentStateId;
         private string? _prevStateId;
         private string? _recentTrigger;
@@ -247,12 +252,14 @@ public class StateMachineExecutionService : IDisposable
             StateMachineConfig config,
             ILogger logger,
             IStateMachineTagReader? tagReader,
-            IStateMachineTagWriter? tagWriter)
+            IStateMachineTagWriter? tagWriter,
+            CSharpScriptService? scriptService)
         {
             _config = config;
             _logger = logger;
             _tagReader = tagReader;
             _tagWriter = tagWriter;
+            _scriptService = scriptService;
 
             // Initialize to the designated initial state
             _currentStateId = config.InitialStateId
@@ -273,20 +280,37 @@ public class StateMachineExecutionService : IDisposable
         /// </summary>
         public bool EvaluateTriggersAndTransition()
         {
-            if (_currentStateId == null || _tagReader == null) return false;
+            if (_currentStateId == null) return false;
 
+            // Include transitions that have either a tag trigger or a script condition
             var candidates = _config.Transitions
-                .Where(t => t.FromStateId == _currentStateId && t.Trigger != null)
+                .Where(t => t.FromStateId == _currentStateId
+                    && (t.Trigger != null || !string.IsNullOrEmpty(t.ScriptCondition)))
                 .OrderBy(t => t.Priority)
                 .ToList();
 
             foreach (var transition in candidates)
             {
-                if (EvaluateTagTrigger(transition.Trigger!))
+                bool conditionMet = false;
+
+                // Script condition takes priority if both are set
+                if (!string.IsNullOrEmpty(transition.ScriptCondition) && _scriptService != null)
+                {
+                    conditionMet = _scriptService.EvaluateConditionAsync(
+                        transition.ScriptCondition, _scriptState).GetAwaiter().GetResult();
+                }
+                else if (transition.Trigger != null && _tagReader != null)
+                {
+                    conditionMet = EvaluateTagTrigger(transition.Trigger);
+                }
+
+                if (conditionMet)
                 {
                     var label = !string.IsNullOrEmpty(transition.Event)
                         ? transition.Event
-                        : FormatTriggerLabel(transition.Trigger!);
+                        : transition.Trigger != null
+                            ? FormatTriggerLabel(transition.Trigger)
+                            : "script";
 
                     PerformTransition(transition, label);
                     return true;
@@ -377,10 +401,14 @@ public class StateMachineExecutionService : IDisposable
             var oldState = _config.States.FirstOrDefault(s => s.Id == oldStateId);
             if (oldState?.OnExitActions.Count > 0)
                 RunTagActions(oldState.OnExitActions, "OnExit", oldStateName);
+            if (!string.IsNullOrEmpty(oldState?.OnExitScript))
+                RunScript(oldState.OnExitScript, "OnExitScript", oldStateName);
 
             // 2. Execute transition actions
             if (transition.Actions.Count > 0)
                 RunTagActions(transition.Actions, "Transition", triggerLabel);
+            if (!string.IsNullOrEmpty(transition.ScriptAction))
+                RunScript(transition.ScriptAction, "TransitionScript", triggerLabel);
 
             // Legacy single-string action (backward-compat)
             if (!string.IsNullOrEmpty(transition.Action))
@@ -397,6 +425,8 @@ public class StateMachineExecutionService : IDisposable
             var newState = _config.States.FirstOrDefault(s => s.Id == newStateId);
             if (newState?.OnEnterActions.Count > 0)
                 RunTagActions(newState.OnEnterActions, "OnEnter", newStateName);
+            if (!string.IsNullOrEmpty(newState?.OnEnterScript))
+                RunScript(newState.OnEnterScript, "OnEnterScript", newStateName);
 
             // 5. Audit trail
             _auditLog.Add(new TransitionAuditEntry
@@ -505,6 +535,29 @@ public class StateMachineExecutionService : IDisposable
                 {
                     _logger.LogError(ex, "Error executing {Phase} action for tag {Tag}", phase, action.TagPath);
                 }
+            }
+        }
+
+        // ── C# script execution ───────────────────────────────────────
+
+        private void RunScript(string code, string phase, string context)
+        {
+            if (_scriptService == null) return;
+
+            try
+            {
+                var result = _scriptService.ExecuteAsync(code, _scriptState, input: null, timeoutMs: 5000)
+                    .GetAwaiter().GetResult();
+
+                foreach (var msg in result.LogMessages)
+                    _logger.LogInformation("[Script {Phase}({Context})] {Message}", phase, context, msg);
+
+                if (!result.Success)
+                    _logger.LogWarning("Script {Phase}({Context}) failed: {Error}", phase, context, result.ErrorMessage);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error running script {Phase}({Context})", phase, context);
             }
         }
 

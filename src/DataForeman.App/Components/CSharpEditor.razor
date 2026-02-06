@@ -1,0 +1,155 @@
+@inject ScriptValidationService Validator
+
+<div class="csharp-editor-container" style="@ContainerStyle">
+    <div class="editor-header" style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:#1a1a2e; border-bottom:1px solid #333; font-size:11px;">
+        <span style="color:#9ca3af;">
+            <i class="fa-solid fa-code" style="color:#178600;"></i> C# Script
+            @if (!string.IsNullOrEmpty(Label))
+            {
+                <span> — @Label</span>
+            }
+        </span>
+        <span>
+            @if (_isValidating)
+            {
+                <span style="color:#f59e0b;">Validating…</span>
+            }
+            else if (_diagnostics.Count == 0)
+            {
+                <span style="color:#22c55e;">✓ No issues</span>
+            }
+            else
+            {
+                var errorCount = _diagnostics.Count(d => d.Severity == "Error");
+                var warnCount = _diagnostics.Count(d => d.Severity == "Warning");
+                @if (errorCount > 0)
+                {
+                    <span style="color:#ef4444;">@errorCount error(s)</span>
+                }
+                @if (warnCount > 0)
+                {
+                    <span style="color:#f59e0b; margin-left:6px;">@warnCount warning(s)</span>
+                }
+            }
+        </span>
+    </div>
+    <StandaloneCodeEditor @ref="_editor"
+        Id="@EditorId"
+        ConstructionOptions="GetEditorOptions"
+        OnDidChangeModelContent="OnContentChanged" />
+    @if (_diagnostics.Any())
+    {
+        <div class="diagnostics-panel" style="max-height:80px; overflow-y:auto; background:#1a1a1a; border-top:1px solid #333; padding:4px 8px; font-size:11px; font-family:monospace;">
+            @foreach (var diag in _diagnostics)
+            {
+                var color = diag.Severity == "Error" ? "#ef4444" : "#f59e0b";
+                var icon = diag.Severity == "Error" ? "fa-circle-xmark" : "fa-triangle-exclamation";
+                <div style="color:@color; padding:1px 0;">
+                    <i class="fa-solid @icon" style="font-size:10px;"></i>
+                    <span style="color:#6b7280;">(@diag.StartLine:@diag.StartColumn)</span>
+                    @diag.Message
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Code { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CodeChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string EditorId { get; set; } = "csharp-editor";
+    [Parameter] public string Height { get; set; } = "250px";
+
+    private StandaloneCodeEditor? _editor;
+    private List<ScriptValidationService.DiagnosticEntry> _diagnostics = new();
+    private bool _isValidating;
+    private System.Timers.Timer? _debounceTimer;
+    private string _lastValidatedCode = "";
+
+    private string ContainerStyle => $"border:1px solid #333; border-radius:4px; overflow:hidden; height:{Height}; display:flex; flex-direction:column;";
+
+    private StandaloneEditorConstructionOptions GetEditorOptions(StandaloneCodeEditor editor)
+    {
+        return new StandaloneEditorConstructionOptions
+        {
+            AutomaticLayout = true,
+            Language = "csharp",
+            Value = Code,
+            Theme = "vs-dark",
+            FontSize = 13,
+            Minimap = new EditorMinimapOptions { Enabled = false },
+            ScrollBeyondLastLine = false,
+            RenderLineHighlight = "all",
+            LineNumbers = "on",
+            TabSize = 4,
+            WordWrap = "on",
+            SuggestOnTriggerCharacters = true,
+            QuickSuggestions = new QuickSuggestionsOptions
+            {
+                Other = "on",
+                Comments = "off",
+                Strings = "on"
+            }
+        };
+    }
+
+    protected override void OnInitialized()
+    {
+        _debounceTimer = new System.Timers.Timer(800);
+        _debounceTimer.AutoReset = false;
+        _debounceTimer.Elapsed += async (_, _) => await ValidateCurrentCode();
+    }
+
+    private async Task OnContentChanged(ModelContentChangedEvent e)
+    {
+        if (_editor == null) return;
+        var newCode = await _editor.GetValue();
+        if (newCode != Code)
+        {
+            Code = newCode;
+            await CodeChanged.InvokeAsync(newCode);
+            // Restart debounce timer for validation
+            _debounceTimer?.Stop();
+            _debounceTimer?.Start();
+        }
+    }
+
+    private async Task ValidateCurrentCode()
+    {
+        var code = Code;
+        if (code == _lastValidatedCode) return;
+        _lastValidatedCode = code;
+
+        await InvokeAsync(() =>
+        {
+            _isValidating = true;
+            StateHasChanged();
+        });
+
+        // Run validation on a background thread to avoid blocking UI
+        var diagnostics = await Task.Run(() => Validator.Validate(code));
+
+        await InvokeAsync(() =>
+        {
+            _diagnostics = diagnostics;
+            _isValidating = false;
+            StateHasChanged();
+        });
+    }
+
+    public async Task SetCodeAsync(string code)
+    {
+        Code = code;
+        if (_editor != null)
+        {
+            await _editor.SetValue(code);
+        }
+    }
+
+    public void Dispose()
+    {
+        _debounceTimer?.Stop();
+        _debounceTimer?.Dispose();
+    }
+}

@@ -38,6 +38,12 @@ public class MachineState
 
     /// <summary>Actions executed when the machine leaves this state.</summary>
     public List<TagAction> OnExitActions { get; set; } = new();
+
+    /// <summary>C# script executed when entering this state. Has access to ReadTag/WriteTag/Log.</summary>
+    public string? OnEnterScript { get; set; }
+
+    /// <summary>C# script executed when leaving this state.</summary>
+    public string? OnExitScript { get; set; }
 }
 
 /// <summary>
@@ -58,6 +64,12 @@ public class StateTransition
 
     /// <summary>Actions executed when this transition fires (after exiting source, before entering target).</summary>
     public List<TagAction> Actions { get; set; } = new();
+
+    /// <summary>C# script that must return true/false for this transition to fire. Overrides Trigger if set.</summary>
+    public string? ScriptCondition { get; set; }
+
+    /// <summary>C# script executed when this transition fires. Has access to ReadTag/WriteTag/Log.</summary>
+    public string? ScriptAction { get; set; }
 }
 
 /// <summary>

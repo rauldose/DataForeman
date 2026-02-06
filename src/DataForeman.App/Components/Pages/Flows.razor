@@ -893,6 +893,18 @@
                 }));
                 builder.CloseComponent();
                 break;
+            case PropertyType.Code:
+                var codeVal = currentValue ?? prop.DefaultValue ?? "";
+                var codeNodeId = nodeId;
+                var codePropKey = prop.Key;
+                builder.OpenComponent<CSharpEditor>(0);
+                builder.AddAttribute(1, "Code", codeVal);
+                builder.AddAttribute(2, "CodeChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(codeNodeId, codePropKey, val)));
+                builder.AddAttribute(3, "Label", prop.Label);
+                builder.AddAttribute(4, "EditorId", $"editor-{codeNodeId}-{codePropKey}");
+                builder.AddAttribute(5, "Height", "300px");
+                builder.CloseComponent();
+                break;
             case PropertyType.Select:
             case PropertyType.TextArea:
             default:

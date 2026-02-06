@@ -347,6 +347,60 @@ public class NodePluginRegistry
             }
         });
 
+        // === SCRIPT NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "script-csharp",
+            Name = "C# Script",
+            ShortLabel = "C#",
+            Category = "Scripts",
+            Description = "Execute C# code with access to tags, state, and logging. Use ReadTag/WriteTag for tag I/O.",
+            Icon = "fa-solid fa-file-code",
+            Color = "#178600",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new()
+                {
+                    Key = "code",
+                    Label = "C# Code",
+                    Type = PropertyType.Code,
+                    DefaultValue = "// Access tags:\n// var temp = ReadTagDouble(\"Simulator/Temperature\");\n// WriteTag(\"Simulator/Alarm\", temp > 90);\n//\n// Use state:\n// var count = (int)(GetState(\"counter\") ?? 0);\n// SetState(\"counter\", count + 1);\n//\n// Log messages:\n// Log($\"Temperature: {temp}\");\n//\n// Return a value (passed to next node):\n// return temp * 1.8 + 32;\n\nreturn Input;",
+                    HelpText = "C# script with Roslyn. Globals: Input, ReadTag(), ReadTagDouble(), ReadTagBool(), WriteTag(), GetState(), SetState(), Log()",
+                    Group = "Script",
+                    Order = 0
+                },
+                new()
+                {
+                    Key = "timeout",
+                    Label = "Timeout (ms)",
+                    Type = PropertyType.Integer,
+                    DefaultValue = "10000",
+                    Min = 100,
+                    Max = 60000,
+                    HelpText = "Maximum execution time before the script is cancelled",
+                    Group = "Settings",
+                    Order = 1
+                },
+                new()
+                {
+                    Key = "onError",
+                    Label = "On Error",
+                    Type = PropertyType.Select,
+                    DefaultValue = "stop",
+                    Options = new()
+                    {
+                        new() { Value = "stop", Label = "Stop flow" },
+                        new() { Value = "continue", Label = "Continue with null" }
+                    },
+                    HelpText = "What to do when the script throws an exception",
+                    Group = "Settings",
+                    Order = 2
+                }
+            }
+        });
+
         // === UTILITY NODES ===
         Register(new NodePluginDefinition
         {
