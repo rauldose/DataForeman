@@ -52,6 +52,16 @@ public class ConfigService
         await LoadChartsAsync();
         await LoadFlowsAsync();
         await LoadStateMachinesAsync();
+
+        // Post-load validation — log warnings for any config issues
+        foreach (var conn in _connections.Connections)
+            foreach (var w in conn.Validate())
+                _logger.LogWarning("Config validation: {Warning}", w);
+
+        foreach (var flow in _flows.Flows)
+            foreach (var w in flow.Validate())
+                _logger.LogWarning("Config validation: {Warning}", w);
+
         _logger.LogInformation("All configuration files loaded from {Directory}", _configDirectory);
     }
 

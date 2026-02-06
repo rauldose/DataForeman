@@ -20,6 +20,16 @@ public class InternalTagStore
     // Registered tag configurations
     private readonly ConcurrentDictionary<string, InternalTagConfig> _configs = new();
 
+    // Persistence
+    private readonly JsonSerializerOptions _jsonOpts = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    private Timer? _flushTimer;
+    private volatile bool _dirty;
+    private string? _persistPath;
+
     public InternalTagStore(ILogger<InternalTagStore> logger, ConfigService configService)
     {
         _logger = logger;
@@ -28,15 +38,41 @@ public class InternalTagStore
 
     /// <summary>
     /// Initializes the internal tag store with configured tags.
+    /// Loads persisted global-scope values from disk if available.
     /// </summary>
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         _logger.LogInformation("Initializing internal tag store");
-        
-        // TODO: Load persistent tags from storage if configured
+
+        _persistPath = Path.Combine(_configService.ConfigDirectory, "internal-tags.json");
+
+        // Restore persisted values
+        if (File.Exists(_persistPath))
+        {
+            try
+            {
+                var json = await File.ReadAllTextAsync(_persistPath);
+                var saved = JsonSerializer.Deserialize<Dictionary<string, InternalTagValue>>(json, _jsonOpts);
+                if (saved is not null)
+                {
+                    foreach (var kvp in saved)
+                        _values[kvp.Key] = kvp.Value;
+
+                    _logger.LogInformation("Restored {Count} persisted context values from {Path}",
+                        saved.Count, _persistPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not load persisted context store from {Path}; starting empty", _persistPath);
+            }
+        }
+
+        // Debounced flush timer — runs every 500 ms but only writes when dirty
+        _flushTimer = new Timer(_ => FlushIfDirty(), null,
+            TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
         
         _logger.LogInformation("Internal tag store initialized with {Count} tags", _values.Count);
-        return Task.CompletedTask;
     }
 
     #region Global Context Operations
@@ -65,6 +101,7 @@ public class InternalTagStore
             Scope = ContextScope.Global
         };
         _values[key] = tagValue;
+        _dirty = true;
         
         _logger.LogDebug("Set global context '{Path}' = {Value}", path, value);
     }
@@ -292,6 +329,36 @@ public class InternalTagStore
             "node" when parts.Length >= 4 => (ContextScope.Node, parts[1], parts[2], string.Join(":", parts.Skip(3))),
             _ => (ContextScope.Global, null, null, qualifiedPath) // Default to global
         };
+    }
+
+    #endregion
+
+    #region Persistence
+
+    /// <summary>
+    /// Writes global-scope values to disk if anything changed since last flush.
+    /// Called on a timer; safe to call from any thread.
+    /// </summary>
+    private void FlushIfDirty()
+    {
+        if (!_dirty || _persistPath is null) return;
+        _dirty = false;
+
+        try
+        {
+            // Only persist global-scope entries (flow/node scopes are ephemeral)
+            var toSave = _values
+                .Where(kvp => kvp.Key.StartsWith("global:"))
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+            var json = JsonSerializer.Serialize(toSave, _jsonOpts);
+            File.WriteAllText(_persistPath, json);
+            _logger.LogDebug("Flushed {Count} global context values to {Path}", toSave.Count, _persistPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist context store to {Path}", _persistPath);
+        }
     }
 
     #endregion

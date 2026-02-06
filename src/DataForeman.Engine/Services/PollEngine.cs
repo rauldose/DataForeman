@@ -63,8 +63,11 @@ public class PollEngine : IAsyncDisposable
         }
 
         // Start status reporting timer (every 5 seconds)
-        _statusTimer = new Timer(async _ => await PublishEngineStatusAsync(), null, 
-            TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        _statusTimer = new Timer(async _ =>
+        {
+            try { await PublishEngineStatusAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Error in engine status publish timer"); }
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
 
         _logger.LogInformation("Poll engine started with {ConnectionCount} connections", _pollers.Count);
     }

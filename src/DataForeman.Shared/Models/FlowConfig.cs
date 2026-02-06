@@ -16,6 +16,30 @@ public class FlowConfig
     public List<FlowEdge> Edges { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Returns a list of validation warnings (empty = valid).
+    /// </summary>
+    public List<string> Validate()
+    {
+        var warnings = new List<string>();
+        if (string.IsNullOrWhiteSpace(Name))
+            warnings.Add($"Flow '{Id}': Name is required");
+        if (ScanRateMs < 10)
+            warnings.Add($"Flow '{Name}': ScanRateMs ({ScanRateMs}) should be >= 10");
+        if (Enabled && Nodes.Count == 0)
+            warnings.Add($"Flow '{Name}': Enabled but has no nodes");
+        // Check for edges referencing non-existent nodes
+        var nodeIds = new HashSet<string>(Nodes.Select(n => n.Id));
+        foreach (var edge in Edges)
+        {
+            if (!nodeIds.Contains(edge.SourceNodeId))
+                warnings.Add($"Flow '{Name}': Edge '{edge.Id}' references missing source node '{edge.SourceNodeId}'");
+            if (!nodeIds.Contains(edge.TargetNodeId))
+                warnings.Add($"Flow '{Name}': Edge '{edge.Id}' references missing target node '{edge.TargetNodeId}'");
+        }
+        return warnings;
+    }
 }
 
 /// <summary>

@@ -13,6 +13,7 @@ builder.Services.AddSingleton<HistoryStore>();
 builder.Services.AddSingleton<PollEngine>();
 builder.Services.AddSingleton<ConfigWatcher>();
 builder.Services.AddSingleton<StateMachineExecutionService>();
+builder.Services.AddSingleton<EngineHealthMonitor>();
 
 // Add the worker
 builder.Services.AddHostedService<Worker>();

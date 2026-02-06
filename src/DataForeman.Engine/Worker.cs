@@ -16,6 +16,7 @@ public class Worker : BackgroundService
     private readonly PollEngine _pollEngine;
     private readonly ConfigWatcher _configWatcher;
     private readonly StateMachineExecutionService _stateMachineService;
+    private readonly EngineHealthMonitor _healthMonitor;
 
     public Worker(
         ILogger<Worker> logger,
@@ -26,7 +27,8 @@ public class Worker : BackgroundService
         HistoryStore historyStore,
         PollEngine pollEngine,
         ConfigWatcher configWatcher,
-        StateMachineExecutionService stateMachineService)
+        StateMachineExecutionService stateMachineService,
+        EngineHealthMonitor healthMonitor)
     {
         _logger = logger;
         _configService = configService;
@@ -37,6 +39,7 @@ public class Worker : BackgroundService
         _pollEngine = pollEngine;
         _configWatcher = configWatcher;
         _stateMachineService = stateMachineService;
+        _healthMonitor = healthMonitor;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -47,12 +50,15 @@ public class Worker : BackgroundService
         {
             // Load configuration
             await _configService.LoadAllAsync();
+            _healthMonitor.SetConfigLoaded(true);
 
             // Initialize history store
             await _historyStore.InitializeAsync();
 
             // Connect to MQTT broker
             await _mqttPublisher.ConnectAsync();
+            _mqttPublisher.OnConnectionChanged += connected =>
+                _healthMonitor.SetMqttConnected(connected);
 
             // Start MQTT flow trigger service (handles mqtt-in node subscriptions)
             await _mqttFlowTriggerService.StartAsync();
@@ -62,6 +68,8 @@ public class Worker : BackgroundService
 
             // Load and start state machines, publishing runtime state via MQTT
             _stateMachineService.ReloadAll(_configService.StateMachines);
+            _healthMonitor.SetLoadedStateMachineCount(
+                _stateMachineService.GetAllRuntimeInfo().Count);
             _stateMachineService.RuntimeInfoUpdated += async info =>
             {
                 try { await _mqttPublisher.PublishStateMachineStateAsync(info); }
@@ -76,16 +84,18 @@ public class Worker : BackgroundService
 
             // Start the polling engine
             await _pollEngine.StartAsync();
+            _healthMonitor.SetPollEngineRunning(true);
 
             // Start watching for configuration changes
             _configWatcher.Start();
 
             _logger.LogInformation("DataForeman Engine started successfully");
 
-            // Wait for cancellation
+            // Periodic health check loop
             while (!stoppingToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+                _healthMonitor.LogHealthStatus();
+                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
             }
         }
         catch (OperationCanceledException)

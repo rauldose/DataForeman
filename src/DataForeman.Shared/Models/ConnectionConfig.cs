@@ -15,6 +15,26 @@ public class ConnectionConfig
     public List<TagConfig> Tags { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Returns a list of validation warnings (empty = valid).
+    /// </summary>
+    public List<string> Validate()
+    {
+        var warnings = new List<string>();
+        if (string.IsNullOrWhiteSpace(Name))
+            warnings.Add($"Connection '{Id}': Name is required");
+        if (string.IsNullOrWhiteSpace(Type))
+            warnings.Add($"Connection '{Id}': Type is required");
+        foreach (var tag in Tags)
+        {
+            if (string.IsNullOrWhiteSpace(tag.Name))
+                warnings.Add($"Connection '{Name}' tag '{tag.Id}': Name is required");
+            if (tag.PollRateMs < 10)
+                warnings.Add($"Connection '{Name}' tag '{tag.Name}': PollRateMs ({tag.PollRateMs}) should be >= 10");
+        }
+        return warnings;
+    }
 }
 
 /// <summary>
