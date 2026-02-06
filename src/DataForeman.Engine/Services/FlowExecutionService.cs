@@ -200,7 +200,52 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         _nodeRegistry.Register(TagOutputRuntime.Descriptor, () => new TagOutputRuntime());
         _nodeRegistry.Register(SubflowInputRuntime.Descriptor, () => new SubflowInputRuntime());
         _nodeRegistry.Register(SubflowOutputRuntime.Descriptor, () => new SubflowOutputRuntime());
-        
+
+        // Extended nodes — output
+        _nodeRegistry.Register(NotificationRuntime.Descriptor, () => new NotificationRuntime());
+
+        // Extended nodes — math
+        _nodeRegistry.Register(MathSubtractRuntime.Descriptor, () => new MathSubtractRuntime());
+        _nodeRegistry.Register(MathDivideRuntime.Descriptor, () => new MathDivideRuntime());
+
+        // Extended nodes — logic
+        _nodeRegistry.Register(BranchRuntime.Descriptor, () => new BranchRuntime());
+        _nodeRegistry.Register(LogicAndRuntime.Descriptor, () => new LogicAndRuntime());
+        _nodeRegistry.Register(LogicOrRuntime.Descriptor, () => new LogicOrRuntime());
+
+        // Extended nodes — utility
+        _nodeRegistry.Register(DelayRuntime.Descriptor, () => new DelayRuntime());
+        _nodeRegistry.Register(FilterRuntime.Descriptor, () => new FilterRuntime());
+        _nodeRegistry.Register(ConstantRuntime.Descriptor, () => new ConstantRuntime());
+
+        // Extended nodes — data processing
+        _nodeRegistry.Register(SmoothRuntime.Descriptor, () => new SmoothRuntime());
+        _nodeRegistry.Register(AggregateRuntime.Descriptor, () => new AggregateRuntime());
+        _nodeRegistry.Register(DeadbandRuntime.Descriptor, () => new DeadbandRuntime());
+        _nodeRegistry.Register(RateOfChangeRuntime.Descriptor, () => new RateOfChangeRuntime());
+
+        // Extended nodes — function
+        _nodeRegistry.Register(SwitchRuntime.Descriptor, () => new SwitchRuntime());
+        _nodeRegistry.Register(TemplateRuntime.Descriptor, () => new TemplateRuntime());
+
+        // Extended nodes — triggers
+        _nodeRegistry.Register(TagTriggerRuntime.Descriptor, () => new TagTriggerRuntime());
+        _nodeRegistry.Register(InjectTimerRuntime.Descriptor, () => new InjectTimerRuntime());
+
+        // Extended nodes — communication
+        _nodeRegistry.Register(HttpRequestRuntime.Descriptor, () => new HttpRequestRuntime());
+
+        // Extended nodes — scripts
+        _nodeRegistry.Register(CSharpScriptRuntime.Descriptor, () => new CSharpScriptRuntime());
+
+        // Extended nodes — integration stubs
+        _nodeRegistry.Register(JavaScriptRuntime.Descriptor, () => new JavaScriptRuntime());
+        _nodeRegistry.Register(DebugSidebarRuntime.Descriptor, () => new DebugSidebarRuntime());
+        _nodeRegistry.Register(LinkInRuntime.Descriptor, () => new LinkInRuntime());
+        _nodeRegistry.Register(LinkOutRuntime.Descriptor, () => new LinkOutRuntime());
+        _nodeRegistry.Register(StorageFileRuntime.Descriptor, () => new StorageFileRuntime());
+        _nodeRegistry.Register(StorageSqliteRuntime.Descriptor, () => new StorageSqliteRuntime());
+
         _logger.LogInformation("Registered {Count} node types", _nodeRegistry.GetAllDescriptors().Count);
     }
 
