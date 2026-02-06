@@ -1097,6 +1097,8 @@
     /// </summary>
     private void HighlightActiveState(string? activeStateId)
     {
+        if (CurrentStateMachine == null) return;
+        
         // Restore previous highlighted node
         if (_highlightedStateId != null && _highlightedStateId != activeStateId)
         {
