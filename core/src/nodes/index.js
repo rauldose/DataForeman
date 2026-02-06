@@ -23,6 +23,7 @@ import { BooleanLogicNode } from './logic/BooleanLogicNode.js';
 import { SwitchNode } from './logic/SwitchNode.js';
 import { RangeCheckNode } from './logic/RangeCheckNode.js';
 import { MergeNode } from './logic/MergeNode.js';
+import { StateMachineNode } from './logic/StateMachineNode.js';
 
 // Comparison nodes
 import { ComparisonNode } from './comparison/ComparisonNode.js';
@@ -32,6 +33,7 @@ import { TypeConvertNode } from './data/TypeConvertNode.js';
 import { StringOpsNode } from './data/StringOpsNode.js';
 import { ArrayOpsNode } from './data/ArrayOpsNode.js';
 import { JSONOpsNode } from './data/JSONOpsNode.js';
+import { TimelineNode } from './data/TimelineNode.js';
 
 // Script nodes
 import { JavaScriptNode } from './scripts/JavaScriptNode.js';
@@ -83,6 +85,7 @@ export async function registerAllNodes(options = {}) {
   NodeRegistry.register('switch', SwitchNode);
   NodeRegistry.register('range-check', RangeCheckNode);
   NodeRegistry.register('merge', MergeNode);
+  NodeRegistry.register('state-machine', StateMachineNode);
   
   // Comparison operations
   NodeRegistry.register('comparison', ComparisonNode);
@@ -92,6 +95,7 @@ export async function registerAllNodes(options = {}) {
   NodeRegistry.register('string-ops', StringOpsNode);
   NodeRegistry.register('array-ops', ArrayOpsNode);
   NodeRegistry.register('json-ops', JSONOpsNode);
+  NodeRegistry.register('timeline', TimelineNode);
   
   // Script operations (legacy - skip validation until Phase 4 refactor)
   NodeRegistry.register('script-js', JavaScriptNode, { skipValidation: true });
