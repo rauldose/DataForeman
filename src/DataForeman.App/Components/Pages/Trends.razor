@@ -430,14 +430,34 @@
         new() { Value = TrendSeriesType.Scatter, Label = "Scatter" }
     };
 
+    private string? _lastLoadedTrendId;
+
     protected override void OnInitialized()
     {
         RefreshAvailableTagPaths();
         LoadTrends();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (TrendId == _lastLoadedTrendId)
+            return;
+
+        _lastLoadedTrendId = TrendId;
+
         if (!string.IsNullOrEmpty(TrendId))
         {
+            StopAutoRefresh();
+            _showLiveTimeline = false;
+            _liveFilterTags = null;
             LoadTrend(TrendId);
             StartAutoRefresh();
+        }
+        else
+        {
+            StopAutoRefresh();
+            _showLiveTimeline = false;
+            LoadTrends();
         }
     }
 

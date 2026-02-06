@@ -499,13 +499,12 @@
             ? CurrentStateMachine.States.FirstOrDefault(s => s.Id == SelectedStateNode.ID)
             : null;
 
+    private string? _lastLoadedMachineId;
+    private bool _diagramNeedsReload;
+
     protected override void OnInitialized()
     {
         LoadStateMachines();
-        if (!string.IsNullOrEmpty(StateMachineId))
-        {
-            LoadStateMachine(StateMachineId);
-        }
         
         // Build available tag paths for trigger/action dropdowns
         _availableTagPaths = ConfigService.GetAllTagsWithConnection()
@@ -522,11 +521,36 @@
         // Subscribe to state machine runtime updates from the Engine via MQTT
         RealtimeData.OnStateMachineStateChanged += HandleMachineStateUpdate;
     }
-    
+
+    protected override void OnParametersSet()
+    {
+        if (StateMachineId == _lastLoadedMachineId)
+            return;
+
+        _lastLoadedMachineId = StateMachineId;
+
+        // Clear selection state from previous machine
+        SelectedStateNode = null;
+        _selectedTransition = null;
+        _selectedConnector = null;
+
+        if (!string.IsNullOrEmpty(StateMachineId))
+        {
+            LoadStateMachine(StateMachineId);
+            _diagramNeedsReload = true;
+        }
+        else
+        {
+            _diagramNeedsReload = false;
+            LoadStateMachines();
+        }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !string.IsNullOrEmpty(StateMachineId))
+        if (_diagramNeedsReload && !string.IsNullOrEmpty(StateMachineId))
         {
+            _diagramNeedsReload = false;
             await LoadStatesIntoDiagram();
         }
     }
