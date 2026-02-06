@@ -69,8 +69,11 @@ public class InternalTagStore
         }
 
         // Debounced flush timer — runs every 500 ms but only writes when dirty
-        _flushTimer = new Timer(_ => FlushIfDirty(), null,
-            TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+        _flushTimer = new Timer(async _ =>
+        {
+            try { await FlushIfDirtyAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Error in context store flush timer"); }
+        }, null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
         
         _logger.LogInformation("Internal tag store initialized with {Count} tags", _values.Count);
     }
@@ -339,7 +342,7 @@ public class InternalTagStore
     /// Writes global-scope values to disk if anything changed since last flush.
     /// Called on a timer; safe to call from any thread.
     /// </summary>
-    private void FlushIfDirty()
+    private async Task FlushIfDirtyAsync()
     {
         if (!_dirty || _persistPath is null) return;
         _dirty = false;
@@ -352,7 +355,7 @@ public class InternalTagStore
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
             var json = JsonSerializer.Serialize(toSave, _jsonOpts);
-            File.WriteAllText(_persistPath, json);
+            await File.WriteAllTextAsync(_persistPath, json);
             _logger.LogDebug("Flushed {Count} global context values to {Path}", toSave.Count, _persistPath);
         }
         catch (Exception ex)
