@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using DataForeman.Shared.Messages;
+using DataForeman.Shared.Models;
 using DataForeman.Shared.Mqtt;
 
 namespace DataForeman.App.Services;
@@ -16,6 +17,9 @@ public class RealtimeDataService : IDisposable
     private readonly ConcurrentDictionary<string, ConnectionStatusMessage> _connectionStatuses = new();
     private readonly ConcurrentDictionary<string, List<FlowExecutionMessage>> _flowExecutionCache = new();
     private readonly ConcurrentDictionary<string, InternalTagValueCache> _internalTagValues = new();
+    private readonly ConcurrentDictionary<string, MachineRuntimeInfo> _machineStates = new();
+    private readonly ConcurrentDictionary<string, List<FlowRunSummaryMessage>> _flowRunHistory = new();
+    private readonly ConcurrentDictionary<string, FlowDeploymentStatusMessage> _flowDeployStatuses = new();
     private EngineStatusMessage? _engineStatus;
     
     public event Action? OnDataChanged;
@@ -23,6 +27,9 @@ public class RealtimeDataService : IDisposable
     public event Action<string>? OnConnectionStatusChanged;
     public event Action? OnEngineStatusChanged;
     public event Action<FlowExecutionMessage>? OnFlowExecutionReceived;
+    public event Action<MachineRuntimeInfo>? OnStateMachineStateChanged;
+    public event Action<FlowRunSummaryMessage>? OnFlowRunSummaryReceived;
+    public event Action<string>? OnFlowDeployStatusChanged;
 
     public RealtimeDataService(MqttService mqttService, ILogger<RealtimeDataService> logger)
     {
@@ -35,6 +42,9 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnConnectionStatusReceived += HandleConnectionStatus;
         _mqttService.OnEngineStatusReceived += HandleEngineStatus;
         _mqttService.OnFlowExecutionReceived += HandleFlowExecution;
+        _mqttService.OnStateMachineStateReceived += HandleStateMachineState;
+        _mqttService.OnFlowRunSummaryReceived += HandleFlowRunSummary;
+        _mqttService.OnFlowDeployStatusReceived += HandleFlowDeployStatus;
     }
 
     /// <summary>
@@ -151,6 +161,36 @@ public class RealtimeDataService : IDisposable
                 traces.Clear();
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the cached runtime state for a state machine.
+    /// </summary>
+    public MachineRuntimeInfo? GetMachineState(string machineId)
+    {
+        _machineStates.TryGetValue(machineId, out var info);
+        return info;
+    }
+
+    /// <summary>
+    /// Gets all cached state machine runtime states.
+    /// </summary>
+    public IReadOnlyDictionary<string, MachineRuntimeInfo> GetAllMachineStates()
+        => _machineStates;
+
+    /// <summary>
+    /// Gets recent flow run summaries for a specific flow.
+    /// </summary>
+    public IReadOnlyList<FlowRunSummaryMessage> GetFlowRunHistory(string flowId, int maxEntries = 50)
+    {
+        if (_flowRunHistory.TryGetValue(flowId, out var runs))
+        {
+            lock (runs)
+            {
+                return runs.TakeLast(maxEntries).ToList();
+            }
+        }
+        return Array.Empty<FlowRunSummaryMessage>();
     }
 
     /// <summary>
@@ -314,6 +354,78 @@ public class RealtimeDataService : IDisposable
         }
     }
 
+    private void HandleStateMachineState(MachineRuntimeInfo info)
+    {
+        try
+        {
+            _machineStates[info.ConfigId] = info;
+            OnStateMachineStateChanged?.Invoke(info);
+            OnDataChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling state machine state for {MachineId}", info.ConfigId);
+        }
+    }
+
+    private void HandleFlowRunSummary(FlowRunSummaryMessage summary)
+    {
+        try
+        {
+            var runs = _flowRunHistory.GetOrAdd(summary.FlowId, _ => new List<FlowRunSummaryMessage>());
+            lock (runs)
+            {
+                runs.Add(summary);
+                if (runs.Count > 200)
+                    runs.RemoveRange(0, runs.Count - 200);
+            }
+            OnFlowRunSummaryReceived?.Invoke(summary);
+            OnDataChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling flow run summary for {FlowId}", summary.FlowId);
+        }
+    }
+
+    private void HandleFlowDeployStatus(FlowDeploymentStatusMessage status)
+    {
+        try
+        {
+            _flowDeployStatuses[status.FlowId] = status;
+            OnFlowDeployStatusChanged?.Invoke(status.FlowId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling deploy status for flow {FlowId}", status.FlowId);
+        }
+    }
+
+    /// <summary>
+    /// Gets the Engine's deployment status for a flow, or null if not yet received.
+    /// </summary>
+    public FlowDeploymentStatusMessage? GetFlowDeployStatus(string flowId)
+    {
+        _flowDeployStatuses.TryGetValue(flowId, out var status);
+        return status;
+    }
+
+    /// <summary>
+    /// Compares a local FlowConfig's content hash against the Engine's deployed hash.
+    /// Returns a human-readable deployment state.
+    /// </summary>
+    public FlowDeployState GetFlowDeployState(FlowConfig localFlow)
+    {
+        if (!_flowDeployStatuses.TryGetValue(localFlow.Id, out var deployed))
+            return FlowDeployState.Unknown;  // Engine hasn't reported yet
+
+        var localHash = localFlow.ComputeContentHash();
+        if (localHash == deployed.ConfigHash)
+            return deployed.IsCompiled ? FlowDeployState.Deployed : FlowDeployState.DeployedDisabled;
+
+        return FlowDeployState.Modified;
+    }
+
     public void Dispose()
     {
         _mqttService.OnTagValueReceived -= HandleTagValue;
@@ -321,7 +433,25 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnConnectionStatusReceived -= HandleConnectionStatus;
         _mqttService.OnEngineStatusReceived -= HandleEngineStatus;
         _mqttService.OnFlowExecutionReceived -= HandleFlowExecution;
+        _mqttService.OnStateMachineStateReceived -= HandleStateMachineState;
+        _mqttService.OnFlowRunSummaryReceived -= HandleFlowRunSummary;
+        _mqttService.OnFlowDeployStatusReceived -= HandleFlowDeployStatus;
     }
+}
+
+/// <summary>
+/// Indicates whether the local flow config matches what the Engine has deployed.
+/// </summary>
+public enum FlowDeployState
+{
+    /// <summary>Engine hasn't reported status yet (e.g. MQTT not connected).</summary>
+    Unknown,
+    /// <summary>Local config matches Engine's compiled flow — everything in sync.</summary>
+    Deployed,
+    /// <summary>Config matches but flow is disabled (compiled hash matches, not running).</summary>
+    DeployedDisabled,
+    /// <summary>Local config differs from Engine's last-compiled version — needs redeployment.</summary>
+    Modified
 }
 
 /// <summary>

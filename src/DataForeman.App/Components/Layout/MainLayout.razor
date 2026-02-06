@@ -8,20 +8,26 @@
         <span class="brand-icon">⚙</span>
         <span class="brand-name">DataForeman</span>
         <AppBarSpacer></AppBarSpacer>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/")'>Home</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/dashboards")'>Dashboards</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/connectivity")'>Connectivity</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/internal-tags")'>Internal Tags</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/state-machines")'>State Machines</SfButton>
-        <SfButton CssClass="e-flat nav-btn" @onclick='() => NavigateTo("/trends")'>Trends</SfButton>
+        <SfButton CssClass="@NavBtnClass("/")" @onclick='() => NavigateTo("/")'>Home</SfButton>
+        <SfButton CssClass="@NavBtnClass("/dashboards")" @onclick='() => NavigateTo("/dashboards")'>Dashboards</SfButton>
+        <SfButton CssClass="@NavBtnClass("/connectivity")" @onclick='() => NavigateTo("/connectivity")'>Connectivity</SfButton>
+        <SfButton CssClass="@NavBtnClass("/internal-tags")" @onclick='() => NavigateTo("/internal-tags")'>Internal Tags</SfButton>
+        <SfButton CssClass="@NavBtnClass("/charts")" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
+        <SfButton CssClass="@NavBtnClass("/flows")" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
+        <SfButton CssClass="@NavBtnClass("/state-machines")" @onclick='() => NavigateTo("/state-machines")'>State Machines</SfButton>
+        <SfButton CssClass="@NavBtnClass("/trends")" @onclick='() => NavigateTo("/trends")'>Trends</SfButton>
         <AppBarSpacer></AppBarSpacer>
         <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
             <span class="status-dot">●</span>
             <span>Engine: @(EngineConnected ? "Online" : "Offline")</span>
         </div>
     </SfAppBar>
+
+    <!-- Global toast container for user feedback -->
+    <SfToast @ref="_toast"
+             CssClass="df-toast" ShowCloseButton="true" NewestOnTop="true">
+        <ToastPosition X="Right" Y="Top"></ToastPosition>
+    </SfToast>
     
     <!-- Main Content -->
     <main class="main-content">
@@ -32,10 +38,17 @@
 @code {
     [Inject] private Services.RealtimeDataService? RealtimeData { get; set; }
     
+    private SfToast? _toast;
     private bool EngineConnected => RealtimeData?.GetEngineStatus()?.IsRunning ?? false;
     
+    /// <summary>
+    /// Accessible to child pages via CascadingValue or direct call through the static instance.
+    /// </summary>
+    internal static MainLayout? Instance { get; private set; }
+
     protected override void OnInitialized()
     {
+        Instance = this;
         if (RealtimeData != null)
         {
             RealtimeData.OnEngineStatusChanged += HandleStatusChanged;
@@ -57,9 +70,40 @@
     {
         Navigation.NavigateTo(url);
     }
-    
+
+    /// <summary>
+    /// Returns the CSS class for a nav button, highlighting the active page.
+    /// </summary>
+    private string NavBtnClass(string href)
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var path = uri.AbsolutePath.TrimEnd('/');
+        var target = href.TrimEnd('/');
+
+        bool active = (target == "" && path == "") ||
+                      (target != "" && path.StartsWith(target, StringComparison.OrdinalIgnoreCase));
+
+        return active ? "e-flat nav-btn nav-active" : "e-flat nav-btn";
+    }
+
+    /// <summary>
+    /// Shows a toast notification from any page.
+    /// </summary>
+    internal async Task ShowToastAsync(string message, string cssClass = "e-toast-success", string title = "")
+    {
+        if (_toast == null) return;
+        await _toast.ShowAsync(new ToastModel
+        {
+            Title = title,
+            Content = message,
+            CssClass = cssClass,
+            Timeout = 3000
+        });
+    }
+
     public void Dispose()
     {
+        Instance = null;
         if (RealtimeData != null)
         {
             RealtimeData.OnEngineStatusChanged -= HandleStatusChanged;

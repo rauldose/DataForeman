@@ -1,0 +1,472 @@
+@* 
+    SignalTimeline — real-time signal timeline viewer.
+    Shows a list of signals on the left with their current value and colour,
+    and a per-signal step-chart (SVG) on the right that scrolls live.
+    Designed to match the dark-themed industrial HMI aesthetic from the reference image.
+*@
+@rendermode InteractiveServer
+@inject RealtimeDataService RtData
+@implements IDisposable
+
+<style>
+    /* ── outer shell ─────────────────────────────────────── */
+    .sig-tl-root {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: #111318;
+        color: #d0d4dc;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 13px;
+        border-left: 1px solid #2a2d35;
+        overflow: hidden;
+    }
+
+    /* ── toolbar ──────────────────────────────────────────── */
+    .sig-tl-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        background: #181b22;
+        border-bottom: 1px solid #2a2d35;
+        flex-shrink: 0;
+    }
+    .sig-tl-toolbar .tl-chip {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        background: #272b33;
+        border: 1px solid #3a3e48;
+        cursor: pointer;
+        user-select: none;
+    }
+    .sig-tl-toolbar .tl-chip.active { background: #1d4ed8; border-color: #3b82f6; color: #fff; }
+    .sig-tl-toolbar .tl-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+    }
+    .sig-tl-toolbar .tl-dot {
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .sig-tl-toolbar .tl-dot.on  { background: #22c55e; }
+    .sig-tl-toolbar .tl-dot.off { background: #6b7280; }
+
+    /* ── time axis header ─────────────────────────────────── */
+    .sig-tl-time-axis {
+        display: flex;
+        border-bottom: 1px solid #2a2d35;
+        background: #181b22;
+        flex-shrink: 0;
+    }
+    .sig-tl-time-axis .lbl-col { width: 210px; flex-shrink: 0; }
+    .sig-tl-time-axis .axis-col {
+        flex: 1;
+        display: flex;
+        justify-content: space-between;
+        padding: 3px 6px;
+    }
+    .sig-tl-time-axis .axis-col span { font-size: 10px; color: #6b7280; }
+
+    /* ── trace rows ───────────────────────────────────────── */
+    .sig-tl-body { flex: 1; overflow-y: auto; }
+    .sig-tl-row {
+        display: flex;
+        border-bottom: 1px solid #1e2028;
+        min-height: 52px;
+    }
+    .sig-tl-row:hover { background: #1a1d25; }
+
+    .sig-tl-row .lbl {
+        width: 210px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 4px 10px;
+        gap: 1px;
+        border-right: 1px solid #2a2d35;
+        overflow: hidden;
+    }
+    .sig-tl-row .lbl .sig-name {
+        font-weight: 600;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .sig-tl-row .lbl .sig-val {
+        font-family: 'Consolas', monospace;
+        font-size: 12px;
+    }
+    .sig-tl-row .lbl .sig-tag {
+        font-size: 10px;
+        color: #6b7280;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sig-tl-row .trace {
+        flex: 1;
+        padding: 2px 0;
+        min-width: 0;
+    }
+    .sig-tl-row .trace svg { display: block; width: 100%; height: 100%; }
+
+    /* ── footer ────────────────────────────────────────────── */
+    .sig-tl-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 10px;
+        border-top: 1px solid #2a2d35;
+        background: #181b22;
+        font-size: 11px;
+        color: #6b7280;
+        flex-shrink: 0;
+    }
+</style>
+
+<div class="sig-tl-root">
+    @* ── Toolbar ──────────────────────────────────────── *@
+    <div class="sig-tl-toolbar">
+        <span class="tl-chip @(_showFilterPanel ? "active" : "")" @onclick="ToggleFilterPanel">
+            <i class="fa-solid fa-filter" style="font-size:10px;"></i> Filters
+        </span>
+        <span class="tl-chip @(_followLive ? "active" : "")" @onclick="ToggleFollowLive">
+            <i class="fa-solid @(_followLive ? "fa-pause" : "fa-play")" style="font-size:10px;"></i>
+            Follow Live
+        </span>
+        <span class="tl-chip" @onclick="ClearHistory">
+            <i class="fa-solid fa-eraser" style="font-size:10px;"></i> Clear
+        </span>
+        <span class="tl-chip" @onclick="CycleWindow">
+            @_windowLabel
+        </span>
+
+        <span class="tl-status">
+            <span class="tl-dot @(_tagEntries.Count > 0 ? "on" : "off")"></span>
+            @(_tagEntries.Count > 0 ? "Connected to target" : "Waiting for signals")
+        </span>
+    </div>
+
+    @* ── Filter panel (toggle to select/deselect tags) ── *@
+    @if (_showFilterPanel)
+    {
+        <div style="background:#181b22; border-bottom:1px solid #2a2d35; padding:6px 10px; max-height:180px; overflow-y:auto;">
+            <div style="display:flex; gap:8px; margin-bottom:4px; align-items:center;">
+                <span style="font-size:11px; color:#6b7280;">Select signals to display:</span>
+                <span class="tl-chip" @onclick="SelectAllTags" style="font-size:10px;">All</span>
+                <span class="tl-chip" @onclick="DeselectAllTags" style="font-size:10px;">None</span>
+            </div>
+            @foreach (var tag in _allAvailableTags)
+            {
+                <label style="display:flex; align-items:center; gap:6px; padding:2px 0; font-size:12px; cursor:pointer;">
+                    <input type="checkbox" checked="@_visibleTagIds.Contains(tag.TagId)" 
+                           @onchange="@(e => ToggleTagVisibility(tag.TagId, (bool)(e.Value ?? false)))" />
+                    <span style="color:@tag.Colour; font-weight:600;">@tag.DisplayName</span>
+                    <span style="color:#6b7280; font-size:10px;">@tag.TagId</span>
+                </label>
+            }
+            @if (_allAvailableTags.Count == 0)
+            {
+                <span style="color:#6b7280; font-size:11px;">No signals received yet</span>
+            }
+        </div>
+    }
+
+    @* ── Time axis header ─────────────────────────────── *@
+    <div class="sig-tl-time-axis">
+        <div class="lbl-col"></div>
+        <div class="axis-col">
+            @foreach (var label in _timeLabels)
+            {
+                <span>@label</span>
+            }
+        </div>
+    </div>
+
+    @* ── Signal rows ──────────────────────────────────── *@
+    <div class="sig-tl-body">
+        @if (_tagEntries.Count == 0)
+        {
+            <div style="padding:24px; text-align:center; color:#6b7280;">
+                <i class="fa-solid fa-wave-square" style="font-size:24px; margin-bottom:8px; display:block;"></i>
+                No live signals — deploy a connection to see data here.
+            </div>
+        }
+        else
+        {
+            @foreach (var entry in _tagEntries.Where(e => _visibleTagIds.Contains(e.TagId)))
+            {
+                <div class="sig-tl-row">
+                    <div class="lbl">
+                        <span class="sig-name" style="color:@entry.Colour;">@entry.DisplayName</span>
+                        <span class="sig-val" style="color:@entry.Colour;">@entry.FormattedValue</span>
+                        <span class="sig-tag">@entry.TagId</span>
+                    </div>
+                    <div class="trace">
+                        <svg viewBox="0 0 1000 100" preserveAspectRatio="none">
+                            @{
+                                var svgPath = BuildStepPath(entry);
+                            }
+                            @if (!string.IsNullOrEmpty(svgPath))
+                            {
+                                <path d="@svgPath" fill="none" stroke="@entry.Colour"
+                                      stroke-width="2" vector-effect="non-scaling-stroke" />
+                            }
+                        </svg>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    @* ── Footer ───────────────────────────────────────── *@
+    <div class="sig-tl-footer">
+        <span>Signals: @_tagEntries.Count(e => _visibleTagIds.Contains(e.TagId)) / @_totalTagCount</span>
+        <span>
+            Cursor: @DateTime.UtcNow.ToString("HH:mm:ss.fff")
+        </span>
+        <span>Frames: @_frameCount</span>
+    </div>
+</div>
+
+@code {
+    /// <summary>Which tag IDs to show; when empty, shows ALL tags.</summary>
+    [Parameter] public HashSet<string>? FilterTagIds { get; set; }
+
+    // ── filter panel state ──
+    private bool _showFilterPanel;
+    private readonly HashSet<string> _visibleTagIds = new();
+    private readonly List<TagEntry> _allAvailableTags = new();
+
+    // ── palette of distinct colours for signal rows ──
+    private static readonly string[] Palette = new[]
+    {
+        "#00e5ff", "#76ff03", "#ffea00", "#ff6e40",
+        "#e040fb", "#40c4ff", "#69f0ae", "#ffd740",
+        "#ff5252", "#7c4dff", "#18ffff", "#b2ff59"
+    };
+
+    // ── per-tag bookkeeping ──
+    private sealed class TagEntry
+    {
+        public string TagId = "";
+        public string DisplayName = "";
+        public string Colour = "#ccc";
+        public string FormattedValue = "—";
+        public List<(DateTime T, double? V)> Ring = new(512);
+    }
+
+    private readonly List<TagEntry> _tagEntries = new();
+    private readonly Dictionary<string, TagEntry> _tagIndex = new();
+
+    // ── time window ──
+    private static readonly int[] WindowOptions = { 30, 60, 120, 300 };
+    private static readonly string[] WindowLabels = { "30s", "1 min", "2 min", "5 min" };
+    private int _windowIdx = 1;                       // default 60 s
+    private int WindowSeconds => WindowOptions[_windowIdx];
+    private string _windowLabel => WindowLabels[_windowIdx];
+
+    // ── state ──
+    private bool _followLive = true;
+    private long _frameCount;
+    private int _totalTagCount;
+    private string[] _timeLabels = Array.Empty<string>();
+    private System.Threading.Timer? _ticker;
+
+    // ────────────────────────────────────────────────────
+    //  Lifecycle
+    // ────────────────────────────────────────────────────
+    protected override void OnInitialized()
+    {
+        RtData.OnDataChanged += OnRealtimeData;
+        _ticker = new System.Threading.Timer(_ => Tick(), null,
+                      TimeSpan.FromMilliseconds(250),
+                      TimeSpan.FromMilliseconds(250));
+        RefreshTimeLabels();
+    }
+
+    private void Tick()
+    {
+        if (!_followLive) return;
+        InvokeAsync(() =>
+        {
+            SyncFromRealtimeService();
+            _frameCount++;
+            RefreshTimeLabels();
+            StateHasChanged();
+        });
+    }
+
+    // ────────────────────────────────────────────────────
+    //  Pull latest values from RealtimeDataService
+    // ────────────────────────────────────────────────────
+    private void SyncFromRealtimeService()
+    {
+        var allTags = RtData.GetAllTagValues();
+        _totalTagCount = allTags.Count;
+
+        foreach (var kvp in allTags)
+        {
+            var tagId = kvp.Key;
+            if (FilterTagIds is not null && !FilterTagIds.Contains(tagId))
+                continue;
+
+            var cache = kvp.Value;
+            if (!_tagIndex.TryGetValue(tagId, out var entry))
+            {
+                entry = new TagEntry
+                {
+                    TagId = tagId,
+                    DisplayName = cache.TagName,
+                    Colour = Palette[_tagEntries.Count % Palette.Length]
+                };
+                _tagEntries.Add(entry);
+                _tagIndex[tagId] = entry;
+                _allAvailableTags.Add(entry);
+                _visibleTagIds.Add(tagId); // new tags default to visible
+            }
+
+            entry.FormattedValue = cache.FormattedValue;
+
+            // Append the latest numeric value
+            double? numVal = cache.NumericValue;
+            var stamp = cache.Timestamp == default ? DateTime.UtcNow : cache.Timestamp;
+            if (entry.Ring.Count == 0 || entry.Ring[^1].T != stamp)
+            {
+                entry.Ring.Add((stamp, numVal));
+                // Trim anything older than 3× visible window to keep memory bounded
+                var cutoff = DateTime.UtcNow.AddSeconds(-WindowSeconds * 3);
+                while (entry.Ring.Count > 0 && entry.Ring[0].T < cutoff)
+                    entry.Ring.RemoveAt(0);
+            }
+        }
+    }
+
+    private void OnRealtimeData()
+    {
+        // We intentionally don't refresh here to avoid flooding;
+        // the 250 ms ticker handles UI updates.
+    }
+
+    // ────────────────────────────────────────────────────
+    //  SVG step-path builder
+    // ────────────────────────────────────────────────────
+    private string BuildStepPath(TagEntry entry)
+    {
+        if (entry.Ring.Count < 2) return string.Empty;
+
+        var now = DateTime.UtcNow;
+        var windowStart = now.AddSeconds(-WindowSeconds);
+        var visible = entry.Ring.Where(p => p.T >= windowStart).ToList();
+        if (visible.Count == 0) return string.Empty;
+
+        // Determine Y bounds
+        double yMin = double.MaxValue, yMax = double.MinValue;
+        foreach (var pt in visible)
+        {
+            if (pt.V is null) continue;
+            if (pt.V.Value < yMin) yMin = pt.V.Value;
+            if (pt.V.Value > yMax) yMax = pt.V.Value;
+        }
+        if (yMin == double.MaxValue) return string.Empty; // all nulls
+        double ySpan = yMax - yMin;
+        if (ySpan < 0.0001) ySpan = 1.0;   // flat line guard
+        double totalSec = WindowSeconds;
+
+        var sb = new System.Text.StringBuilder(visible.Count * 24);
+        bool started = false;
+
+        for (int i = 0; i < visible.Count; i++)
+        {
+            if (visible[i].V is null) continue;
+            double xFrac = (visible[i].T - windowStart).TotalSeconds / totalSec;
+            double yFrac = 1.0 - (visible[i].V.Value - yMin) / ySpan; // invert Y
+            double xSvg = Math.Clamp(xFrac * 1000, 0, 1000);
+            double ySvg = Math.Clamp(yFrac * 100, 0, 100);
+
+            if (!started)
+            {
+                sb.Append($"M {xSvg:F1} {ySvg:F1}");
+                started = true;
+            }
+            else
+            {
+                // Step: horizontal to new X, then vertical to new Y
+                sb.Append($" H {xSvg:F1} V {ySvg:F1}");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // ────────────────────────────────────────────────────
+    //  Time-axis labels
+    // ────────────────────────────────────────────────────
+    private void RefreshTimeLabels()
+    {
+        const int markerCount = 7;
+        var now = DateTime.Now; // local for display
+        var labels = new string[markerCount];
+        for (int i = 0; i < markerCount; i++)
+        {
+            double frac = (double)i / (markerCount - 1);
+            var t = now.AddSeconds(-WindowSeconds * (1.0 - frac));
+            labels[i] = t.ToString("HH:mm:ss");
+        }
+        _timeLabels = labels;
+    }
+
+    // ────────────────────────────────────────────────────
+    //  Toolbar handlers
+    // ────────────────────────────────────────────────────
+    private void ToggleFollowLive() => _followLive = !_followLive;
+
+    private void ClearHistory()
+    {
+        foreach (var e in _tagEntries)
+            e.Ring.Clear();
+        _frameCount = 0;
+    }
+
+    private void CycleWindow()
+    {
+        _windowIdx = (_windowIdx + 1) % WindowOptions.Length;
+        RefreshTimeLabels();
+    }
+
+    private void ToggleFilterPanel() => _showFilterPanel = !_showFilterPanel;
+
+    private void ToggleTagVisibility(string tagId, bool visible)
+    {
+        if (visible)
+            _visibleTagIds.Add(tagId);
+        else
+            _visibleTagIds.Remove(tagId);
+    }
+
+    private void SelectAllTags()
+    {
+        foreach (var entry in _allAvailableTags)
+            _visibleTagIds.Add(entry.TagId);
+    }
+
+    private void DeselectAllTags() => _visibleTagIds.Clear();
+
+    // ────────────────────────────────────────────────────
+    //  Dispose
+    // ────────────────────────────────────────────────────
+    public void Dispose()
+    {
+        RtData.OnDataChanged -= OnRealtimeData;
+        _ticker?.Dispose();
+    }
+}

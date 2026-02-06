@@ -347,6 +347,60 @@ public class NodePluginRegistry
             }
         });
 
+        // === SCRIPT NODES ===
+        Register(new NodePluginDefinition
+        {
+            Id = "script-csharp",
+            Name = "C# Script",
+            ShortLabel = "C#",
+            Category = "Scripts",
+            Description = "Execute C# code with full Roslyn support. Define classes, helper methods, use Regex, LINQ, async patterns, and more. Use the template dropdown and API reference in the editor.",
+            Icon = "fa-solid fa-file-code",
+            Color = "#178600",
+            InputCount = 1,
+            OutputCount = 1,
+            Properties = new()
+            {
+                new()
+                {
+                    Key = "code",
+                    Label = "C# Code",
+                    Type = PropertyType.Code,
+                    DefaultValue = "// Use the template dropdown above to get started\n// or write any C# code — classes, methods, LINQ, Regex, etc.\n\nvar value = ReadTagDouble(\"Connection/TagName\");\nLog($\"Value: {value}\");\nreturn value;",
+                    HelpText = "Full C# scripting via Roslyn. Supports classes, local functions, LINQ, Regex, async. Click the book icon for API reference.",
+                    Group = "Script",
+                    Order = 0
+                },
+                new()
+                {
+                    Key = "timeout",
+                    Label = "Timeout (ms)",
+                    Type = PropertyType.Integer,
+                    DefaultValue = "10000",
+                    Min = 100,
+                    Max = 60000,
+                    HelpText = "Maximum execution time before the script is cancelled",
+                    Group = "Settings",
+                    Order = 1
+                },
+                new()
+                {
+                    Key = "onError",
+                    Label = "On Error",
+                    Type = PropertyType.Select,
+                    DefaultValue = "stop",
+                    Options = new()
+                    {
+                        new() { Value = "stop", Label = "Stop flow" },
+                        new() { Value = "continue", Label = "Continue with null" }
+                    },
+                    HelpText = "What to do when the script throws an exception",
+                    Group = "Settings",
+                    Order = 2
+                }
+            }
+        });
+
         // === UTILITY NODES ===
         Register(new NodePluginDefinition
         {

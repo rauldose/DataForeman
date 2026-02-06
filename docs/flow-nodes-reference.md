@@ -14,6 +14,10 @@ This document provides detailed specifications for all node types available in D
   - [Math](#math)
   - [Comparison](#comparison)
   - [JavaScript](#javascript)
+- [Logic & Control Nodes](#logic--control-nodes)
+  - [State Machine](#state-machine)
+- [Data & Analysis Nodes](#data--analysis-nodes)
+  - [Timeline](#timeline)
 
 ---
 
@@ -384,6 +388,107 @@ When implementing a new node:
 - [ ] Add to UI node palette with icon and description
 - [ ] Write tests for success and error cases
 - [ ] Document in this reference guide
+
+---
+
+## Logic & Control Nodes
+
+### State Machine
+
+**Type:** `state-machine`  
+**Category:** LOGIC_MATH  
+**Description:** Implements a finite state machine within a flow. Tracks the current state and transitions between states based on input events.
+
+#### Configuration
+- **Initial State** (`initialState`): Name of the starting state (default: `idle`)
+- **Transitions** (`transitions`): Comma-separated transitions in format `sourceState:event->targetState`
+- **Reset on Invalid Event** (`resetOnInvalid`): If true, returns to initial state when no valid transition exists (default: `false`)
+
+#### Inputs
+| Index | Name  | Type | Required | Description |
+|-------|-------|------|----------|-------------|
+| 0     | Event | main | Yes      | Event name or value that triggers a state transition |
+| 1     | Reset | main | No       | When truthy, resets the state machine to its initial state |
+
+#### Outputs
+| Index | Name           | Type | Description |
+|-------|----------------|------|-------------|
+| 0     | Current State  | main | The current state name after processing the event |
+| 1     | Transition     | main | Details about the transition that occurred (null if no transition) |
+
+#### Transition Output Format
+```json
+{
+  "from": "idle",
+  "to": "running",
+  "event": "start",
+  "transitioned": true
+}
+```
+
+#### Example Configurations
+
+**Equipment Status:**
+```
+initialState: stopped
+transitions: stopped:start->starting,starting:ready->running,running:stop->stopping,stopping:done->stopped
+```
+
+**Traffic Light:**
+```
+initialState: red
+transitions: red:next->green,green:next->yellow,yellow:next->red
+```
+
+#### Behavior
+- State is persisted across executions via runtime state storage
+- If no event is provided (null/undefined/empty), outputs current state with no transition
+- If no valid transition exists for the current state and event, stays in current state
+- Reset input takes priority over event input
+- Supports numeric, string, and boolean event values (converted to string for matching)
+
+---
+
+## Data & Analysis Nodes
+
+### Timeline
+
+**Type:** `timeline`  
+**Category:** DATA_TRANSFORM  
+**Description:** Buffers input values over a configurable time window or entry count, providing a rolling history for trend analysis with aggregation.
+
+#### Configuration
+- **Max Entries** (`maxEntries`): Maximum buffer size (default: `100`, range: 1–10000)
+- **Time Window (ms)** (`windowMs`): Entries older than this are removed. `0` = no time limit (default: `0`)
+- **Aggregation** (`aggregation`): How to summarize buffered values (default: `last`)
+  - `last` — Most recent value
+  - `first` — Oldest value in buffer
+  - `avg` — Average of all numeric values
+  - `min` — Minimum numeric value
+  - `max` — Maximum numeric value
+  - `sum` — Sum of all numeric values
+  - `count` — Number of entries in buffer
+  - `range` — Difference between max and min
+
+#### Inputs
+| Index | Name  | Type | Required | Description |
+|-------|-------|------|----------|-------------|
+| 0     | Value | main | Yes      | Input value to add to the timeline buffer |
+| 1     | Clear | main | No       | When truthy, clears the timeline buffer |
+
+#### Outputs
+| Index | Name       | Type | Description |
+|-------|------------|------|-------------|
+| 0     | Aggregated | main | Aggregated value from the buffer |
+| 1     | Buffer     | main | Full buffer as array of `{value, timestamp}` entries |
+
+#### Behavior
+- New values are appended to the buffer on each execution
+- Buffer is pruned by time window first, then by max entries (keeping most recent)
+- Non-numeric values are preserved in the buffer but excluded from math aggregations (avg, min, max, sum, range)
+- Null/undefined inputs are ignored (not added to buffer)
+- Clear input empties the buffer and returns null aggregated value
+- State is persisted across executions via runtime state storage
 
 ---
 

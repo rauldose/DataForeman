@@ -1,20 +1,31 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using DataForeman.Engine.Nodes;
 using DataForeman.Engine.Runtime;
 using DataForeman.Engine.Runtime.Nodes;
 using DataForeman.Shared.Definition;
 using DataForeman.Shared.Models;
+using DataForeman.Shared.Mqtt;
 using DataForeman.Shared.Runtime;
 
 namespace DataForeman.Engine.Services;
+
+/// <summary>
+/// Allows external services (e.g. state machines) to trigger flow execution by ID.
+/// </summary>
+public interface IFlowRunner
+{
+    /// <summary>Triggers execution of a compiled flow.  Returns true if the flow was found and started.</summary>
+    Task<bool> TriggerFlowAsync(string flowId, string triggerSource);
+}
 
 /// <summary>
 /// Service responsible for executing flows, including MQTT-triggered flows.
 /// Connects MqttFlowTriggerService events to actual flow execution and
 /// handles MQTT publishing from mqtt-out nodes.
 /// </summary>
-public class FlowExecutionService : IAsyncDisposable
+public class FlowExecutionService : IFlowRunner, IAsyncDisposable
 {
     private readonly ILogger<FlowExecutionService> _logger;
     private readonly ConfigService _configService;
@@ -31,6 +42,8 @@ public class FlowExecutionService : IAsyncDisposable
     
     // Compiled flows cache: FlowId -> CompiledFlow
     private readonly ConcurrentDictionary<string, CompiledFlow> _compiledFlows = new();
+    // FlowId -> Name lookup built during compilation to avoid repeated list scans
+    private readonly ConcurrentDictionary<string, string> _flowNames = new();
 
     public FlowExecutionService(
         ILogger<FlowExecutionService> logger,
@@ -75,7 +88,7 @@ public class FlowExecutionService : IAsyncDisposable
     /// <summary>
     /// Starts the flow execution service.
     /// </summary>
-    public Task StartAsync()
+    public async Task StartAsync()
     {
         _logger.LogInformation("Starting flow execution service");
         
@@ -85,18 +98,81 @@ public class FlowExecutionService : IAsyncDisposable
         // Compile all enabled flows
         CompileAllFlows();
         
-        _logger.LogInformation("Flow execution service started with {FlowCount} compiled flows", _compiledFlows.Count);
+        // Publish initial deployment statuses (awaited, not fire-and-forget)
+        await PublishAllDeploymentStatusesAsync();
         
-        return Task.CompletedTask;
+        _logger.LogInformation("Flow execution service started with {FlowCount} compiled flows", _compiledFlows.Count);
     }
 
     /// <summary>
-    /// Refreshes compiled flows when configuration changes.
+    /// Refreshes compiled flows when configuration changes and publishes deployment status.
     /// </summary>
-    public void RefreshFlows()
+    public async Task RefreshFlowsAsync()
     {
         _logger.LogInformation("Refreshing compiled flows");
         CompileAllFlows();
+        await PublishAllDeploymentStatusesAsync();
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> TriggerFlowAsync(string flowId, string triggerSource)
+    {
+        if (!_compiledFlows.TryGetValue(flowId, out var compiled))
+        {
+            _logger.LogWarning("TriggerFlowAsync: flow '{FlowId}' not found in compiled flows", flowId);
+            return false;
+        }
+
+        _flowNames.TryGetValue(flowId, out var flowName);
+        _logger.LogInformation("Flow '{FlowName}' triggered by {Source}", flowName ?? flowId, triggerSource);
+
+        // Find the first trigger node as the entry point,
+        // or fall back to the first node if none found.
+        var triggerNodeId = compiled.TriggerNodes.FirstOrDefault()?.Definition.Id
+            ?? compiled.Nodes.Keys.FirstOrDefault();
+
+        if (triggerNodeId == null)
+        {
+            _logger.LogWarning("Flow '{FlowId}' has no nodes to execute", flowId);
+            return false;
+        }
+
+        var initialMsg = MessageEnvelope.Create(
+            createdUtc: DateTime.UtcNow,
+            payload: System.Text.Json.JsonSerializer.SerializeToElement(new { source = triggerSource }),
+            correlationId: Guid.NewGuid().ToString("N"));
+
+        var opts = new FlowExecutionOptions
+        {
+            Timeout = TimeSpan.FromSeconds(30),
+            MaxMessages = 100,
+            StopOnError = false
+        };
+
+        var result = await _flowExecutor.ExecuteAsync(compiled, triggerNodeId, initialMsg, opts, CancellationToken.None);
+
+        if (result.Status == ExecutionStatus.Success)
+            _logger.LogInformation("Flow '{FlowName}' completed OK ({Nodes} nodes)", flowName ?? flowId, result.NodesSucceeded);
+        else
+            _logger.LogWarning("Flow '{FlowName}' ended with {Status}: {Error}", flowName ?? flowId, result.Status, result.Error);
+
+        // Publish summary so the UI gets notified
+        var summary = new FlowRunSummaryMessage
+        {
+            FlowId = flowId,
+            FlowName = flowName ?? flowId,
+            TriggerNodeId = triggerNodeId,
+            TriggerTopic = triggerSource,
+            Outcome = result.Status.ToString(),
+            NodesExecuted = result.NodesSucceeded,
+            MessagesHandled = result.MessagesProcessed,
+            DurationMs = (DateTime.UtcNow - initialMsg.CreatedUtc).TotalMilliseconds,
+            StartedUtc = initialMsg.CreatedUtc,
+            CompletedUtc = DateTime.UtcNow
+        };
+        await _mqttPublisher.PublishFlowRunSummaryAsync(summary);
+
+        return result.Status == ExecutionStatus.Success;
     }
 
     /// <summary>
@@ -124,7 +200,52 @@ public class FlowExecutionService : IAsyncDisposable
         _nodeRegistry.Register(TagOutputRuntime.Descriptor, () => new TagOutputRuntime());
         _nodeRegistry.Register(SubflowInputRuntime.Descriptor, () => new SubflowInputRuntime());
         _nodeRegistry.Register(SubflowOutputRuntime.Descriptor, () => new SubflowOutputRuntime());
-        
+
+        // Extended nodes — output
+        _nodeRegistry.Register(NotificationRuntime.Descriptor, () => new NotificationRuntime());
+
+        // Extended nodes — math
+        _nodeRegistry.Register(MathSubtractRuntime.Descriptor, () => new MathSubtractRuntime());
+        _nodeRegistry.Register(MathDivideRuntime.Descriptor, () => new MathDivideRuntime());
+
+        // Extended nodes — logic
+        _nodeRegistry.Register(BranchRuntime.Descriptor, () => new BranchRuntime());
+        _nodeRegistry.Register(LogicAndRuntime.Descriptor, () => new LogicAndRuntime());
+        _nodeRegistry.Register(LogicOrRuntime.Descriptor, () => new LogicOrRuntime());
+
+        // Extended nodes — utility
+        _nodeRegistry.Register(DelayRuntime.Descriptor, () => new DelayRuntime());
+        _nodeRegistry.Register(FilterRuntime.Descriptor, () => new FilterRuntime());
+        _nodeRegistry.Register(ConstantRuntime.Descriptor, () => new ConstantRuntime());
+
+        // Extended nodes — data processing
+        _nodeRegistry.Register(SmoothRuntime.Descriptor, () => new SmoothRuntime());
+        _nodeRegistry.Register(AggregateRuntime.Descriptor, () => new AggregateRuntime());
+        _nodeRegistry.Register(DeadbandRuntime.Descriptor, () => new DeadbandRuntime());
+        _nodeRegistry.Register(RateOfChangeRuntime.Descriptor, () => new RateOfChangeRuntime());
+
+        // Extended nodes — function
+        _nodeRegistry.Register(SwitchRuntime.Descriptor, () => new SwitchRuntime());
+        _nodeRegistry.Register(TemplateRuntime.Descriptor, () => new TemplateRuntime());
+
+        // Extended nodes — triggers
+        _nodeRegistry.Register(TagTriggerRuntime.Descriptor, () => new TagTriggerRuntime());
+        _nodeRegistry.Register(InjectTimerRuntime.Descriptor, () => new InjectTimerRuntime());
+
+        // Extended nodes — communication
+        _nodeRegistry.Register(HttpRequestRuntime.Descriptor, () => new HttpRequestRuntime());
+
+        // Extended nodes — scripts
+        _nodeRegistry.Register(CSharpScriptRuntime.Descriptor, () => new CSharpScriptRuntime());
+
+        // Extended nodes — integration stubs
+        _nodeRegistry.Register(JavaScriptRuntime.Descriptor, () => new JavaScriptRuntime());
+        _nodeRegistry.Register(DebugSidebarRuntime.Descriptor, () => new DebugSidebarRuntime());
+        _nodeRegistry.Register(LinkInRuntime.Descriptor, () => new LinkInRuntime());
+        _nodeRegistry.Register(LinkOutRuntime.Descriptor, () => new LinkOutRuntime());
+        _nodeRegistry.Register(StorageFileRuntime.Descriptor, () => new StorageFileRuntime());
+        _nodeRegistry.Register(StorageSqliteRuntime.Descriptor, () => new StorageSqliteRuntime());
+
         _logger.LogInformation("Registered {Count} node types", _nodeRegistry.GetAllDescriptors().Count);
     }
 
@@ -200,6 +321,7 @@ public class FlowExecutionService : IAsyncDisposable
     private void CompileAllFlows()
     {
         _compiledFlows.Clear();
+        _flowNames.Clear();
         
         var enabledFlows = _configService.Flows.Where(f => f.Enabled).ToList();
         _logger.LogInformation("Compiling {Count} enabled flows out of {Total} total flows", 
@@ -209,6 +331,9 @@ public class FlowExecutionService : IAsyncDisposable
         {
             try
             {
+                // Cache the name for later use in summaries
+                _flowNames[flowConfig.Id] = flowConfig.Name;
+
                 // Check if flow has mqtt-in nodes
                 var mqttInNodes = flowConfig.Nodes.Where(n => n.Type == "mqtt-in").ToList();
                 if (mqttInNodes.Count > 0)
@@ -228,6 +353,39 @@ public class FlowExecutionService : IAsyncDisposable
             {
                 _logger.LogError(ex, "Failed to compile flow '{FlowName}' (id: {FlowId}): {Message}",
                     flowConfig.Name, flowConfig.Id, ex.Message);
+            }
+        }
+
+        _logger.LogInformation("Compiled {Count} flows out of {Total} total", 
+            _compiledFlows.Count, _configService.Flows.Count);
+    }
+
+    /// <summary>
+    /// Publishes a <see cref="FlowDeploymentStatusMessage"/> for every known flow
+    /// so the App can detect drift between its local edits and the running Engine.
+    /// </summary>
+    private async Task PublishAllDeploymentStatusesAsync()
+    {
+        foreach (var flow in _configService.Flows)
+        {
+            try
+            {
+                var isCompiled = _compiledFlows.ContainsKey(flow.Id);
+                var status = new FlowDeploymentStatusMessage
+                {
+                    FlowId = flow.Id,
+                    FlowName = flow.Name,
+                    ConfigHash = flow.ComputeContentHash(),
+                    IsCompiled = isCompiled,
+                    IsEnabled = flow.Enabled,
+                    NodeCount = flow.Nodes.Count,
+                    CompiledAtUtc = DateTime.UtcNow
+                };
+                await _mqttPublisher.PublishFlowDeploymentStatusAsync(status);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to publish deployment status for flow '{FlowId}'", flow.Id);
             }
         }
     }
@@ -308,6 +466,9 @@ public class FlowExecutionService : IAsyncDisposable
     /// </summary>
     private async Task ExecuteFlowAsync(string flowId, string nodeId, string topic, string payload)
     {
+        var startedUtc = DateTime.UtcNow;
+        var sw = Stopwatch.StartNew();
+
         _logger.LogInformation(
             "Executing flow '{FlowId}' triggered by MQTT message on topic '{Topic}'",
             flowId, topic);
@@ -317,6 +478,9 @@ public class FlowExecutionService : IAsyncDisposable
             _logger.LogWarning("Flow '{FlowId}' not found in compiled flows", flowId);
             return;
         }
+
+        // Look up the flow name from the cached dictionary
+        _flowNames.TryGetValue(flowId, out var flowName);
 
         // Create initial message with MQTT payload
         JsonElement payloadElement;
@@ -351,6 +515,8 @@ public class FlowExecutionService : IAsyncDisposable
             options,
             CancellationToken.None);
 
+        sw.Stop();
+
         if (result.Status == ExecutionStatus.Success)
         {
             _logger.LogInformation(
@@ -363,6 +529,23 @@ public class FlowExecutionService : IAsyncDisposable
                 "Flow '{FlowId}' execution completed with status {Status}: {Error}",
                 flowId, result.Status, result.Error);
         }
+
+        // Publish a run summary so the UI knows what happened
+        var summary = new FlowRunSummaryMessage
+        {
+            FlowId = flowId,
+            FlowName = flowName ?? flowId,
+            TriggerNodeId = nodeId,
+            TriggerTopic = topic,
+            Outcome = result.Status.ToString(),
+            NodesExecuted = result.NodesSucceeded,
+            MessagesHandled = result.MessagesProcessed,
+            DurationMs = sw.Elapsed.TotalMilliseconds,
+            ErrorDetail = result.Error,
+            StartedUtc = startedUtc,
+            CompletedUtc = DateTime.UtcNow
+        };
+        await _mqttPublisher.PublishFlowRunSummaryAsync(summary);
     }
 
     public ValueTask DisposeAsync()

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace DataForeman.Shared.Models;
@@ -16,6 +19,78 @@ public class FlowConfig
     public List<FlowEdge> Edges { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Returns a list of validation warnings (empty = valid).
+    /// </summary>
+    public List<string> Validate()
+    {
+        var warnings = new List<string>();
+        if (string.IsNullOrWhiteSpace(Name))
+            warnings.Add($"Flow '{Id}': Name is required");
+        if (ScanRateMs < 10)
+            warnings.Add($"Flow '{Name}': ScanRateMs ({ScanRateMs}) should be >= 10");
+        if (Enabled && Nodes.Count == 0)
+            warnings.Add($"Flow '{Name}': Enabled but has no nodes");
+        // Check for edges referencing non-existent nodes
+        var nodeIds = new HashSet<string>(Nodes.Select(n => n.Id));
+        foreach (var edge in Edges)
+        {
+            if (!nodeIds.Contains(edge.SourceNodeId))
+                warnings.Add($"Flow '{Name}': Edge '{edge.Id}' references missing source node '{edge.SourceNodeId}'");
+            if (!nodeIds.Contains(edge.TargetNodeId))
+                warnings.Add($"Flow '{Name}': Edge '{edge.Id}' references missing target node '{edge.TargetNodeId}'");
+        }
+        return warnings;
+    }
+
+    /// <summary>
+    /// Computes a deterministic content hash of the flow's structural definition
+    /// (nodes, edges, properties, enabled state, scan rate).  Excludes timestamps
+    /// so that re-saving without changes produces the same hash.
+    /// </summary>
+    public string ComputeContentHash()
+    {
+        // Normalize property values to their JSON text representation so that
+        // string "0" and JsonElement(String,"0") produce the same hash.
+        static string NormalizeValue(object? v) => v switch
+        {
+            null => "null",
+            JsonElement je => je.GetRawText(),
+            string s => JsonSerializer.Serialize(s),
+            bool b => b ? "true" : "false",
+            _ => JsonSerializer.Serialize(v)
+        };
+
+        var canonical = new
+        {
+            Name,
+            Enabled,
+            ScanRateMs,
+            Nodes = Nodes
+                .OrderBy(n => n.Id)
+                .Select(n => new
+                {
+                    n.Id, n.Type, n.Label,
+                    Props = n.Properties
+                        .OrderBy(kv => kv.Key)
+                        .Select(kv => new { kv.Key, Value = NormalizeValue(kv.Value) })
+                        .ToList()
+                })
+                .ToList(),
+            Edges = Edges
+                .OrderBy(e => e.Id)
+                .Select(e => new { e.Id, e.SourceNodeId, e.SourcePortId, e.TargetNodeId, e.TargetPortId })
+                .ToList()
+        };
+
+        var json = JsonSerializer.Serialize(canonical, new JsonSerializerOptions { WriteIndented = false });
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        // First 8 bytes (16 hex chars) provide 2^64 uniqueness — sufficient for
+        // drift detection across typical deployment sizes.  A full 32-byte hash
+        // is unnecessary here since false positives merely delay a UI refresh.
+        return Convert.ToHexString(hashBytes, 0, 8).ToLowerInvariant();
+    }
 }
 
 /// <summary>

@@ -356,6 +356,9 @@
         }
         await MqttService.PublishConfigReloadAsync("connections");
         CloseDialogs();
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Connection saved", "e-toast-success", "Saved");
     }
 
     private void ConfirmDeleteConnectionById(string id)
@@ -423,6 +426,9 @@
         }
         await MqttService.PublishConfigReloadAsync("connections");
         CloseDialogs();
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Tag saved", "e-toast-success", "Saved");
     }
 
     private void ConfirmDeleteTagById(string connId, string tagId)

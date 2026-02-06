@@ -549,7 +549,11 @@
         else
             await ConfigService.UpdateDashboardAsync(CurrentDashboard);
         
-        Navigation.NavigateTo("/dashboards");
+        if (DashboardId == "new")
+            Navigation.NavigateTo($"/dashboards/{CurrentDashboard.Id}", replace: true);
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Dashboard saved", "e-toast-success", "Saved");
     }
 
     private void ConfirmDeleteDashboard(string id)

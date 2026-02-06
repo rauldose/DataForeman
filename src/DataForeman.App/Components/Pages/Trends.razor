@@ -214,12 +214,20 @@
                 </SfDropDownList>
                 
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-rotate" Content="Refresh" @onclick="RefreshData"></SfButton>
+                <SfButton CssClass="@(_showLiveTimeline ? "e-info" : "e-flat")" 
+                          IconCss="fa-solid fa-wave-square" 
+                          Content="@(_showLiveTimeline ? "Hide Live" : "Live")" 
+                          @onclick="ToggleLiveTimeline"></SfButton>
                 <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveTrend">Save</SfButton>
             </div>
             
             <div class="viewer-content">
                 <div class="timeline-container">
-                    @if (CurrentTrend.Series.Any())
+                    @if (_showLiveTimeline)
+                    {
+                        <SignalTimeline FilterTagIds="@_liveFilterTags" />
+                    }
+                    else if (CurrentTrend.Series.Any())
                     {
                         <div class="timeline-viewer">
                             <!-- Timeline header with time markers -->
@@ -254,7 +262,9 @@
                                                     var dataPoints = GetSeriesData(series.Id);
                                                     if (dataPoints.Any())
                                                     {
-                                                        var pathData = GenerateTracePathData(dataPoints);
+                                                        var pathData = series.Type == TrendSeriesType.StepLine
+                                                            ? GenerateStepTracePathData(dataPoints)
+                                                            : GenerateTracePathData(dataPoints);
                                                         <path d="@pathData" 
                                                               fill="none" 
                                                               stroke="@series.Color" 
@@ -323,7 +333,14 @@
                                                 <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => RemoveSeries(series.Id)"></SfButton>
                                             </div>
                                             <div class="series-config">
-                                                <SfTextBox @bind-Value="series.TagPath" Placeholder="Tag path" CssClass="tag-path"></SfTextBox>
+                                                <SfDropDownList TItem="TagPathOption" TValue="string"
+                                                                DataSource="@AvailableTagPaths"
+                                                                @bind-Value="series.TagPath"
+                                                                Placeholder="Select tag..."
+                                                                AllowFiltering="true"
+                                                                CssClass="tag-path">
+                                                    <DropDownListFieldSettings Text="Display" Value="Path"></DropDownListFieldSettings>
+                                                </SfDropDownList>
                                                 <SfDropDownList TValue="TrendSeriesType" TItem="SeriesTypeOption" 
                                                                 @bind-Value="series.Type"
                                                                 DataSource="@SeriesTypeOptions"
@@ -358,7 +375,7 @@
     }
 </div>
 
-<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @ref="_deleteDialog" @bind-Visible="_deleteDialogVisible" Width="400px" IsModal="true" ShowCloseIcon="true">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>
@@ -380,9 +397,12 @@
     private List<TrendDisplay> TrendsList { get; set; } = new();
     private Dictionary<string, List<TrendDataPoint>> _seriesData = new();
     private SfDialog? _deleteDialog;
+    private bool _deleteDialogVisible = false;
     private string? _deletingTrendId;
     private string? _deletingTrendName;
     private System.Threading.Timer? _refreshTimer;
+    private bool _showLiveTimeline;
+    private HashSet<string>? _liveFilterTags;
 
     private List<TimeRangeOption> TimeRangeOptions { get; set; } = new()
     {
@@ -399,18 +419,40 @@
     private List<SeriesTypeOption> SeriesTypeOptions { get; set; } = new()
     {
         new() { Value = TrendSeriesType.Line, Label = "Line" },
+        new() { Value = TrendSeriesType.StepLine, Label = "Step Line" },
         new() { Value = TrendSeriesType.Area, Label = "Area" },
         new() { Value = TrendSeriesType.Column, Label = "Column" },
         new() { Value = TrendSeriesType.Scatter, Label = "Scatter" }
     };
 
+    private string? _lastLoadedTrendId;
+
     protected override void OnInitialized()
     {
+        RefreshAvailableTagPaths();
         LoadTrends();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (TrendId == _lastLoadedTrendId)
+            return;
+
+        _lastLoadedTrendId = TrendId;
+
         if (!string.IsNullOrEmpty(TrendId))
         {
+            StopAutoRefresh();
+            _showLiveTimeline = false;
+            _liveFilterTags = null;
             LoadTrend(TrendId);
             StartAutoRefresh();
+        }
+        else
+        {
+            StopAutoRefresh();
+            _showLiveTimeline = false;
+            LoadTrends();
         }
     }
 
@@ -479,13 +521,40 @@
         }
         
         LoadTrends();
-        StateHasChanged();
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Trend saved", "e-toast-success", "Saved");
     }
 
     private void GoBack()
     {
         StopAutoRefresh();
         Navigation.NavigateTo("/trends");
+    }
+
+    private void ToggleLiveTimeline()
+    {
+        _showLiveTimeline = !_showLiveTimeline;
+        if (_showLiveTimeline)
+        {
+            RebuildLiveFilterTags();
+        }
+    }
+
+    private void RebuildLiveFilterTags()
+    {
+        // Build a lookup from "ConnectionName/TagName" → TagId
+        var pathToTagId = ConfigService.GetAllTagsWithConnection()
+            .ToDictionary(
+                t => $"{t.Connection.Name}/{t.Tag.Name}",
+                t => t.Tag.Id,
+                StringComparer.OrdinalIgnoreCase);
+
+        // Convert series tag paths to the TagIds used by RealtimeDataService
+        _liveFilterTags = CurrentTrend.Series
+            .Where(s => !string.IsNullOrEmpty(s.TagPath) && pathToTagId.ContainsKey(s.TagPath!))
+            .Select(s => pathToTagId[s.TagPath!])
+            .ToHashSet();
     }
 
     private void AddSeries()
@@ -495,6 +564,7 @@
             Name = $"Series {CurrentTrend.Series.Count + 1}",
             Color = GetRandomColor()
         });
+        if (_showLiveTimeline) RebuildLiveFilterTags();
         StateHasChanged();
     }
 
@@ -502,6 +572,7 @@
     {
         CurrentTrend.Series.RemoveAll(s => s.Id == seriesId);
         _seriesData.Remove(seriesId);
+        if (_showLiveTimeline) RebuildLiveFilterTags();
         StateHasChanged();
     }
 
@@ -564,7 +635,7 @@
         {
             _deletingTrendId = id;
             _deletingTrendName = trend.Name;
-            _deleteDialog?.ShowAsync();
+            _deleteDialogVisible = true;
         }
     }
 
@@ -574,17 +645,18 @@
         {
             await ConfigService.DeleteTrendAsync(_deletingTrendId);
             LoadTrends();
-            await _deleteDialog!.HideAsync();
+            _deleteDialogVisible = false;
             _deletingTrendId = null;
             _deletingTrendName = null;
         }
     }
 
-    private async Task CancelDelete()
+    private Task CancelDelete()
     {
-        await _deleteDialog!.HideAsync();
+        _deleteDialogVisible = false;
         _deletingTrendId = null;
         _deletingTrendName = null;
+        return Task.CompletedTask;
     }
 
     private string GetTimeLabel(int markerIndex)
@@ -644,6 +716,45 @@
         
         return pathBuilder.ToString();
     }
+
+    /// <summary>
+    /// Generates an SVG path using step (horizontal-then-vertical) segments
+    /// so the trace holds its previous value until the next data point.
+    /// </summary>
+    private string GenerateStepTracePathData(List<TrendDataPoint> dataPoints)
+    {
+        if (!dataPoints.Any()) return "";
+
+        var sb = new System.Text.StringBuilder();
+        var floor = dataPoints.Min(p => p.Value);
+        var ceiling = dataPoints.Max(p => p.Value);
+        var valRange = ceiling - floor;
+        if (valRange == 0) valRange = 1;
+
+        var earliest = dataPoints.Min(p => p.Timestamp);
+        var latest = dataPoints.Max(p => p.Timestamp);
+        var secRange = (latest - earliest).TotalSeconds;
+        if (secRange == 0) secRange = 1;
+
+        for (int idx = 0; idx < dataPoints.Count; idx++)
+        {
+            var pt = dataPoints[idx];
+            double xPct = ((pt.Timestamp - earliest).TotalSeconds / secRange) * 100;
+            double yPct = ((ceiling - pt.Value) / valRange) * 100;
+
+            if (idx == 0)
+            {
+                sb.Append($"M {xPct:F2} {yPct:F2}");
+            }
+            else
+            {
+                // Step: hold previous Y, jump to new X, then move to new Y
+                sb.Append($" H {xPct:F2} V {yPct:F2}");
+            }
+        }
+
+        return sb.ToString();
+    }
     
     private string GenerateTraceFillPathData(List<TrendDataPoint> dataPoints)
     {
@@ -681,6 +792,7 @@
     private Syncfusion.Blazor.Charts.ChartSeriesType GetChartSeriesType(TrendSeriesType type) => type switch
     {
         TrendSeriesType.Line => Syncfusion.Blazor.Charts.ChartSeriesType.Line,
+        TrendSeriesType.StepLine => Syncfusion.Blazor.Charts.ChartSeriesType.StepLine,
         TrendSeriesType.Area => Syncfusion.Blazor.Charts.ChartSeriesType.Area,
         TrendSeriesType.Column => Syncfusion.Blazor.Charts.ChartSeriesType.Column,
         TrendSeriesType.Scatter => Syncfusion.Blazor.Charts.ChartSeriesType.Scatter,
@@ -730,5 +842,25 @@
     {
         public TrendSeriesType Value { get; set; }
         public string Label { get; set; } = string.Empty;
+    }
+
+    private class TagPathOption
+    {
+        public string Path { get; set; } = string.Empty;
+        public string Display { get; set; } = string.Empty;
+    }
+
+    private List<TagPathOption> AvailableTagPaths { get; set; } = new();
+
+    private void RefreshAvailableTagPaths()
+    {
+        AvailableTagPaths = ConfigService.GetAllTagsWithConnection()
+            .Select(t => new TagPathOption
+            {
+                Path = $"{t.Connection.Name}/{t.Tag.Name}",
+                Display = $"{t.Connection.Name} / {t.Tag.Name}"
+            })
+            .OrderBy(t => t.Display)
+            .ToList();
     }
 }

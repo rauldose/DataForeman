@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject RealtimeDataService RealtimeData
+@inject MqttService MqttService
 @implements IDisposable
 
 <PageTitle>Flows - DataForeman</PageTitle>
@@ -46,6 +47,36 @@
                             }
                         </Template>
                     </GridColumn>
+                    <GridColumn HeaderText="Deploy" Width="130">
+                        <Template>
+                            @{
+                                var item = (context as FlowDisplay);
+                                if (item != null)
+                                {
+                                    var flow = ConfigService.Flows.FirstOrDefault(f => f.Id == item.Id);
+                                    if (flow != null)
+                                    {
+                                        var state = RealtimeData.GetFlowDeployState(flow);
+                                        @switch (state)
+                                        {
+                                            case FlowDeployState.Deployed:
+                                                <span class="deploy-badge deployed" title="Config matches Engine"><i class="fa-solid fa-circle-check"></i> Deployed</span>
+                                                break;
+                                            case FlowDeployState.DeployedDisabled:
+                                                <span class="deploy-badge deployed-disabled" title="Config matches Engine but flow is disabled"><i class="fa-solid fa-circle-pause"></i> Synced (Off)</span>
+                                                break;
+                                            case FlowDeployState.Modified:
+                                                <span class="deploy-badge modified" title="Local config differs from Engine — save and reload to deploy"><i class="fa-solid fa-triangle-exclamation"></i> Modified</span>
+                                                break;
+                                            default:
+                                                <span class="deploy-badge unknown" title="Engine status not available"><i class="fa-solid fa-circle-question"></i> Unknown</span>
+                                                break;
+                                        }
+                                    }
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
                     <GridColumn HeaderText="Actions" Width="120">
                         <Template>
                             @{
@@ -83,12 +114,15 @@
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
+                    <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="@(_showLiveValues ? "Hide signal timeline" : "Show signal timeline")"></SfButton>
                     <span class="toolbar-separator"></span>
                     <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
                               IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
                               Content="@(CurrentFlow.Enabled ? "Disable" : "Enable")"
                               @onclick="ToggleEnabled"></SfButton>
+                    <span class="@GetDeployBadgeCss()" title="@GetDeployBadgeTooltip()"><i class="@GetDeployBadgeIcon()"></i> @GetDeployBadgeLabel()</span>
                     <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveFlow">Save</SfButton>
+                    <SfButton CssClass="e-info" IconCss="fa-solid fa-rocket" @onclick="DeployFlow" title="Deploy flow to Engine">Deploy</SfButton>
                 }
             </div>
             
@@ -161,64 +195,73 @@
                     </SfDiagramComponent>
                 </div>
                 
-                <div class="properties-panel">
-                    <h3>Properties</h3>
-                    @if (SelectedNode != null)
-                    {
-                        var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
-                        <div class="property-header">
-                            <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
-                                <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
-                                @(plugin?.Name ?? GetNodeType(SelectedNode))
-                            </span>
-                        </div>
-                        
-                        @if (plugin != null)
+                @if (_showLiveValues)
+                {
+                    <div class="signal-timeline-panel">
+                        <SignalTimeline />
+                    </div>
+                }
+                else
+                {
+                    <div class="properties-panel">
+                        <h3>Properties</h3>
+                        @if (SelectedNode != null)
                         {
-                            <p class="plugin-description">@plugin.Description</p>
-                        }
-                        
-                        <div class="property-group">
-                            <label>Label</label>
-                            <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
-                        </div>
-                        
-                        @if (plugin != null)
-                        {
-                            @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
+                            var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
+                            <div class="property-header">
+                                <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
+                                    <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
+                                    @(plugin?.Name ?? GetNodeType(SelectedNode))
+                                </span>
+                            </div>
+                            
+                            @if (plugin != null)
                             {
-                                <div class="property-group">
-                                    <label>@prop.Label @(prop.Required ? "*" : "")</label>
-                                    @RenderPropertyInput(prop)
-                                    @if (!string.IsNullOrEmpty(prop.HelpText))
-                                    {
-                                        <span class="property-hint">@prop.HelpText</span>
-                                    }
-                                </div>
+                                <p class="plugin-description">@plugin.Description</p>
                             }
+                            
+                            <div class="property-group">
+                                <label>Label</label>
+                                <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
+                            </div>
+                            
+                            @if (plugin != null)
+                            {
+                                @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
+                                {
+                                    <div class="property-group">
+                                        <label>@prop.Label @(prop.Required ? "*" : "")</label>
+                                        @RenderPropertyInput(prop)
+                                        @if (!string.IsNullOrEmpty(prop.HelpText))
+                                        {
+                                            <span class="property-hint">@prop.HelpText</span>
+                                        }
+                                    </div>
+                                }
+                            }
+                            
+                            <div class="property-actions">
+                                <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="no-selection">Select a node to view properties</p>
                         }
                         
-                        <div class="property-actions">
-                            <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="no-selection">Select a node to view properties</p>
-                    }
-                    
-                    <div class="flow-settings">
-                        <h4>Flow Settings</h4>
-                        <div class="property-group">
-                            <label>Description</label>
-                            <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
-                        </div>
-                        <div class="property-group">
-                            <label>Scan Rate (ms)</label>
-                            <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
+                        <div class="flow-settings">
+                            <h4>Flow Settings</h4>
+                            <div class="property-group">
+                                <label>Description</label>
+                                <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
+                            </div>
+                            <div class="property-group">
+                                <label>Scan Rate (ms)</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
             </div>
             
             <div class="output-console @(ConsoleExpanded ? "expanded" : "collapsed")">
@@ -355,6 +398,9 @@
     private bool ShowReplaceWithSubflowDialog;
     private string PendingSubflowId = "";
     private List<FlowTemplate> AvailableTemplates => ConfigService.FlowTemplates.ToList();
+
+    private List<FlowTagPathOption> _flowTagPathOptions = new();
+    private List<FlowTagPathOption> FlowTagPathOptions => _flowTagPathOptions;
     
     // Node property values storage
     private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
@@ -372,6 +418,10 @@
     private ElementReference ConsoleBody;
     private System.Timers.Timer? _simulationTimer;
 
+    // Live value annotations on diagram nodes
+    private bool _showLiveValues = false;
+    private Dictionary<string, string> _liveNodeValues = new();
+
     private List<FlowDisplay> FlowsList => ConfigService.Flows.Select(f => new FlowDisplay
     {
         Id = f.Id,
@@ -386,8 +436,18 @@
         _cts = new CancellationTokenSource();
         _disposed = false; // Reset in case component is reused
         await ConfigService.LoadAllAsync();
+        _flowTagPathOptions = ConfigService.GetAllTagsWithConnection()
+            .Select(t => new FlowTagPathOption
+            {
+                Path = $"{t.Connection.Name}/{t.Tag.Name}",
+                Label = $"{t.Connection.Name} / {t.Tag.Name}"
+            })
+            .OrderBy(t => t.Label)
+            .ToList();
         RealtimeData.OnTagValueChanged += HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived += HandleFlowExecutionReceived;
+        RealtimeData.OnFlowDeployStatusChanged += HandleDeployStatusChanged;
+        RealtimeData.OnFlowRunSummaryReceived += HandleFlowRunSummary;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -539,6 +599,19 @@
                 }
 
                 AddConsoleMessage(message.Level, nodeLabel, msgText);
+
+                // Update live value annotation on diagram node
+                if (_showLiveValues && node != null && message.OutputData?.Any() == true)
+                {
+                    var valueText = FormatLiveValue(message.OutputData);
+                    _liveNodeValues[message.NodeId] = valueText;
+                    UpdateNodeLiveAnnotation(node, valueText, message.Level == "ERROR");
+                }
+                else if (_showLiveValues && node != null && message.Level == "ERROR")
+                {
+                    _liveNodeValues[message.NodeId] = "ERR";
+                    UpdateNodeLiveAnnotation(node, "ERR", isError: true);
+                }
                 
                 if (!_disposed && _cts?.IsCancellationRequested != true)
                 {
@@ -554,6 +627,34 @@
         {
             // Component was disposed
         }
+    }
+
+    private async void HandleDeployStatusChanged(string flowId)
+    {
+        try
+        {
+            if (_disposed || _cts?.IsCancellationRequested == true) return;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
+        catch (OperationCanceledException) { }
+    }
+
+    private void HandleFlowRunSummary(FlowRunSummaryMessage summary)
+    {
+        try
+        {
+            if (_disposed || _cts?.IsCancellationRequested == true) return;
+            if (FlowId != "new" && summary.FlowId == FlowId)
+            {
+                var level = summary.Outcome == "Success" ? "info" : "error";
+                var msg = $"{summary.Outcome}: {summary.NodesExecuted} nodes, {summary.DurationMs:F0}ms";
+                if (!string.IsNullOrEmpty(summary.ErrorDetail))
+                    msg += $" — {summary.ErrorDetail}";
+                AddConsoleMessage(level, summary.TriggerTopic ?? "Engine", msg);
+            }
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private void LoadFlowDefinition(FlowConfig flow)
@@ -656,6 +757,40 @@
         return $"{portType}-0";
     }
 
+    private FlowDeployState CurrentDeployState => FlowId != "new" ? RealtimeData.GetFlowDeployState(CurrentFlow) : FlowDeployState.Unknown;
+
+    private string GetDeployBadgeCss() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "deploy-badge deployed",
+        FlowDeployState.DeployedDisabled => "deploy-badge deployed-disabled",
+        FlowDeployState.Modified => "deploy-badge modified",
+        _ => "deploy-badge unknown"
+    };
+
+    private string GetDeployBadgeIcon() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "fa-solid fa-circle-check",
+        FlowDeployState.DeployedDisabled => "fa-solid fa-circle-pause",
+        FlowDeployState.Modified => "fa-solid fa-triangle-exclamation",
+        _ => "fa-solid fa-circle-question"
+    };
+
+    private string GetDeployBadgeLabel() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "Deployed",
+        FlowDeployState.DeployedDisabled => "Synced (Off)",
+        FlowDeployState.Modified => "Modified",
+        _ => "Not Deployed"
+    };
+
+    private string GetDeployBadgeTooltip() => CurrentDeployState switch
+    {
+        FlowDeployState.Deployed => "In sync with Engine",
+        FlowDeployState.DeployedDisabled => "Config matches Engine but flow is disabled",
+        FlowDeployState.Modified => "Local config differs from Engine — save and reload to deploy",
+        _ => "Engine status not available"
+    };
+
     private void CreateNewFlow() => Navigation.NavigateTo("/flows/new");
     private void EditFlow(string id) => Navigation.NavigateTo($"/flows/{id}");
     private void GoBack() => Navigation.NavigateTo("/flows");
@@ -687,7 +822,21 @@
         if (FlowId == "new") await ConfigService.AddFlowAsync(CurrentFlow);
         else await ConfigService.UpdateFlowAsync(CurrentFlow);
         
-        Navigation.NavigateTo("/flows");
+        if (FlowId == "new")
+            Navigation.NavigateTo($"/flows/{CurrentFlow.Id}", replace: true);
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Flow saved", "e-toast-success", "Saved");
+    }
+
+    private async Task DeployFlow()
+    {
+        // Save first, then tell the Engine to reload
+        await SaveFlow();
+        await MqttService.PublishConfigReloadAsync("flows");
+        
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Deploy command sent to Engine", "e-toast-info", "Deploying");
     }
 
     private void ConfirmDeleteFlow(string id) { DeleteFlowId = id; ShowDeleteDialog = true; }
@@ -861,6 +1010,35 @@
                 builder.OpenComponent<SfNumericTextBox<double>>(0); builder.AddAttribute(1, "Value", double.TryParse(currentValue, out var dblVal) ? dblVal : 0); builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString()))); builder.CloseComponent(); break;
             case PropertyType.Boolean:
                 builder.OpenComponent<SfCheckBox<bool>>(0); builder.AddAttribute(1, "Checked", currentValue?.ToLower() == "true"); builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString().ToLower()))); builder.CloseComponent(); break;
+            case PropertyType.TagPath:
+                var tagOpts = FlowTagPathOptions;
+                builder.OpenComponent<SfDropDownList<string, FlowTagPathOption>>(0);
+                builder.AddAttribute(1, "Value", currentValue ?? "");
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
+                builder.AddAttribute(3, "DataSource", tagOpts);
+                builder.AddAttribute(4, "Placeholder", "Select tag...");
+                builder.AddAttribute(5, "AllowFiltering", true);
+                builder.AddAttribute(6, "ChildContent", (RenderFragment)(b2 =>
+                {
+                    b2.OpenComponent<DropDownListFieldSettings>(0);
+                    b2.AddAttribute(1, "Text", "Label");
+                    b2.AddAttribute(2, "Value", "Path");
+                    b2.CloseComponent();
+                }));
+                builder.CloseComponent();
+                break;
+            case PropertyType.Code:
+                var codeVal = currentValue ?? prop.DefaultValue ?? "";
+                var codeNodeId = nodeId;
+                var codePropKey = prop.Key;
+                builder.OpenComponent<CSharpEditor>(0);
+                builder.AddAttribute(1, "Code", codeVal);
+                builder.AddAttribute(2, "CodeChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(codeNodeId, codePropKey, val)));
+                builder.AddAttribute(3, "Label", prop.Label);
+                builder.AddAttribute(4, "EditorId", $"editor-{codeNodeId}-{codePropKey}");
+                builder.AddAttribute(5, "Height", "300px");
+                builder.CloseComponent();
+                break;
             case PropertyType.Select:
             case PropertyType.TextArea:
             default:
@@ -1102,7 +1280,9 @@
         
         AddConsoleMessage("INFO", "System", $"Saved subflow: {existingSubflow.Name}");
         _editingSubflowId = null;
-        Navigation.NavigateTo("/flows");
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("Subflow saved", "e-toast-success", "Saved");
     }
     
     private void CancelSubflowEdit()
@@ -1315,6 +1495,72 @@
         AddConsoleMessage("INFO", "System", $"Saved as template: {template.Name}");
     }
     
+    // --- Live Value Annotations ---
+
+    private void ToggleLiveValues()
+    {
+        _showLiveValues = !_showLiveValues;
+        if (!_showLiveValues)
+        {
+            ClearAllLiveAnnotations();
+        }
+    }
+
+    private static string FormatLiveValue(Dictionary<string, object> data)
+    {
+        if (data.Count == 1)
+        {
+            var val = data.Values.First();
+            return FormatSingleValue(val);
+        }
+        // Multiple values: show first 2 as key=val pairs
+        var parts = data.Take(2).Select(kv => $"{kv.Key}={FormatSingleValue(kv.Value)}");
+        var result = string.Join(" ", parts);
+        if (data.Count > 2) result += " …";
+        return result;
+    }
+
+    private static string FormatSingleValue(object val)
+    {
+        if (val is double d) return d.ToString(d == Math.Floor(d) ? "F0" : "F2");
+        var s = val?.ToString() ?? "";
+        return s.Length > 20 ? s[..17] + "…" : s;
+    }
+
+    private void UpdateNodeLiveAnnotation(Node node, string text, bool isError)
+    {
+        // The 3rd annotation (index 2) is the live value label
+        // Annotations[0] = node name, [1] = category
+        while (node.Annotations.Count < 3)
+        {
+            node.Annotations.Add(new ShapeAnnotation
+            {
+                Content = "",
+                Style = new TextStyle { Color = "#00e5ff", FontSize = 9 },
+                Offset = new DiagramPoint { X = 1.0, Y = -0.15 },
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom
+            });
+        }
+
+        var liveAnnotation = node.Annotations[2];
+        liveAnnotation.Content = text;
+        liveAnnotation.Style.Color = isError ? "#ef5350" : "#00e5ff";
+    }
+
+    private void ClearAllLiveAnnotations()
+    {
+        _liveNodeValues.Clear();
+        foreach (var node in Nodes)
+        {
+            if (node.Annotations.Count >= 3)
+            {
+                node.Annotations[2].Content = "";
+            }
+        }
+        StateHasChanged();
+    }
+
     public void Dispose()
     {
         // Set disposed flag first to stop any running execution
@@ -1331,6 +1577,8 @@
         _simulationTimer?.Dispose();
         RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived -= HandleFlowExecutionReceived;
+        RealtimeData.OnFlowDeployStatusChanged -= HandleDeployStatusChanged;
+        RealtimeData.OnFlowRunSummaryReceived -= HandleFlowRunSummary;
     }
 
     public class FlowDisplay
@@ -1349,6 +1597,11 @@
         public string NodeLabel { get; set; } = "";
         public string Message { get; set; } = "";
     }
+
+    public class FlowTagPathOption
+    {
+        public string Path { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
 }
 
-```

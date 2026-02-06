@@ -63,8 +63,11 @@ public class PollEngine : IAsyncDisposable
         }
 
         // Start status reporting timer (every 5 seconds)
-        _statusTimer = new Timer(async _ => await PublishEngineStatusAsync(), null, 
-            TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        _statusTimer = new Timer(async _ =>
+        {
+            try { await PublishEngineStatusAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Error in engine status publish timer"); }
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
 
         _logger.LogInformation("Poll engine started with {ConnectionCount} connections", _pollers.Count);
     }
@@ -154,6 +157,23 @@ public class PollEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Writes a value to a tag on the specified connection.
+    /// Used by state machine actions to set tag values on external devices.
+    /// </summary>
+    public async Task WriteTagAsync(string connectionId, TagConfig tag, object value)
+    {
+        if (_pollers.TryGetValue(connectionId, out var poller))
+        {
+            await poller.WriteTagAsync(tag, value);
+        }
+        else
+        {
+            _logger.LogWarning("Cannot write tag {TagName}: connection {ConnectionId} not active",
+                tag.Name, connectionId);
+        }
+    }
+
     private IDriver? CreateDriver(string driverType)
     {
         return driverType.ToLowerInvariant() switch
@@ -172,7 +192,14 @@ public class PollEngine : IAsyncDisposable
             if (connection == null) return;
 
             Interlocked.Increment(ref _totalPolls);
-            Interlocked.Exchange(ref _totalPollTimeMs, _totalPollTimeMs + pollTimeMs);
+            // Atomic add for double using compare-exchange loop
+            double initial, computed;
+            do
+            {
+                initial = _totalPollTimeMs;
+                computed = initial + pollTimeMs;
+            }
+            while (Interlocked.CompareExchange(ref _totalPollTimeMs, computed, initial) != initial);
 
             // Update current values cache
             foreach (var kvp in values)
@@ -387,5 +414,19 @@ internal class ConnectionPoller : IAsyncDisposable
     {
         await StopAsync();
         await _driver.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Writes a value to a tag via the underlying driver.
+    /// </summary>
+    public async Task WriteTagAsync(TagConfig tag, object value)
+    {
+        if (!_driver.IsConnected)
+        {
+            _logger.LogWarning("Cannot write tag {TagName}: driver for {Connection} is not connected",
+                tag.Name, _connection.Name);
+            return;
+        }
+        await _driver.WriteTagAsync(tag, value);
     }
 }

@@ -71,6 +71,52 @@ html, body {
     background: var(--bg-tertiary) !important;
 }
 
+/* Active page navigation highlight */
+.nav-active.e-btn {
+    color: var(--accent-blue) !important;
+    border-bottom: 2px solid var(--accent-blue) !important;
+    border-radius: 0 !important;
+}
+
+/* Global toast notifications */
+.df-toast.e-toast-container {
+    margin-top: 56px;
+}
+
+/* Save / operation loading overlay */
+.df-saving-overlay {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--accent-blue);
+}
+
+.df-saving-overlay .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--bg-tertiary);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: df-spin 0.6s linear infinite;
+}
+
+@keyframes df-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Form validation feedback */
+.df-field-error {
+    color: var(--accent-red);
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.df-field-invalid .e-input-group {
+    border-color: var(--accent-red) !important;
+}
+
 .engine-status {
     display: flex;
     align-items: center;
@@ -90,13 +136,17 @@ html, body {
     flex: 1;
     overflow: auto;
     padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 /* Page Container */
 .page-container {
-    height: 100%;
+    flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 .page-toolbar {
@@ -429,6 +479,7 @@ html, body {
     background: var(--bg-primary);
     display: flex;
     flex-direction: column;
+    position: relative;
 }
 
 /* Ensure chart takes full available space */
@@ -454,6 +505,33 @@ html, body {
     margin-left: auto;
     display: flex;
     gap: 0.25rem;
+}
+
+/* Chart empty hint (shown when no series) */
+.chart-empty-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.chart-empty-hint i {
+    font-size: 2rem;
+    opacity: 0.4;
+}
+
+/* Config panel toggle transition */
+.config-sidebar {
+    transition: width 0.15s ease;
 }
 
 /* Tag List */
@@ -690,6 +768,15 @@ html, body {
     border-left: 1px solid var(--border-subtle);
     padding: 1rem;
     overflow-y: auto;
+}
+
+.signal-timeline-panel {
+    width: 420px;
+    min-width: 350px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border-subtle);
+    overflow: hidden;
 }
 
 .properties-panel h3 {
@@ -1463,4 +1550,209 @@ html, body {
     display: flex;
     flex: 1;
     min-height: 0;
+}
+
+/* Flow Deployment State Badges */
+.deploy-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.6rem;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+.deploy-badge.deployed {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.deploy-badge.deployed-disabled {
+    background: rgba(107, 114, 128, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+}
+.deploy-badge.modified {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.deploy-badge.unknown {
+    background: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+/* ── State Machine Editor Layout ────────────────────────────── */
+.state-machine-editor {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.state-machine-name-input {
+    width: 220px;
+}
+
+.state-palette {
+    width: 140px;
+    min-width: 140px;
+    background: var(--bg-primary);
+    border-right: 1px solid var(--border-subtle);
+    padding: 0.5rem;
+    overflow-y: auto;
+}
+
+.palette-header, .panel-header {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 0.5rem;
+}
+
+.palette-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    cursor: grab;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    transition: background 0.15s;
+}
+
+.palette-item:hover {
+    background: var(--bg-secondary);
+}
+
+.panel-content {
+    padding: 0.5rem 0;
+}
+
+.info-panel {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ── Trend Viewer Layout ────────────────────────────────────── */
+.trend-viewer {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.trend-name-input {
+    width: 200px;
+}
+
+.viewer-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-wrap: wrap;
+}
+
+.viewer-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.config-panel {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-subtle);
+    overflow-y: auto;
+    padding: 0.75rem;
+}
+
+.series-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.series-item {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+.series-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+}
+
+.series-header input[type="color"] {
+    width: 24px;
+    height: 24px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    background: none;
+}
+
+.series-name {
+    flex: 1;
+}
+
+.series-config {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.series-config .tag-path {
+    flex: 1;
+}
+
+.chart-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--text-muted);
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.chart-placeholder i {
+    font-size: 2rem;
+    opacity: 0.5;
+}
+
+.chart-hint {
+    font-size: 0.8rem;
+    opacity: 0.6;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    cursor: pointer;
 }

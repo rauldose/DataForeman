@@ -1,0 +1,167 @@
+{
+  "stateMachines": [
+    {
+      "id": "sm-sample-1",
+      "name": "Pump Controller",
+      "description": "Controls the main process pump lifecycle: Idle, Starting, Running, Stopping, with Fault handling. Uses tag-based triggers and actions.",
+      "enabled": true,
+      "states": [
+        {
+          "id": "state-idle",
+          "name": "Idle",
+          "color": "#6b7280",
+          "x": 120,
+          "y": 200,
+          "isInitial": true,
+          "isFinal": false,
+          "description": "Pump is off and waiting for start command",
+          "onEnterActions": [
+            { "tagPath": "Simulator/PumpActive", "value": "0" }
+          ],
+          "onExitActions": []
+        },
+        {
+          "id": "state-starting",
+          "name": "Starting",
+          "color": "#f59e0b",
+          "x": 350,
+          "y": 100,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Pump is warming up",
+          "onEnterActions": [
+            { "tagPath": "Simulator/PumpActive", "value": "1" }
+          ],
+          "onExitActions": []
+        },
+        {
+          "id": "state-running",
+          "name": "Running",
+          "color": "#22c55e",
+          "x": 580,
+          "y": 200,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Pump is operational at full speed",
+          "onEnterActions": [],
+          "onExitActions": []
+        },
+        {
+          "id": "state-stopping",
+          "name": "Stopping",
+          "color": "#f59e0b",
+          "x": 350,
+          "y": 320,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Pump is decelerating",
+          "onEnterActions": [],
+          "onExitActions": []
+        },
+        {
+          "id": "state-fault",
+          "name": "Fault",
+          "color": "#ef4444",
+          "x": 580,
+          "y": 400,
+          "isInitial": false,
+          "isFinal": true,
+          "description": "Pump encountered an error",
+          "onEnterActions": [
+            { "tagPath": "Simulator/PumpActive", "value": "0" },
+            { "tagPath": "Simulator/AlarmActive", "value": "1" }
+          ],
+          "onExitActions": [
+            { "tagPath": "Simulator/AlarmActive", "value": "0" }
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "id": "t1",
+          "fromStateId": "state-idle",
+          "toStateId": "state-starting",
+          "event": "start",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Simulator/StartCommand",
+            "operator": "Eq",
+            "threshold": "1"
+          },
+          "actions": []
+        },
+        {
+          "id": "t2",
+          "fromStateId": "state-starting",
+          "toStateId": "state-running",
+          "event": "ready",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Simulator/Speed",
+            "operator": "Gte",
+            "threshold": "90"
+          },
+          "actions": []
+        },
+        {
+          "id": "t3",
+          "fromStateId": "state-running",
+          "toStateId": "state-stopping",
+          "event": "stop",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Simulator/StopCommand",
+            "operator": "Eq",
+            "threshold": "1"
+          },
+          "actions": []
+        },
+        {
+          "id": "t4",
+          "fromStateId": "state-stopping",
+          "toStateId": "state-idle",
+          "event": "stopped",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Simulator/Speed",
+            "operator": "Lte",
+            "threshold": "5"
+          },
+          "actions": []
+        },
+        {
+          "id": "t5",
+          "fromStateId": "state-running",
+          "toStateId": "state-fault",
+          "event": "overheat",
+          "priority": 1,
+          "trigger": {
+            "tagPath": "Simulator/Temperature",
+            "operator": "Gt",
+            "threshold": "95"
+          },
+          "actions": [
+            { "tagPath": "Simulator/PumpActive", "value": "0" }
+          ]
+        },
+        {
+          "id": "t6",
+          "fromStateId": "state-starting",
+          "toStateId": "state-fault",
+          "event": "overheat",
+          "priority": 1,
+          "trigger": {
+            "tagPath": "Simulator/Temperature",
+            "operator": "Gt",
+            "threshold": "95"
+          },
+          "actions": [
+            { "tagPath": "Simulator/PumpActive", "value": "0" }
+          ]
+        }
+      ],
+      "createdAt": "2026-02-06T00:00:00Z",
+      "updatedAt": "2026-02-06T00:00:00Z"
+    }
+  ]
+}

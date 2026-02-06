@@ -11,12 +11,14 @@ namespace DataForeman.Engine.Services;
 public class MqttExecutionTracer : IExecutionTracer
 {
     private readonly MqttPublisher _mqtt;
+    private readonly ILogger<MqttExecutionTracer> _logger;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly ConcurrentDictionary<string, List<NodeExecutionResult>> _traces = new();
 
-    public MqttExecutionTracer(MqttPublisher mqtt)
+    public MqttExecutionTracer(MqttPublisher mqtt, ILogger<MqttExecutionTracer> logger)
     {
         _mqtt = mqtt;
+        _logger = logger;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -37,9 +39,12 @@ public class MqttExecutionTracer : IExecutionTracer
         {
             if (!_mqtt.IsConnected) return;
 
+            // Use the actual flow ID (not run ID) so the App can match messages to flows
+            var flowId = trace.FlowId ?? trace.RunId;
+
             var message = new FlowExecutionMessage
             {
-                FlowId = trace.RunId, // Use RunId as the flow execution identifier
+                FlowId = flowId,
                 NodeId = trace.NodeId,
                 NodeType = trace.NodeType,
                 Level = trace.Status == ExecutionStatus.Failed ? "ERROR" : "INFO",
@@ -47,20 +52,32 @@ public class MqttExecutionTracer : IExecutionTracer
                     ? $"Failed: {trace.Error}" 
                     : $"Executed in {trace.Duration.TotalMilliseconds:F1}ms, emitted {trace.MessagesEmitted} messages",
                 InputData = null,
-                OutputData = null,
+                OutputData = trace.OutputValues,
                 Timestamp = trace.EndUtc
             };
 
-            var topic = $"dataforeman/flows/{trace.RunId}/execution";
+            var topic = $"dataforeman/flows/{flowId}/execution";
             var payload = JsonSerializer.Serialize(message, _jsonOptions);
             
-            // Fire and forget - don't block execution for MQTT publish
-            _ = _mqtt.PublishMessageAsync(topic, payload);
+            // Publish in background but observe exceptions
+            _ = PublishTraceAsync(topic, payload);
         }
         catch (Exception ex)
         {
             // Don't let tracing errors affect flow execution
-            Console.WriteLine($"[MqttExecutionTracer] Error publishing trace: {ex.Message}");
+            _logger.LogWarning(ex, "Error publishing trace to MQTT for run {RunId}", trace.RunId);
+        }
+    }
+
+    private async Task PublishTraceAsync(string topic, string payload)
+    {
+        try
+        {
+            await _mqtt.PublishMessageAsync(topic, payload);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to publish execution trace to {Topic}", topic);
         }
     }
 

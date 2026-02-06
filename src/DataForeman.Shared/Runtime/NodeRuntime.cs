@@ -225,6 +225,9 @@ public sealed record NodeExecutionResult
     /// <summary>Run ID for this execution chain.</summary>
     public required string RunId { get; init; }
 
+    /// <summary>Flow ID this execution belongs to.</summary>
+    public string? FlowId { get; init; }
+
     /// <summary>Node ID that was executed.</summary>
     public required string NodeId { get; init; }
 
@@ -257,6 +260,9 @@ public sealed record NodeExecutionResult
 
     /// <summary>Parent trace ID for subflow nesting.</summary>
     public string? ParentTraceId { get; init; }
+
+    /// <summary>Snapshot of first output payload (for live value annotations).</summary>
+    public Dictionary<string, object>? OutputValues { get; init; }
 }
 
 /// <summary>

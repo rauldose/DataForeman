@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DataForeman.Shared;
 using DataForeman.Shared.Models;
 
 namespace DataForeman.Engine.Services;
@@ -16,13 +17,13 @@ public class ConfigService
     private ConnectionsFile _connections = new();
     private ChartsFile _charts = new();
     private FlowsFile _flows = new();
+    private StateMachinesFile _stateMachines = new();
     
     public event Action? OnConfigurationChanged;
 
     public ConfigService(IConfiguration configuration, ILogger<ConfigService> logger)
     {
-        _configDirectory = configuration.GetValue<string>("ConfigDirectory") 
-            ?? Path.Combine(AppContext.BaseDirectory, "config");
+        _configDirectory = ConfigPathResolver.Resolve(configuration.GetValue<string>("ConfigDirectory"));
         _logger = logger;
         
         _jsonOptions = new JsonSerializerOptions
@@ -40,6 +41,7 @@ public class ConfigService
     public IReadOnlyList<ConnectionConfig> Connections => _connections.Connections.AsReadOnly();
     public IReadOnlyList<ChartConfig> Charts => _charts.Charts.AsReadOnly();
     public IReadOnlyList<FlowConfig> Flows => _flows.Flows.AsReadOnly();
+    public IReadOnlyList<StateMachineConfig> StateMachines => _stateMachines.StateMachines.AsReadOnly();
 
     /// <summary>
     /// Loads all configuration files.
@@ -49,6 +51,17 @@ public class ConfigService
         await LoadConnectionsAsync();
         await LoadChartsAsync();
         await LoadFlowsAsync();
+        await LoadStateMachinesAsync();
+
+        // Post-load validation — log warnings for any config issues
+        foreach (var conn in _connections.Connections)
+            foreach (var w in conn.Validate())
+                _logger.LogWarning("Config validation: {Warning}", w);
+
+        foreach (var flow in _flows.Flows)
+            foreach (var w in flow.Validate())
+                _logger.LogWarning("Config validation: {Warning}", w);
+
         _logger.LogInformation("All configuration files loaded from {Directory}", _configDirectory);
     }
 
@@ -131,6 +144,33 @@ public class ConfigService
         {
             _logger.LogError(ex, "Error loading flows from {FilePath}", filePath);
             _flows = new FlowsFile();
+        }
+    }
+
+    /// <summary>
+    /// Loads state machine configuration.
+    /// </summary>
+    public async Task LoadStateMachinesAsync()
+    {
+        var filePath = GetConfigFilePath("state-machines.json");
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                var json = await File.ReadAllTextAsync(filePath);
+                _stateMachines = JsonSerializer.Deserialize<StateMachinesFile>(json, _jsonOptions) ?? new StateMachinesFile();
+                _logger.LogInformation("Loaded {Count} state machines from {FilePath}", _stateMachines.StateMachines.Count, filePath);
+            }
+            else
+            {
+                _stateMachines = new StateMachinesFile();
+                _logger.LogInformation("No state-machines.json found, starting with empty list");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading state machines from {FilePath}", filePath);
+            _stateMachines = new StateMachinesFile();
         }
     }
 

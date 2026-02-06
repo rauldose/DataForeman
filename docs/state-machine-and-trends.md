@@ -15,6 +15,22 @@ The State Machine Builder allows users to model system behavior as a collection 
 - Alarm state management
 - Sequential operation control
 
+### Flow Node: State Machine
+
+The **State Machine** flow node (`state-machine`) provides runtime state machine execution within Flow Studio:
+
+- **Stateful execution**: Maintains current state across scan cycles via runtime state storage
+- **Event-driven transitions**: Processes input events to move between defined states
+- **Reset capability**: Dedicated reset input to return to initial state
+- **Transition reporting**: Outputs both the current state and transition details for downstream processing
+
+#### Quick Start
+1. Add a **State Machine** node to your flow
+2. Set the **Initial State** (e.g., `idle`)
+3. Define **Transitions** (e.g., `idle:start->running,running:stop->idle`)
+4. Connect an event source to the **Event** input
+5. Connect the **Current State** output to downstream nodes
+
 ### Features
 - **Visual State Design**: Define states with custom names, descriptions, and colors
 - **Transition Management**: Create transitions between states with events and conditions
@@ -56,10 +72,12 @@ Transitions connect states and have:
 - **StateTransition**: Transition between states
 
 #### Files
-- `src/DataForeman.Shared/Models/StateMachineConfig.cs` - Data models
-- `src/DataForeman.App/Components/Pages/StateMachines.razor` - UI page
-- `src/DataForeman.Engine/Services/StateMachineExecutionService.cs` - Runtime execution
+- `src/DataForeman.Shared/Models/StateMachineConfig.cs` - Data models (legacy .NET)
+- `src/DataForeman.App/Components/Pages/StateMachines.razor` - UI page (legacy .NET)
+- `src/DataForeman.Engine/Services/StateMachineExecutionService.cs` - Runtime execution (legacy .NET)
 - `src/DataForeman.App/config/state-machines.json` - Configuration storage
+- `core/src/nodes/logic/StateMachineNode.js` - Flow node implementation (Node.js)
+- `core/test/nodes/logic/StateMachineNode.test.js` - Node tests
 
 ## Trend Visualizer
 
@@ -69,6 +87,22 @@ The Trend Visualizer provides a way to view and analyze time-series data from ta
 - Pattern recognition
 - Performance monitoring
 - Troubleshooting issues
+
+### Flow Node: Timeline
+
+The **Timeline** flow node (`timeline`) provides runtime value buffering and aggregation within Flow Studio:
+
+- **Rolling buffer**: Maintains a configurable-size window of recent values
+- **Time and count windowing**: Prune entries by age, count, or both
+- **8 aggregation modes**: last, first, avg, min, max, sum, count, range
+- **Full history output**: Second output provides the complete buffer for charting
+
+#### Quick Start
+1. Add a **Timeline** node to your flow
+2. Set **Max Entries** (e.g., `100`) and optionally a **Time Window**
+3. Choose an **Aggregation** mode (e.g., `avg` for rolling average)
+4. Connect a data source to the **Value** input
+5. Use the **Aggregated** output for processed values or **Buffer** output for chart data
 
 ### Features
 - **Multiple Series**: Display multiple data series on one chart
@@ -130,9 +164,11 @@ Available time ranges:
 - **TrendTimeRangeType**: Predefined time periods
 
 #### Files
-- `src/DataForeman.Shared/Models/TrendConfig.cs` - Data models
-- `src/DataForeman.App/Components/Pages/Trends.razor` - UI page
+- `src/DataForeman.Shared/Models/TrendConfig.cs` - Data models (legacy .NET)
+- `src/DataForeman.App/Components/Pages/Trends.razor` - UI page (legacy .NET)
 - `src/DataForeman.App/config/trends.json` - Configuration storage
+- `core/src/nodes/data/TimelineNode.js` - Flow node implementation (Node.js)
+- `core/test/nodes/data/TimelineNode.test.js` - Node tests
 
 ## Integration
 
@@ -161,17 +197,19 @@ Configurations are stored as JSON files:
 - [ ] Action script editor
 - [ ] State machine templates
 - [ ] Import/export functionality
-- [ ] State history tracking
+- [x] State tracking via StateMachineNode in Flow Studio
+- [x] Event-driven transitions with runtime state persistence
 
 ### Trend Visualizer
 - [ ] Real-time data integration with HistoryService
 - [ ] Multiple Y-axes support
-- [ ] Data aggregation options (min, max, avg)
+- [x] Data aggregation options (min, max, avg) via TimelineNode
 - [ ] Export to CSV/Excel
 - [ ] Comparison overlays
 - [ ] Annotation support
 - [ ] Alert threshold lines
 - [ ] Statistical analysis tools
+- [x] Rolling buffer with time/count windowing via TimelineNode
 
 ## Example Use Cases
 

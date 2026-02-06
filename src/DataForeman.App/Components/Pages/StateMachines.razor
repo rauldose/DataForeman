@@ -2,6 +2,7 @@
 @page "/state-machines/{StateMachineId}"
 @rendermode InteractiveServer
 @inject ConfigService ConfigService
+@inject RealtimeDataService RealtimeData
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @implements IDisposable
@@ -143,8 +144,233 @@
                                     Final State
                                 </label>
                             </div>
-                            <div class="form-group">
+                            
+                            @* ── On-Enter Actions ────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">ON ENTER ACTIONS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Tag writes executed when entering this state</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                @for (int idx = 0; idx < SelectedMachineState.OnEnterActions.Count; idx++)
+                                {
+                                    var actionIdx = idx;
+                                    var act = SelectedMachineState.OnEnterActions[actionIdx];
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="string" TValue="string" @bind-Value="act.TagPath" DataSource="@_availableTagPaths"
+                                                        Placeholder="Tag" AllowFiltering="true" PopupWidth="220px" CssClass="e-small" Width="120px"/>
+                                        <span style="color:#6b7280;">=</span>
+                                        <SfTextBox @bind-Value="act.Value" Placeholder="Value" CssClass="e-small" Width="70px"/>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnEnterActions.RemoveAt(actionIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
+                                          @onclick="() => SelectedMachineState.OnEnterActions.Add(new TagAction())"/>
+                            }
+                            
+                            @* ── On-Exit Actions ─────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">ON EXIT ACTIONS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Tag writes executed when leaving this state</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                @for (int idx = 0; idx < SelectedMachineState.OnExitActions.Count; idx++)
+                                {
+                                    var actionIdx = idx;
+                                    var act = SelectedMachineState.OnExitActions[actionIdx];
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="string" TValue="string" @bind-Value="act.TagPath" DataSource="@_availableTagPaths"
+                                                        Placeholder="Tag" AllowFiltering="true" PopupWidth="220px" CssClass="e-small" Width="120px"/>
+                                        <span style="color:#6b7280;">=</span>
+                                        <SfTextBox @bind-Value="act.Value" Placeholder="Value" CssClass="e-small" Width="70px"/>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnExitActions.RemoveAt(actionIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
+                                          @onclick="() => SelectedMachineState.OnExitActions.Add(new TagAction())"/>
+                            }
+                            
+                            @* ── State Scripts ────────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">C# SCRIPTS</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                <div class="form-group">
+                                    <label>On Enter Script</label>
+                                    <CSharpEditor Code="@(SelectedMachineState.OnEnterScript ?? "")"
+                                                  CodeChanged="@(val => SelectedMachineState.OnEnterScript = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                                  Label="On Enter"
+                                                  EditorId="@($"state-enter-{SelectedStateNode?.ID}")"
+                                                  Height="150px" />
+                                </div>
+                                <div class="form-group">
+                                    <label>On Exit Script</label>
+                                    <CSharpEditor Code="@(SelectedMachineState.OnExitScript ?? "")"
+                                                  CodeChanged="@(val => SelectedMachineState.OnExitScript = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                                  Label="On Exit"
+                                                  EditorId="@($"state-exit-{SelectedStateNode?.ID}")"
+                                                  Height="150px" />
+                                </div>
+                            }
+
+                            @* ── State Flow Triggers ─────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">FLOW TRIGGERS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Flows started on state entry or exit</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                <label style="font-size:12px; color:#d1d5db;">On Enter Flows</label>
+                                @for (int idx = 0; idx < SelectedMachineState.OnEnterFlowIds.Count; idx++)
+                                {
+                                    var flowIdx = idx;
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="FlowOption" TValue="string" Value="@SelectedMachineState.OnEnterFlowIds[flowIdx]"
+                                                        ValueChanged="@((string val) => SelectedMachineState.OnEnterFlowIds[flowIdx] = val)"
+                                                        DataSource="@_availableFlowOptions" AllowFiltering="true" PopupWidth="260px" CssClass="e-small"
+                                                        Placeholder="Select flow">
+                                            <DropDownListFieldSettings Text="Name" Value="Id"/>
+                                        </SfDropDownList>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnEnterFlowIds.RemoveAt(flowIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Flow"
+                                          @onclick="() => SelectedMachineState.OnEnterFlowIds.Add(string.Empty)"/>
+
+                                <label style="font-size:12px; color:#d1d5db; margin-top:8px; display:block;">On Exit Flows</label>
+                                @for (int idx = 0; idx < SelectedMachineState.OnExitFlowIds.Count; idx++)
+                                {
+                                    var flowIdx = idx;
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="FlowOption" TValue="string" Value="@SelectedMachineState.OnExitFlowIds[flowIdx]"
+                                                        ValueChanged="@((string val) => SelectedMachineState.OnExitFlowIds[flowIdx] = val)"
+                                                        DataSource="@_availableFlowOptions" AllowFiltering="true" PopupWidth="260px" CssClass="e-small"
+                                                        Placeholder="Select flow">
+                                            <DropDownListFieldSettings Text="Name" Value="Id"/>
+                                        </SfDropDownList>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnExitFlowIds.RemoveAt(flowIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Flow"
+                                          @onclick="() => SelectedMachineState.OnExitFlowIds.Add(string.Empty)"/>
+                            }
+
+                            <div style="margin-top:12px;">
                                 <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete State" @onclick="DeleteSelectedState"></SfButton>
+                            </div>
+                        }
+                        else if (_selectedTransition != null)
+                        {
+                            @* ── Transition Properties ────────────── *@
+                            <div class="panel-header" style="color:#4caf50;">TRANSITION</div>
+                            <div class="info-panel" style="font-size:12px; margin-bottom:8px;">
+                                <span style="color:#ef4444;">@(LookupStateName(_selectedTransition.FromStateId))</span>
+                                →
+                                <span style="color:#22c55e;">@(LookupStateName(_selectedTransition.ToStateId))</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Event Name</label>
+                                <SfTextBox @bind-Value="_selectedTransition.Event" Placeholder="e.g. start, stop, fault"></SfTextBox>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="_selectedTransition.Priority" Min="0" Max="100"></SfNumericTextBox>
+                            </div>
+                            
+                            @* ── Trigger Condition ────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">TRIGGER CONDITION</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">
+                                When this tag condition is true, the transition fires automatically
+                            </div>
+                            @if (_selectedTransition.Trigger == null)
+                            {
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Tag Trigger"
+                                          @onclick="() => _selectedTransition.Trigger = new TagTrigger()"/>
+                            }
+                            else
+                            {
+                                <div class="form-group">
+                                    <label>Tag</label>
+                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="_selectedTransition.Trigger.TagPath" DataSource="@_availableTagPaths"
+                                                    Placeholder="Select tag" AllowFiltering="true" PopupWidth="280px"/>
+                                </div>
+                                <div style="display:flex; gap:6px; align-items:flex-end;">
+                                    <div class="form-group" style="flex:1;">
+                                        <label>Operator</label>
+                                        <SfDropDownList TItem="OperatorOption" TValue="TriggerOperator" @bind-Value="_selectedTransition.Trigger.Operator"
+                                                        DataSource="@_operatorOptions">
+                                            <DropDownListFieldSettings Text="Label" Value="Op"/>
+                                        </SfDropDownList>
+                                    </div>
+                                    <div class="form-group" style="flex:1;">
+                                        <label>Threshold</label>
+                                        <SfTextBox @bind-Value="_selectedTransition.Trigger.Threshold" Placeholder="e.g. 80"/>
+                                    </div>
+                                </div>
+                                <div style="margin-top:4px;">
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" Content="Remove Trigger"
+                                              @onclick="() => _selectedTransition.Trigger = null"/>
+                                </div>
+                            }
+                            
+                            @* ── Transition Actions ───────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">TRANSITION ACTIONS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Tag writes executed when this transition fires</div>
+                            @for (int idx = 0; idx < _selectedTransition.Actions.Count; idx++)
+                            {
+                                var actionIdx = idx;
+                                var act = _selectedTransition.Actions[actionIdx];
+                                <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="act.TagPath" DataSource="@_availableTagPaths"
+                                                    Placeholder="Tag" AllowFiltering="true" PopupWidth="220px" CssClass="e-small" Width="120px"/>
+                                    <span style="color:#6b7280;">=</span>
+                                    <SfTextBox @bind-Value="act.Value" Placeholder="Value" CssClass="e-small" Width="70px"/>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                              @onclick="() => _selectedTransition.Actions.RemoveAt(actionIdx)"/>
+                                </div>
+                            }
+                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
+                                      @onclick="() => _selectedTransition.Actions.Add(new TagAction())"/>
+                            
+                            @* ── Transition Scripts ──────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">C# SCRIPTS</div>
+                            <div class="form-group">
+                                <label>Script Condition <span style="font-size:10px; color:#6b7280;">(must return bool)</span></label>
+                                <CSharpEditor Code="@(_selectedTransition.ScriptCondition ?? "")"
+                                              CodeChanged="@(val => _selectedTransition.ScriptCondition = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                              Label="Condition"
+                                              EditorId="@($"trans-cond-{_selectedTransition.Id}")"
+                                              Height="150px" />
+                            </div>
+                            <div class="form-group">
+                                <label>Script Action</label>
+                                <CSharpEditor Code="@(_selectedTransition.ScriptAction ?? "")"
+                                              CodeChanged="@(val => _selectedTransition.ScriptAction = string.IsNullOrWhiteSpace(val) ? null : val)"
+                                              Label="Action"
+                                              EditorId="@($"trans-action-{_selectedTransition.Id}")"
+                                              Height="150px" />
+                            </div>
+
+                            @* ── Transition Flow Triggers ──────── *@
+                            <div class="panel-header" style="margin-top:12px;">FLOW TRIGGERS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Flows started when this transition fires</div>
+                            @for (int idx = 0; idx < _selectedTransition.FlowIds.Count; idx++)
+                            {
+                                var flowIdx = idx;
+                                <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                    <SfDropDownList TItem="FlowOption" TValue="string" Value="@_selectedTransition.FlowIds[flowIdx]"
+                                                    ValueChanged="@((string val) => _selectedTransition.FlowIds[flowIdx] = val)"
+                                                    DataSource="@_availableFlowOptions" AllowFiltering="true" PopupWidth="260px" CssClass="e-small"
+                                                    Placeholder="Select flow">
+                                        <DropDownListFieldSettings Text="Name" Value="Id"/>
+                                    </SfDropDownList>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                              @onclick="() => _selectedTransition.FlowIds.RemoveAt(flowIdx)"/>
+                                </div>
+                            }
+                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Flow"
+                                      @onclick="() => _selectedTransition.FlowIds.Add(string.Empty)"/>
+
+                            <div style="margin-top:12px;">
+                                <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete Transition" @onclick="DeleteSelectedTransition"/>
                             </div>
                         }
                         else
@@ -157,6 +383,41 @@
                                 <p><strong>States:</strong> @CurrentStateMachine.States.Count</p>
                                 <p><strong>Transitions:</strong> @CurrentStateMachine.Transitions.Count</p>
                             </div>
+                            @if (CurrentStateMachine.Enabled && _liveInfo != null)
+                            {
+                                <div class="panel-header" style="margin-top:12px;">RUNTIME STATUS</div>
+                                <div class="info-panel" style="border:1px solid #333; border-radius:6px; padding:8px; background:#1a1a1a;">
+                                    <p><strong>Current State:</strong> <span style="color:#22c55e;">@(_liveInfo.NowStateName ?? "—")</span></p>
+                                    <p><strong>Previous State:</strong> @(_liveInfo.BeforeStateName ?? "—")</p>
+                                    <p><strong>Last Event:</strong> @(_liveInfo.LastTrigger ?? "—")</p>
+                                    <p><strong>Last Changed:</strong> @_liveInfo.ChangedAtUtc.ToString("HH:mm:ss")</p>
+                                    @if (_liveInfo.Audit.Any())
+                                    {
+                                        <div style="margin-top:8px;">
+                                            <strong>Recent Transitions:</strong>
+                                            <div style="max-height:120px; overflow-y:auto; margin-top:4px;">
+                                                @foreach (var entry in _liveInfo.Audit.AsEnumerable().Reverse().Take(10))
+                                                {
+                                                    <div style="font-size:11px; color:#9ca3af; padding:2px 0; border-bottom:1px solid #222;">
+                                                        <span style="color:#6b7280;">@entry.When.ToString("HH:mm:ss")</span>
+                                                        <span style="color:#ef4444;">@entry.SrcName</span>
+                                                        →
+                                                        <span style="color:#22c55e;">@entry.DstName</span>
+                                                        <span style="color:#6b7280;">[@entry.Trigger]</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else if (CurrentStateMachine.Enabled)
+                            {
+                                <div class="panel-header" style="margin-top:12px;">RUNTIME STATUS</div>
+                                <div class="info-panel" style="color:#6b7280;">
+                                    <p>Waiting for engine connection…</p>
+                                </div>
+                            }
                         }
                     </div>
                 </div>
@@ -165,7 +426,7 @@
     }
 </div>
 
-<SfDialog @ref="_deleteDialog" Width="400px" IsModal="true" ShowCloseIcon="true">
+<SfDialog @ref="_deleteDialog" @bind-Visible="_deleteDialogVisible" Width="400px" IsModal="true" ShowCloseIcon="true">
     <DialogTemplates>
         <Header>Confirm Delete</Header>
         <Content>
@@ -186,6 +447,7 @@
     private StateMachineConfig CurrentStateMachine { get; set; } = new();
     private List<StateMachineDisplay> StateMachinesList { get; set; } = new();
     private SfDialog? _deleteDialog;
+    private bool _deleteDialogVisible = false;
     private string? _deletingStateMachineId;
     private string? _deletingStateMachineName;
     
@@ -200,25 +462,95 @@
     private bool SelectedStateIsInitial = false;
     private bool SelectedStateIsFinal = false;
     
+    // Transition selection
+    private StateTransition? _selectedTransition;
+    private Connector? _selectedConnector;
+    
     // Palette state
     private StateType? _draggingStateType;
     
+    // Available tag paths for dropdowns
+    private List<string> _availableTagPaths = new();
+    
+    // Available flows for trigger dropdowns
+    private List<FlowOption> _availableFlowOptions = new();
+    
+    // Operator options for trigger dropdown
+    private static readonly List<OperatorOption> _operatorOptions = new()
+    {
+        new() { Op = TriggerOperator.Eq,  Label = "== (Equal)" },
+        new() { Op = TriggerOperator.Neq, Label = "!= (Not Equal)" },
+        new() { Op = TriggerOperator.Gt,  Label = "> (Greater)" },
+        new() { Op = TriggerOperator.Gte, Label = ">= (Greater or Equal)" },
+        new() { Op = TriggerOperator.Lt,  Label = "< (Less)" },
+        new() { Op = TriggerOperator.Lte, Label = "<= (Less or Equal)" }
+    };
+    
+    // Runtime info from engine (populated when the MQTT service delivers
+    // MachineRuntimeInfo messages; stays null when engine is offline)
+    private MachineRuntimeInfo? _liveInfo;
+    
     // State to diagram node mapping
     private Dictionary<string, string> _stateToNodeMap = new();
+    
+    // The MachineState object for the currently selected node
+    private MachineState? SelectedMachineState =>
+        SelectedStateNode != null
+            ? CurrentStateMachine.States.FirstOrDefault(s => s.Id == SelectedStateNode.ID)
+            : null;
+
+    private string? _lastLoadedMachineId;
+    private bool _diagramNeedsReload;
 
     protected override void OnInitialized()
     {
         LoadStateMachines();
+        
+        // Build available tag paths for trigger/action dropdowns
+        _availableTagPaths = ConfigService.GetAllTagsWithConnection()
+            .Select(ct => $"{ct.Connection.Name}/{ct.Tag.Name}")
+            .OrderBy(p => p)
+            .ToList();
+        
+        // Build available flows for flow trigger dropdowns
+        _availableFlowOptions = ConfigService.Flows
+            .Select(f => new FlowOption { Id = f.Id, Name = f.Name })
+            .OrderBy(f => f.Name)
+            .ToList();
+        
+        // Subscribe to state machine runtime updates from the Engine via MQTT
+        RealtimeData.OnStateMachineStateChanged += HandleMachineStateUpdate;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (StateMachineId == _lastLoadedMachineId)
+            return;
+
+        _lastLoadedMachineId = StateMachineId;
+
+        // Clear selection state from previous machine
+        SelectedStateNode = null;
+        _selectedTransition = null;
+        _selectedConnector = null;
+
         if (!string.IsNullOrEmpty(StateMachineId))
         {
             LoadStateMachine(StateMachineId);
+            _diagramNeedsReload = true;
+        }
+        else
+        {
+            _diagramNeedsReload = false;
+            LoadStateMachines();
         }
     }
-    
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && !string.IsNullOrEmpty(StateMachineId))
+        if (_diagramNeedsReload && !string.IsNullOrEmpty(StateMachineId))
         {
+            _diagramNeedsReload = false;
             await LoadStatesIntoDiagram();
         }
     }
@@ -246,6 +578,8 @@
             StateNodes = new DiagramObjectCollection<Node>();
             StateConnectors = new DiagramObjectCollection<Connector>();
             _stateToNodeMap.Clear();
+            // Grab cached runtime state from the MQTT-synced store
+            _liveInfo = RealtimeData.GetMachineState(id);
         }
         else
         {
@@ -316,7 +650,9 @@
         }
         
         LoadStateMachines();
-        StateHasChanged();
+
+        if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+            await layout.ShowToastAsync("State machine saved", "e-toast-success", "Saved");
     }
     
     private void SyncDiagramToConfig()
@@ -332,23 +668,45 @@
             }
         }
         
-        // Update transitions from connectors
-        CurrentStateMachine.Transitions.Clear();
+        // Reconcile transitions: keep existing ones (with their triggers/actions)
+        // and add new ones from diagram connectors
+        var existingIds = new HashSet<string>(CurrentStateMachine.Transitions.Select(t => t.Id));
+        var connectorIds = new HashSet<string>();
+        
         foreach (var connector in StateConnectors)
         {
-            if (!string.IsNullOrEmpty(connector.SourceID) && !string.IsNullOrEmpty(connector.TargetID))
+            if (string.IsNullOrEmpty(connector.SourceID) || string.IsNullOrEmpty(connector.TargetID))
+                continue;
+                
+            var connId = connector.ID ?? Guid.NewGuid().ToString();
+            connectorIds.Add(connId);
+            
+            if (!existingIds.Contains(connId))
             {
-                var transition = new StateTransition
+                // New connector drawn by user — add transition
+                CurrentStateMachine.Transitions.Add(new StateTransition
                 {
-                    Id = connector.ID ?? Guid.NewGuid().ToString(),
+                    Id = connId,
                     FromStateId = connector.SourceID,
                     ToStateId = connector.TargetID,
                     Event = "transition",
                     Priority = 0
-                };
-                CurrentStateMachine.Transitions.Add(transition);
+                });
+            }
+            else
+            {
+                // Existing transition — update source/target in case they changed
+                var existing = CurrentStateMachine.Transitions.FirstOrDefault(t => t.Id == connId);
+                if (existing != null)
+                {
+                    existing.FromStateId = connector.SourceID;
+                    existing.ToStateId = connector.TargetID;
+                }
             }
         }
+        
+        // Remove transitions whose connector was deleted
+        CurrentStateMachine.Transitions.RemoveAll(t => !connectorIds.Contains(t.Id));
     }
 
     // Diagram event handlers
@@ -573,22 +931,38 @@
     
     private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
     {
-        if (args.NewValue?.Count > 0 && args.NewValue[0] is Node node)
+        // Reset both selections
+        SelectedStateNode = null;
+        _selectedTransition = null;
+        _selectedConnector = null;
+        
+        if (args.NewValue?.Count > 0)
         {
-            SelectedStateNode = node;
-            var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == node.ID);
-            if (state != null)
+            if (args.NewValue[0] is Node node)
             {
-                SelectedStateName = state.Name;
-                SelectedStateDescription = state.Description ?? "";
-                SelectedStateColor = state.Color;
-                SelectedStateIsInitial = state.IsInitial;
-                SelectedStateIsFinal = state.IsFinal;
+                SelectedStateNode = node;
+                var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == node.ID);
+                if (state != null)
+                {
+                    SelectedStateName = state.Name;
+                    SelectedStateDescription = state.Description ?? "";
+                    SelectedStateColor = state.Color;
+                    SelectedStateIsInitial = state.IsInitial;
+                    SelectedStateIsFinal = state.IsFinal;
+                }
+            }
+            else if (args.NewValue[0] is Connector connector)
+            {
+                _selectedConnector = connector;
+                // Find existing transition or create a temporary reference
+                _selectedTransition = CurrentStateMachine.Transitions
+                    .FirstOrDefault(t => t.Id == connector.ID)
+                    ?? CurrentStateMachine.Transitions
+                        .FirstOrDefault(t => t.FromStateId == connector.SourceID && t.ToStateId == connector.TargetID);
             }
         }
         else
         {
-            SelectedStateNode = null;
             SelectedStateName = "";
             SelectedStateDescription = "";
         }
@@ -675,7 +1049,7 @@
         {
             _deletingStateMachineId = id;
             _deletingStateMachineName = stateMachine.Name;
-            _deleteDialog?.ShowAsync();
+            _deleteDialogVisible = true;
         }
     }
 
@@ -685,21 +1059,47 @@
         {
             await ConfigService.DeleteStateMachineAsync(_deletingStateMachineId);
             LoadStateMachines();
-            await _deleteDialog!.HideAsync();
+            _deleteDialogVisible = false;
             _deletingStateMachineId = null;
             _deletingStateMachineName = null;
         }
     }
 
-    private async Task CancelDelete()
+    private Task CancelDelete()
     {
-        await _deleteDialog!.HideAsync();
+        _deleteDialogVisible = false;
         _deletingStateMachineId = null;
         _deletingStateMachineName = null;
+        return Task.CompletedTask;
     }
+
+    private void HandleMachineStateUpdate(MachineRuntimeInfo info)
+    {
+        // Only refresh if we're viewing this specific machine
+        if (info.ConfigId == CurrentStateMachine?.Id)
+        {
+            _liveInfo = info;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    private async Task DeleteSelectedTransition()
+    {
+        if (_selectedConnector == null || _selectedTransition == null) return;
+        
+        StateConnectors.Remove(_selectedConnector);
+        CurrentStateMachine.Transitions.Remove(_selectedTransition);
+        _selectedConnector = null;
+        _selectedTransition = null;
+        StateHasChanged();
+    }
+    
+    private string LookupStateName(string stateId)
+        => CurrentStateMachine.States.FirstOrDefault(s => s.Id == stateId)?.Name ?? stateId;
 
     public void Dispose()
     {
+        RealtimeData.OnStateMachineStateChanged -= HandleMachineStateUpdate;
     }
 
     private enum StateType
@@ -716,5 +1116,17 @@
         public string Description { get; set; } = string.Empty;
         public int StateCount { get; set; }
         public bool Enabled { get; set; }
+    }
+    
+    private class OperatorOption
+    {
+        public TriggerOperator Op { get; set; }
+        public string Label { get; set; } = string.Empty;
+    }
+
+    private class FlowOption
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
     }
 }

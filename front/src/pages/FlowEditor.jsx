@@ -56,6 +56,7 @@ import {
   Memory as ResourceIcon,
   Download as DownloadIcon,
   Stop as StopIcon,
+  ShowChart as SignalIcon,
 } from '@mui/icons-material';
 import { getFlow, updateFlow, deployFlow, executeFlow, testExecuteNode, executeFromNode, fireTrigger, calculateExecutionOrder, updateFlowParameters, executeNodeAction } from '../services/flowsApi';
 import { getBackendMetadata, fetchBackendNodeMetadata } from '../constants/nodeTypes';
@@ -65,6 +66,7 @@ import NodeDetailsPanel from '../components/FlowEditor/NodeDetailsPanel';
 import FlowSettingsDialog from '../components/FlowEditor/FlowSettingsDialog';
 import ExecutionHistoryDialog from '../components/FlowEditor/ExecutionHistoryDialog';
 import LogPanel from '../components/FlowEditor/LogPanel';
+import SignalTimelinePanel from '../components/FlowEditor/SignalTimelinePanel';
 import FlowResourceMonitor from '../components/FlowEditor/FlowResourceMonitor';
 import ExportFlowButton from '../components/flowStudio/ExportFlowButton';
 import { useFlowLiveData } from '../hooks/useFlowLiveData';
@@ -100,6 +102,8 @@ const FlowEditor = () => {
   const [testModeTimeRemaining, setTestModeTimeRemaining] = useState(null); // Seconds remaining in test mode
   const [logPanelOpen, setLogPanelOpen] = useState(false); // Log panel visibility
   const [logPanelPosition, setLogPanelPosition] = useState('right'); // 'bottom' or 'right'
+  const [signalPanelOpen, setSignalPanelOpen] = useState(false); // Signal timeline panel visibility
+  const [signalPanelPosition, setSignalPanelPosition] = useState('right'); // 'bottom' or 'right'
   const [currentExecutionId, setCurrentExecutionId] = useState(null); // Current execution for logs
   const [executionOrder, setExecutionOrder] = useState(null); // { nodeId: orderNumber } map
   const [showExecutionOrder, setShowExecutionOrder] = useState(false); // Toggle execution order display
@@ -121,10 +125,10 @@ const FlowEditor = () => {
     return buildNodeTypes(allNodeTypes);
   }, []); // Empty deps because metadata is loaded once by App.jsx before this component mounts
 
-  // Fetch live cached tag values when showLiveValues is enabled
+  // Fetch live cached tag values when showLiveValues is enabled or signal panel is open
   // Use scan rate if configured, otherwise default to 1000ms
   const liveUpdateInterval = (flow?.live_values_use_scan_rate && flow?.scan_rate_ms) ? flow.scan_rate_ms : 1000;
-  const liveData = useFlowLiveData(id, showLiveValues, liveUpdateInterval);
+  const liveData = useFlowLiveData(id, showLiveValues || signalPanelOpen, liveUpdateInterval);
   
   // Fetch flow resource usage when deployed or in test mode
   const { data: resourceData, loading: resourceLoading, refetch: refetchResources } = useFlowResources(
@@ -422,6 +426,12 @@ const FlowEditor = () => {
   const handleLogPanelPositionChange = (newPosition) => {
     setLogPanelPosition(newPosition);
     localStorage.setItem('flowLogPanelPosition', newPosition);
+  };
+
+  // Save signal panel position to localStorage
+  const handleSignalPanelPositionChange = (newPosition) => {
+    setSignalPanelPosition(newPosition);
+    localStorage.setItem('flowSignalPanelPosition', newPosition);
   };
 
   // Highlight node in canvas (from log click)
@@ -1576,6 +1586,18 @@ const FlowEditor = () => {
                   Logs
                 </Button>
               </Tooltip>
+              <Tooltip title={`${signalPanelOpen ? 'Hide' : 'Show'} Signal Timeline`}>
+                <Button
+                  size="small"
+                  variant={signalPanelOpen ? 'contained' : 'outlined'}
+                  color={signalPanelOpen ? 'primary' : 'inherit'}
+                  onClick={() => setSignalPanelOpen(!signalPanelOpen)}
+                  startIcon={<SignalIcon />}
+                  sx={{ minWidth: 100 }}
+                >
+                  Signals
+                </Button>
+              </Tooltip>
               {flow.execution_mode === 'manual' && (
                 <Tooltip title="Execution History">
                   <Button
@@ -1637,7 +1659,7 @@ const FlowEditor = () => {
       {/* Main content */}
       <Box sx={{ 
         display: 'flex', 
-        flexDirection: logPanelOpen && logPanelPosition === 'right' ? 'row' : 'column',
+        flexDirection: (logPanelOpen && logPanelPosition === 'right') || (signalPanelOpen && signalPanelPosition === 'right') ? 'row' : 'column',
         flex: 1,
         overflow: 'hidden', 
         minHeight: 0,
@@ -1717,6 +1739,17 @@ const FlowEditor = () => {
             onNodeHighlight={highlightNode}
           />
         )}
+
+        {/* Signal Timeline Panel - Right Position */}
+        {signalPanelOpen && signalPanelPosition === 'right' && (
+          <SignalTimelinePanel
+            flowId={id}
+            liveData={liveData}
+            position="right"
+            onPositionChange={handleSignalPanelPositionChange}
+            onClose={() => setSignalPanelOpen(false)}
+          />
+        )}
       </Box>
       
       {/* Log Panel - Bottom Position */}
@@ -1728,6 +1761,17 @@ const FlowEditor = () => {
           onClose={() => setLogPanelOpen(false)}
           currentExecutionId={currentExecutionId}
           onNodeHighlight={highlightNode}
+        />
+      )}
+
+      {/* Signal Timeline Panel - Bottom Position */}
+      {signalPanelOpen && signalPanelPosition === 'bottom' && (
+        <SignalTimelinePanel
+          flowId={id}
+          liveData={liveData}
+          position="bottom"
+          onPositionChange={handleSignalPanelPositionChange}
+          onClose={() => setSignalPanelOpen(false)}
         />
       )}
 
