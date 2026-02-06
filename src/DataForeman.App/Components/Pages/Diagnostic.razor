@@ -312,7 +312,7 @@
                 Name = sm.Name,
                 CurrentState = info?.NowStateId ?? "—",
                 Transitions = info?.Audit?.Count ?? 0,
-                LastTransition = info?.Audit?.LastOrDefault()?.When.ToLocalTime().ToString("HH:mm:ss") ?? "—"
+                LastTransition = info?.Audit?.LastOrDefault()?.When.ToLocalTime().ToString("g") ?? "—"
             };
         }).ToList();
 
@@ -327,7 +327,7 @@
                 Outcome = r.Outcome,
                 Nodes = r.NodesExecuted,
                 Duration = $"{r.DurationMs:F1} ms",
-                StartedAt = r.StartedUtc.ToLocalTime().ToString("HH:mm:ss"),
+                StartedAt = r.StartedUtc.ToLocalTime().ToString("g"),
                 Error = r.ErrorDetail ?? ""
             }).ToList();
     }
