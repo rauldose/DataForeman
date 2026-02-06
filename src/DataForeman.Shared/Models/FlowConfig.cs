@@ -59,7 +59,7 @@ public class FlowConfig
             JsonElement je => je.GetRawText(),
             string s => JsonSerializer.Serialize(s),
             bool b => b ? "true" : "false",
-            _ => v.ToString() ?? "null"
+            _ => JsonSerializer.Serialize(v)
         };
 
         var canonical = new

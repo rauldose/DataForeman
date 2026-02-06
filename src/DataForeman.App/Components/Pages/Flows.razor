@@ -621,7 +621,7 @@
             if (FlowId != "new" && summary.FlowId == FlowId)
             {
                 var level = summary.Outcome == "Success" ? "info" : "error";
-                var msg = $"Execution {summary.Outcome}: {summary.NodesExecuted} nodes, {summary.DurationMs:F0}ms";
+                var msg = $"{summary.Outcome}: {summary.NodesExecuted} nodes, {summary.DurationMs:F0}ms";
                 if (!string.IsNullOrEmpty(summary.ErrorDetail))
                     msg += $" — {summary.ErrorDetail}";
                 AddConsoleMessage(level, summary.TriggerTopic ?? "Engine", msg);

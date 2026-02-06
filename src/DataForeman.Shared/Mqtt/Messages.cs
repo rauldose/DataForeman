@@ -124,6 +124,9 @@ public class FlowDeploymentStatusMessage
 /// </summary>
 public static class MqttTopics
 {
+    /// <summary>Common prefix for all internal DataForeman topics.</summary>
+    public const string InternalPrefix = "dataforeman/";
+
     // Tag value topics
     public const string TagValuePattern = "dataforeman/tags/{connectionId}/{tagId}";
     public const string BulkTagValuePattern = "dataforeman/tags/{connectionId}/bulk";

@@ -141,7 +141,7 @@ public class MqttFlowTriggerService : IAsyncDisposable
         try
         {
             // Skip internal DataForeman topics — only user-defined flow topics should trigger execution
-            if (topic.StartsWith("dataforeman/"))
+            if (topic.StartsWith(DataForeman.Shared.Mqtt.MqttTopics.InternalPrefix))
                 return;
 
             _logger.LogDebug("HandleMqttMessage called with topic '{Topic}'", topic);
