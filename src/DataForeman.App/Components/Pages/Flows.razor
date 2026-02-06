@@ -581,12 +581,12 @@
                 var msgText = message.Message;
                 if (message.InputData?.Any() == true)
                 {
-                    var inputStr = string.Join(", ", message.InputData.Select(kv => $"{kv.Key}={kv.Value}"));
+                    var inputStr = string.Join(", ", message.InputData.Select(kv => $"{kv.Key}={FormatSingleValue(kv.Value)}"));
                     msgText += $" | Input: {inputStr}";
                 }
                 if (message.OutputData?.Any() == true)
                 {
-                    var outputStr = string.Join(", ", message.OutputData.Select(kv => $"{kv.Key}={kv.Value}"));
+                    var outputStr = string.Join(", ", message.OutputData.Select(kv => $"{kv.Key}={FormatSingleValue(kv.Value)}"));
                     msgText += $" | Output: {outputStr}";
                 }
 
@@ -1523,9 +1523,25 @@
     private static string FormatSingleValue(object val)
     {
         if (val is double d) return d.ToString(d == Math.Floor(d) ? "F0" : "F2");
-        var s = val?.ToString() ?? "";
-        return s.Length > 20 ? s[..17] + "…" : s;
+        // Dictionary<string, object> values arrive as JsonElement after JSON round-trip
+        if (val is System.Text.Json.JsonElement je)
+        {
+            return je.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Number => je.TryGetDouble(out var jd)
+                    ? jd.ToString(jd == Math.Floor(jd) ? "F0" : "F2")
+                    : je.ToString(),
+                System.Text.Json.JsonValueKind.True => "True",
+                System.Text.Json.JsonValueKind.False => "False",
+                System.Text.Json.JsonValueKind.String => TruncateString(je.GetString() ?? ""),
+                _ => TruncateString(je.ToString())
+            };
+        }
+        return TruncateString(val?.ToString() ?? "");
     }
+
+    private static string TruncateString(string s)
+        => s.Length > 20 ? s[..17] + "…" : s;
 
     /// <summary>
     /// Updates annotations on every in/out port of a node with live values.
