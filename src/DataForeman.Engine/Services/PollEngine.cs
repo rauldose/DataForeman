@@ -157,6 +157,23 @@ public class PollEngine : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Writes a value to a tag on the specified connection.
+    /// Used by state machine actions to set tag values on external devices.
+    /// </summary>
+    public async Task WriteTagAsync(string connectionId, TagConfig tag, object value)
+    {
+        if (_pollers.TryGetValue(connectionId, out var poller))
+        {
+            await poller.WriteTagAsync(tag, value);
+        }
+        else
+        {
+            _logger.LogWarning("Cannot write tag {TagName}: connection {ConnectionId} not active",
+                tag.Name, connectionId);
+        }
+    }
+
     private IDriver? CreateDriver(string driverType)
     {
         return driverType.ToLowerInvariant() switch
@@ -397,5 +414,19 @@ internal class ConnectionPoller : IAsyncDisposable
     {
         await StopAsync();
         await _driver.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Writes a value to a tag via the underlying driver.
+    /// </summary>
+    public async Task WriteTagAsync(TagConfig tag, object value)
+    {
+        if (!_driver.IsConnected)
+        {
+            _logger.LogWarning("Cannot write tag {TagName}: driver for {Connection} is not connected",
+                tag.Name, _connection.Name);
+            return;
+        }
+        await _driver.WriteTagAsync(tag, value);
     }
 }

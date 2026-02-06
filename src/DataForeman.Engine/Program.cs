@@ -12,6 +12,9 @@ builder.Services.AddSingleton<FlowExecutionService>();
 builder.Services.AddSingleton<HistoryStore>();
 builder.Services.AddSingleton<PollEngine>();
 builder.Services.AddSingleton<ConfigWatcher>();
+builder.Services.AddSingleton<PollEngineTagAdapter>();
+builder.Services.AddSingleton<IStateMachineTagReader>(sp => sp.GetRequiredService<PollEngineTagAdapter>());
+builder.Services.AddSingleton<IStateMachineTagWriter>(sp => sp.GetRequiredService<PollEngineTagAdapter>());
 builder.Services.AddSingleton<StateMachineExecutionService>();
 builder.Services.AddSingleton<EngineHealthMonitor>();
 

@@ -144,8 +144,130 @@
                                     Final State
                                 </label>
                             </div>
-                            <div class="form-group">
+                            
+                            @* ── On-Enter Actions ────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">ON ENTER ACTIONS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Tag writes executed when entering this state</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                @for (int idx = 0; idx < SelectedMachineState.OnEnterActions.Count; idx++)
+                                {
+                                    var actionIdx = idx;
+                                    var act = SelectedMachineState.OnEnterActions[actionIdx];
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="string" TValue="string" @bind-Value="act.TagPath" DataSource="@_availableTagPaths"
+                                                        Placeholder="Tag" AllowFiltering="true" PopupWidth="220px" CssClass="e-small" Width="120px"/>
+                                        <span style="color:#6b7280;">=</span>
+                                        <SfTextBox @bind-Value="act.Value" Placeholder="Value" CssClass="e-small" Width="70px"/>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnEnterActions.RemoveAt(actionIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
+                                          @onclick="() => SelectedMachineState.OnEnterActions.Add(new TagAction())"/>
+                            }
+                            
+                            @* ── On-Exit Actions ─────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">ON EXIT ACTIONS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Tag writes executed when leaving this state</div>
+                            @if (SelectedMachineState != null)
+                            {
+                                @for (int idx = 0; idx < SelectedMachineState.OnExitActions.Count; idx++)
+                                {
+                                    var actionIdx = idx;
+                                    var act = SelectedMachineState.OnExitActions[actionIdx];
+                                    <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                        <SfDropDownList TItem="string" TValue="string" @bind-Value="act.TagPath" DataSource="@_availableTagPaths"
+                                                        Placeholder="Tag" AllowFiltering="true" PopupWidth="220px" CssClass="e-small" Width="120px"/>
+                                        <span style="color:#6b7280;">=</span>
+                                        <SfTextBox @bind-Value="act.Value" Placeholder="Value" CssClass="e-small" Width="70px"/>
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                                  @onclick="() => SelectedMachineState.OnExitActions.RemoveAt(actionIdx)"/>
+                                    </div>
+                                }
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
+                                          @onclick="() => SelectedMachineState.OnExitActions.Add(new TagAction())"/>
+                            }
+                            
+                            <div style="margin-top:12px;">
                                 <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete State" @onclick="DeleteSelectedState"></SfButton>
+                            </div>
+                        }
+                        else if (_selectedTransition != null)
+                        {
+                            @* ── Transition Properties ────────────── *@
+                            <div class="panel-header" style="color:#4caf50;">TRANSITION</div>
+                            <div class="info-panel" style="font-size:12px; margin-bottom:8px;">
+                                <span style="color:#ef4444;">@(LookupStateName(_selectedTransition.FromStateId))</span>
+                                →
+                                <span style="color:#22c55e;">@(LookupStateName(_selectedTransition.ToStateId))</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Event Name</label>
+                                <SfTextBox @bind-Value="_selectedTransition.Event" Placeholder="e.g. start, stop, fault"></SfTextBox>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority</label>
+                                <SfNumericTextBox TValue="int" @bind-Value="_selectedTransition.Priority" Min="0" Max="100"></SfNumericTextBox>
+                            </div>
+                            
+                            @* ── Trigger Condition ────────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">TRIGGER CONDITION</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">
+                                When this tag condition is true, the transition fires automatically
+                            </div>
+                            @if (_selectedTransition.Trigger == null)
+                            {
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Tag Trigger"
+                                          @onclick="() => _selectedTransition.Trigger = new TagTrigger()"/>
+                            }
+                            else
+                            {
+                                <div class="form-group">
+                                    <label>Tag</label>
+                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="_selectedTransition.Trigger.TagPath" DataSource="@_availableTagPaths"
+                                                    Placeholder="Select tag" AllowFiltering="true" PopupWidth="280px"/>
+                                </div>
+                                <div style="display:flex; gap:6px; align-items:flex-end;">
+                                    <div class="form-group" style="flex:1;">
+                                        <label>Operator</label>
+                                        <SfDropDownList TItem="OperatorOption" TValue="TriggerOperator" @bind-Value="_selectedTransition.Trigger.Operator"
+                                                        DataSource="@_operatorOptions">
+                                            <DropDownListFieldSettings Text="Label" Value="Op"/>
+                                        </SfDropDownList>
+                                    </div>
+                                    <div class="form-group" style="flex:1;">
+                                        <label>Threshold</label>
+                                        <SfTextBox @bind-Value="_selectedTransition.Trigger.Threshold" Placeholder="e.g. 80"/>
+                                    </div>
+                                </div>
+                                <div style="margin-top:4px;">
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" Content="Remove Trigger"
+                                              @onclick="() => _selectedTransition.Trigger = null"/>
+                                </div>
+                            }
+                            
+                            @* ── Transition Actions ───────────────── *@
+                            <div class="panel-header" style="margin-top:12px;">TRANSITION ACTIONS</div>
+                            <div class="info-panel" style="font-size:11px; color:#9ca3af; margin-bottom:4px;">Tag writes executed when this transition fires</div>
+                            @for (int idx = 0; idx < _selectedTransition.Actions.Count; idx++)
+                            {
+                                var actionIdx = idx;
+                                var act = _selectedTransition.Actions[actionIdx];
+                                <div style="display:flex; gap:4px; margin-bottom:4px; align-items:center;">
+                                    <SfDropDownList TItem="string" TValue="string" @bind-Value="act.TagPath" DataSource="@_availableTagPaths"
+                                                    Placeholder="Tag" AllowFiltering="true" PopupWidth="220px" CssClass="e-small" Width="120px"/>
+                                    <span style="color:#6b7280;">=</span>
+                                    <SfTextBox @bind-Value="act.Value" Placeholder="Value" CssClass="e-small" Width="70px"/>
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-xmark"
+                                              @onclick="() => _selectedTransition.Actions.RemoveAt(actionIdx)"/>
+                                </div>
+                            }
+                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-plus" Content="Add Action"
+                                      @onclick="() => _selectedTransition.Actions.Add(new TagAction())"/>
+                            
+                            <div style="margin-top:12px;">
+                                <SfButton CssClass="e-danger" IconCss="fa-solid fa-trash" Content="Delete Transition" @onclick="DeleteSelectedTransition"/>
                             </div>
                         }
                         else
@@ -236,8 +358,26 @@
     private bool SelectedStateIsInitial = false;
     private bool SelectedStateIsFinal = false;
     
+    // Transition selection
+    private StateTransition? _selectedTransition;
+    private Connector? _selectedConnector;
+    
     // Palette state
     private StateType? _draggingStateType;
+    
+    // Available tag paths for dropdowns
+    private List<string> _availableTagPaths = new();
+    
+    // Operator options for trigger dropdown
+    private static readonly List<OperatorOption> _operatorOptions = new()
+    {
+        new() { Op = TriggerOperator.Eq,  Label = "== (Equal)" },
+        new() { Op = TriggerOperator.Neq, Label = "!= (Not Equal)" },
+        new() { Op = TriggerOperator.Gt,  Label = "> (Greater)" },
+        new() { Op = TriggerOperator.Gte, Label = ">= (Greater or Equal)" },
+        new() { Op = TriggerOperator.Lt,  Label = "< (Less)" },
+        new() { Op = TriggerOperator.Lte, Label = "<= (Less or Equal)" }
+    };
     
     // Runtime info from engine (populated when the MQTT service delivers
     // MachineRuntimeInfo messages; stays null when engine is offline)
@@ -245,6 +385,12 @@
     
     // State to diagram node mapping
     private Dictionary<string, string> _stateToNodeMap = new();
+    
+    // The MachineState object for the currently selected node
+    private MachineState? SelectedMachineState =>
+        SelectedStateNode != null
+            ? CurrentStateMachine.States.FirstOrDefault(s => s.Id == SelectedStateNode.ID)
+            : null;
 
     protected override void OnInitialized()
     {
@@ -253,6 +399,12 @@
         {
             LoadStateMachine(StateMachineId);
         }
+        
+        // Build available tag paths for trigger/action dropdowns
+        _availableTagPaths = ConfigService.GetAllTagsWithConnection()
+            .Select(ct => $"{ct.Connection.Name}/{ct.Tag.Name}")
+            .OrderBy(p => p)
+            .ToList();
         
         // Subscribe to state machine runtime updates from the Engine via MQTT
         RealtimeData.OnStateMachineStateChanged += HandleMachineStateUpdate;
@@ -379,23 +531,42 @@
             }
         }
         
-        // Update transitions from connectors
-        CurrentStateMachine.Transitions.Clear();
+        // Reconcile transitions: keep existing ones (with their triggers/actions)
+        // and add new ones from diagram connectors
+        var existingIds = new HashSet<string>(CurrentStateMachine.Transitions.Select(t => t.Id));
+        var connectorIds = new HashSet<string>();
+        
         foreach (var connector in StateConnectors)
         {
-            if (!string.IsNullOrEmpty(connector.SourceID) && !string.IsNullOrEmpty(connector.TargetID))
+            if (string.IsNullOrEmpty(connector.SourceID) || string.IsNullOrEmpty(connector.TargetID))
+                continue;
+                
+            var connId = connector.ID ?? Guid.NewGuid().ToString();
+            connectorIds.Add(connId);
+            
+            if (!existingIds.Contains(connId))
             {
-                var transition = new StateTransition
+                // New connector drawn by user — add transition
+                CurrentStateMachine.Transitions.Add(new StateTransition
                 {
-                    Id = connector.ID ?? Guid.NewGuid().ToString(),
+                    Id = connId,
                     FromStateId = connector.SourceID,
                     ToStateId = connector.TargetID,
                     Event = "transition",
                     Priority = 0
-                };
-                CurrentStateMachine.Transitions.Add(transition);
+                });
+            }
+            else
+            {
+                // Existing transition — update source/target in case they changed
+                var existing = CurrentStateMachine.Transitions.First(t => t.Id == connId);
+                existing.FromStateId = connector.SourceID;
+                existing.ToStateId = connector.TargetID;
             }
         }
+        
+        // Remove transitions whose connector was deleted
+        CurrentStateMachine.Transitions.RemoveAll(t => !connectorIds.Contains(t.Id));
     }
 
     // Diagram event handlers
@@ -620,22 +791,38 @@
     
     private void OnSelectionChanged(Syncfusion.Blazor.Diagram.SelectionChangedEventArgs args)
     {
-        if (args.NewValue?.Count > 0 && args.NewValue[0] is Node node)
+        // Reset both selections
+        SelectedStateNode = null;
+        _selectedTransition = null;
+        _selectedConnector = null;
+        
+        if (args.NewValue?.Count > 0)
         {
-            SelectedStateNode = node;
-            var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == node.ID);
-            if (state != null)
+            if (args.NewValue[0] is Node node)
             {
-                SelectedStateName = state.Name;
-                SelectedStateDescription = state.Description ?? "";
-                SelectedStateColor = state.Color;
-                SelectedStateIsInitial = state.IsInitial;
-                SelectedStateIsFinal = state.IsFinal;
+                SelectedStateNode = node;
+                var state = CurrentStateMachine.States.FirstOrDefault(s => s.Id == node.ID);
+                if (state != null)
+                {
+                    SelectedStateName = state.Name;
+                    SelectedStateDescription = state.Description ?? "";
+                    SelectedStateColor = state.Color;
+                    SelectedStateIsInitial = state.IsInitial;
+                    SelectedStateIsFinal = state.IsFinal;
+                }
+            }
+            else if (args.NewValue[0] is Connector connector)
+            {
+                _selectedConnector = connector;
+                // Find existing transition or create a temporary reference
+                _selectedTransition = CurrentStateMachine.Transitions
+                    .FirstOrDefault(t => t.Id == connector.ID)
+                    ?? CurrentStateMachine.Transitions
+                        .FirstOrDefault(t => t.FromStateId == connector.SourceID && t.ToStateId == connector.TargetID);
             }
         }
         else
         {
-            SelectedStateNode = null;
             SelectedStateName = "";
             SelectedStateDescription = "";
         }
@@ -754,6 +941,20 @@
             InvokeAsync(StateHasChanged);
         }
     }
+    
+    private async Task DeleteSelectedTransition()
+    {
+        if (_selectedConnector == null || _selectedTransition == null) return;
+        
+        StateConnectors.Remove(_selectedConnector);
+        CurrentStateMachine.Transitions.Remove(_selectedTransition);
+        _selectedConnector = null;
+        _selectedTransition = null;
+        StateHasChanged();
+    }
+    
+    private string LookupStateName(string stateId)
+        => CurrentStateMachine.States.FirstOrDefault(s => s.Id == stateId)?.Name ?? stateId;
 
     public void Dispose()
     {
@@ -774,5 +975,11 @@
         public string Description { get; set; } = string.Empty;
         public int StateCount { get; set; }
         public bool Enabled { get; set; }
+    }
+    
+    private class OperatorOption
+    {
+        public TriggerOperator Op { get; set; }
+        public string Label { get; set; } = string.Empty;
     }
 }

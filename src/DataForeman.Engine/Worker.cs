@@ -86,6 +86,9 @@ public class Worker : BackgroundService
             await _pollEngine.StartAsync();
             _healthMonitor.SetPollEngineRunning(true);
 
+            // Start automatic trigger scanning (evaluates tag conditions every 500ms)
+            _stateMachineService.StartScanTimer(500);
+
             // Start watching for configuration changes
             _configWatcher.Start();
 
@@ -110,6 +113,7 @@ public class Worker : BackgroundService
         {
             _logger.LogInformation("DataForeman Engine shutting down at: {time}", DateTimeOffset.Now);
 
+            _stateMachineService.StopScanTimer();
             _configWatcher.Stop();
             await _pollEngine.StopAsync();
         }

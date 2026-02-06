@@ -1,24 +1,80 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using DataForeman.Engine.Drivers;
 using DataForeman.Shared.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DataForeman.Engine.Services;
 
 /// <summary>
-/// Service for executing state machines.
-/// Monitors state transitions based on events and conditions.
+/// Provides read access to the latest polled tag values so that state-machine
+/// triggers can evaluate conditions without coupling directly to PollEngine.
 /// </summary>
-public class StateMachineExecutionService
+public interface IStateMachineTagReader
+{
+    /// <summary>Looks up the most recent value for a tag path ("ConnectionName/TagName").</summary>
+    TagValue? GetCurrentTagValue(string tagPath);
+}
+
+/// <summary>
+/// Provides write access to tags so that state-machine actions can set values
+/// on external devices.
+/// </summary>
+public interface IStateMachineTagWriter
+{
+    /// <summary>Writes a value to the tag identified by "ConnectionName/TagName".</summary>
+    Task WriteTagValueAsync(string tagPath, object value);
+}
+
+/// <summary>
+/// Service for executing state machines.
+/// Evaluates tag-based trigger conditions on a periodic scan cycle and
+/// executes tag-write actions on state entry, exit, and transitions.
+/// </summary>
+public class StateMachineExecutionService : IDisposable
 {
     private readonly ILogger<StateMachineExecutionService> _logger;
+    private readonly IStateMachineTagReader? _tagReader;
+    private readonly IStateMachineTagWriter? _tagWriter;
     private readonly Dictionary<string, StateMachineRuntime> _runtimes = new();
     private readonly object _lock = new();
+    private Timer? _scanTimer;
+    private bool _disposed;
 
     /// <summary>Raised after any machine processes an event (regardless of success).</summary>
     public event Action<MachineRuntimeInfo>? RuntimeInfoUpdated;
 
-    public StateMachineExecutionService(ILogger<StateMachineExecutionService> logger)
+    public StateMachineExecutionService(
+        ILogger<StateMachineExecutionService> logger,
+        IStateMachineTagReader? tagReader = null,
+        IStateMachineTagWriter? tagWriter = null)
     {
         _logger = logger;
+        _tagReader = tagReader;
+        _tagWriter = tagWriter;
+    }
+
+    /// <summary>
+    /// Starts a periodic scan timer that evaluates all trigger conditions
+    /// on loaded state machines.  The <paramref name="intervalMs"/> controls
+    /// how often the scan runs (default 500 ms).
+    /// </summary>
+    public void StartScanTimer(int intervalMs = 500)
+    {
+        _scanTimer?.Dispose();
+        _scanTimer = new Timer(_ =>
+        {
+            try { ScanAllTriggers(); }
+            catch (Exception ex) { _logger.LogError(ex, "Error during state machine trigger scan"); }
+        }, null, intervalMs, intervalMs);
+        _logger.LogInformation("State machine trigger scan started ({Interval}ms)", intervalMs);
+    }
+
+    /// <summary>Stops the periodic trigger scan.</summary>
+    public void StopScanTimer()
+    {
+        _scanTimer?.Dispose();
+        _scanTimer = null;
     }
 
     /// <summary>
@@ -34,10 +90,10 @@ public class StateMachineExecutionService
                 return;
             }
 
-            var runtime = new StateMachineRuntime(config, _logger);
+            var runtime = new StateMachineRuntime(config, _logger, _tagReader, _tagWriter);
             _runtimes[config.Id] = runtime;
-            _logger.LogInformation("Loaded state machine: {Name} with {StateCount} states", 
-                config.Name, config.States.Count);
+            _logger.LogInformation("Loaded state machine: {Name} with {StateCount} states, {TransitionCount} transitions",
+                config.Name, config.States.Count, config.Transitions.Count);
         }
     }
 
@@ -56,7 +112,7 @@ public class StateMachineExecutionService
     }
 
     /// <summary>
-    /// Fires an event to trigger state transitions.
+    /// Fires a named event to trigger state transitions.
     /// </summary>
     public bool FireEvent(string stateMachineId, string eventName, Dictionary<string, object>? context = null)
     {
@@ -126,10 +182,56 @@ public class StateMachineExecutionService
         }
     }
 
+    /// <summary>
+    /// Evaluates every transition that has a <see cref="TagTrigger"/> on all
+    /// loaded machines.  If a trigger condition becomes true the transition
+    /// fires automatically (the Event field is used as the audit label).
+    /// </summary>
+    private void ScanAllTriggers()
+    {
+        if (_tagReader == null) return;
+
+        List<MachineRuntimeInfo>? changedSnapshots = null;
+
+        lock (_lock)
+        {
+            foreach (var runtime in _runtimes.Values)
+            {
+                if (runtime.EvaluateTriggersAndTransition())
+                {
+                    changedSnapshots ??= new List<MachineRuntimeInfo>();
+                    changedSnapshots.Add(runtime.BuildRuntimeInfo());
+                }
+            }
+        }
+
+        // Publish outside the lock to avoid blocking the scan
+        if (changedSnapshots != null)
+        {
+            foreach (var snapshot in changedSnapshots)
+            {
+                RuntimeInfoUpdated?.Invoke(snapshot);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _scanTimer?.Dispose();
+            _disposed = true;
+        }
+    }
+
+    // ─── Inner runtime class ────────────────────────────────────────────
+
     private class StateMachineRuntime
     {
         private readonly StateMachineConfig _config;
         private readonly ILogger _logger;
+        private readonly IStateMachineTagReader? _tagReader;
+        private readonly IStateMachineTagWriter? _tagWriter;
         private string? _currentStateId;
         private string? _prevStateId;
         private string? _recentTrigger;
@@ -140,37 +242,76 @@ public class StateMachineExecutionService
 
         public string? CurrentStateId => _currentStateId;
 
-        public StateMachineRuntime(StateMachineConfig config, ILogger logger)
+        public StateMachineRuntime(
+            StateMachineConfig config,
+            ILogger logger,
+            IStateMachineTagReader? tagReader,
+            IStateMachineTagWriter? tagWriter)
         {
             _config = config;
             _logger = logger;
-            
-            // Initialize to the initial state
-            _currentStateId = config.InitialStateId 
+            _tagReader = tagReader;
+            _tagWriter = tagWriter;
+
+            // Initialize to the designated initial state
+            _currentStateId = config.InitialStateId
                 ?? config.States.FirstOrDefault(s => s.IsInitial)?.Id;
-            
-            if (_currentStateId == null && config.States.Any())
+
+            if (_currentStateId == null && config.States.Count > 0)
             {
                 _currentStateId = config.States[0].Id;
             }
 
-            _logger.LogDebug("State machine {Name} initialized to state {StateId}", 
+            _logger.LogDebug("State machine {Name} initialized to state {StateId}",
                 config.Name, _currentStateId);
         }
 
+        /// <summary>
+        /// Checks all transitions from the current state that have a
+        /// <see cref="TagTrigger"/>.  Returns true if any transition fired.
+        /// </summary>
+        public bool EvaluateTriggersAndTransition()
+        {
+            if (_currentStateId == null || _tagReader == null) return false;
+
+            var candidates = _config.Transitions
+                .Where(t => t.FromStateId == _currentStateId && t.Trigger != null)
+                .OrderBy(t => t.Priority)
+                .ToList();
+
+            foreach (var transition in candidates)
+            {
+                if (EvaluateTagTrigger(transition.Trigger!))
+                {
+                    var label = !string.IsNullOrEmpty(transition.Event)
+                        ? transition.Event
+                        : FormatTriggerLabel(transition.Trigger!);
+
+                    PerformTransition(transition, label);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Fires a named event — finds transitions from the current state
+        /// whose Event field matches, evaluates legacy string conditions
+        /// and structured triggers, then transitions if valid.
+        /// </summary>
         public bool FireEvent(string eventName, Dictionary<string, object>? context)
         {
             _recentTrigger = eventName;
 
             if (_currentStateId == null)
             {
-                _logger.LogWarning("Cannot fire event {Event} on state machine {Name}: no current state",
+                _logger.LogWarning("Cannot fire event {Event} on {Name}: no current state",
                     eventName, _config.Name);
                 _recentOutcome = false;
                 return false;
             }
 
-            // Find matching transitions from current state
             var transitions = _config.Transitions
                 .Where(t => t.FromStateId == _currentStateId && t.Event == eventName)
                 .OrderBy(t => t.Priority)
@@ -178,49 +319,23 @@ public class StateMachineExecutionService
 
             foreach (var transition in transitions)
             {
-                // Check condition if specified
+                // Check structured trigger if present
+                if (transition.Trigger != null && !EvaluateTagTrigger(transition.Trigger))
+                    continue;
+
+                // Legacy string condition (backward-compat)
                 if (!string.IsNullOrEmpty(transition.Condition))
                 {
-                    if (!EvaluateCondition(transition.Condition, context))
-                    {
+                    if (!EvaluateLegacyCondition(transition.Condition, context))
                         continue;
-                    }
                 }
 
-                // Execute action if specified
-                if (!string.IsNullOrEmpty(transition.Action))
-                {
-                    ExecuteAction(transition.Action, context);
-                }
-
-                // Transition to new state
-                var oldState = _currentStateId;
-                _prevStateId = oldState;
-                _currentStateId = transition.ToStateId;
-                _recentOutcome = true;
-                _lastChangeUtc = DateTime.UtcNow;
-                
-                var oldStateName = _config.States.FirstOrDefault(s => s.Id == oldState)?.Name ?? oldState;
-                var newStateName = _config.States.FirstOrDefault(s => s.Id == _currentStateId)?.Name ?? _currentStateId;
-
-                // Append to audit trail
-                _auditLog.Add(new TransitionAuditEntry
-                {
-                    SrcId = oldState, SrcName = oldStateName,
-                    DstId = _currentStateId, DstName = newStateName,
-                    Trigger = eventName, When = _lastChangeUtc
-                });
-                if (_auditLog.Count > AuditLimit)
-                    _auditLog.RemoveAt(0);
-
-                _logger.LogInformation("State machine {Name} transitioned from {OldState} to {NewState} on event {Event}",
-                    _config.Name, oldStateName, newStateName, eventName);
-                
+                PerformTransition(transition, eventName);
                 return true;
             }
 
             _recentOutcome = false;
-            _logger.LogDebug("No valid transition found for event {Event} in state {State}",
+            _logger.LogDebug("No valid transition for event {Event} in state {State}",
                 eventName, _currentStateId);
             return false;
         }
@@ -248,18 +363,183 @@ public class StateMachineExecutionService
             };
         }
 
-        private bool EvaluateCondition(string condition, Dictionary<string, object>? context)
+        // ── Transition execution ──────────────────────────────────────
+
+        private void PerformTransition(StateTransition transition, string triggerLabel)
         {
-            // Simple condition evaluation - in production this would be more sophisticated
-            // For now, just return true to allow all transitions
-            _logger.LogDebug("Evaluating condition: {Condition}", condition);
+            var oldStateId = _currentStateId!;
+            var oldStateName = LookupStateName(oldStateId);
+            var newStateId = transition.ToStateId;
+            var newStateName = LookupStateName(newStateId);
+
+            // 1. Execute on-exit actions of the source state
+            var oldState = _config.States.FirstOrDefault(s => s.Id == oldStateId);
+            if (oldState?.OnExitActions.Count > 0)
+                RunTagActions(oldState.OnExitActions, "OnExit", oldStateName);
+
+            // 2. Execute transition actions
+            if (transition.Actions.Count > 0)
+                RunTagActions(transition.Actions, "Transition", triggerLabel);
+
+            // Legacy single-string action (backward-compat)
+            if (!string.IsNullOrEmpty(transition.Action))
+                _logger.LogDebug("Legacy action on transition: {Action}", transition.Action);
+
+            // 3. Perform the state change
+            _prevStateId = oldStateId;
+            _currentStateId = newStateId;
+            _recentTrigger = triggerLabel;
+            _recentOutcome = true;
+            _lastChangeUtc = DateTime.UtcNow;
+
+            // 4. Execute on-enter actions of the destination state
+            var newState = _config.States.FirstOrDefault(s => s.Id == newStateId);
+            if (newState?.OnEnterActions.Count > 0)
+                RunTagActions(newState.OnEnterActions, "OnEnter", newStateName);
+
+            // 5. Audit trail
+            _auditLog.Add(new TransitionAuditEntry
+            {
+                SrcId = oldStateId,
+                SrcName = oldStateName,
+                DstId = newStateId,
+                DstName = newStateName,
+                Trigger = triggerLabel,
+                When = _lastChangeUtc
+            });
+            if (_auditLog.Count > AuditLimit)
+                _auditLog.RemoveAt(0);
+
+            _logger.LogInformation(
+                "State machine {Name}: {OldState} → {NewState} [trigger: {Trigger}]",
+                _config.Name, oldStateName, newStateName, triggerLabel);
+        }
+
+        // ── Tag trigger evaluation ────────────────────────────────────
+
+        private bool EvaluateTagTrigger(TagTrigger trigger)
+        {
+            if (_tagReader == null || string.IsNullOrEmpty(trigger.TagPath))
+                return false;
+
+            var tagValue = _tagReader.GetCurrentTagValue(trigger.TagPath);
+            if (tagValue?.Value == null)
+                return false;
+
+            // Convert both sides to double for numeric comparison
+            if (TryParseDouble(tagValue.Value, out var actual)
+                && TryParseDouble(trigger.Threshold, out var threshold))
+            {
+                return trigger.Operator switch
+                {
+                    TriggerOperator.Eq  => Math.Abs(actual - threshold) < 1e-9,
+                    TriggerOperator.Neq => Math.Abs(actual - threshold) >= 1e-9,
+                    TriggerOperator.Gt  => actual > threshold,
+                    TriggerOperator.Gte => actual >= threshold,
+                    TriggerOperator.Lt  => actual < threshold,
+                    TriggerOperator.Lte => actual <= threshold,
+                    _ => false
+                };
+            }
+
+            // Fall back to string comparison for non-numeric values
+            var actualStr = tagValue.Value.ToString() ?? "";
+            var thresholdStr = trigger.Threshold;
+            return trigger.Operator switch
+            {
+                TriggerOperator.Eq  => string.Equals(actualStr, thresholdStr, StringComparison.OrdinalIgnoreCase),
+                TriggerOperator.Neq => !string.Equals(actualStr, thresholdStr, StringComparison.OrdinalIgnoreCase),
+                _ => false
+            };
+        }
+
+        private bool EvaluateLegacyCondition(string condition, Dictionary<string, object>? context)
+        {
+            _logger.LogDebug("Evaluating legacy condition: {Condition}", condition);
+            // Legacy conditions still pass through — they will be true unless
+            // the context explicitly provides a "false" sentinel.
+            if (context != null
+                && context.TryGetValue(condition, out var val)
+                && val is bool b)
+            {
+                return b;
+            }
             return true;
         }
 
-        private void ExecuteAction(string action, Dictionary<string, object>? context)
+        // ── Tag action execution ──────────────────────────────────────
+
+        private void RunTagActions(List<TagAction> actions, string phase, string context)
         {
-            // Execute action - in production this would trigger actual behaviors
-            _logger.LogDebug("Executing action: {Action}", action);
+            if (_tagWriter == null) return;
+
+            foreach (var action in actions)
+            {
+                if (string.IsNullOrEmpty(action.TagPath)) continue;
+
+                try
+                {
+                    object writeValue = ParseActionValue(action.Value);
+                    // Fire-and-forget with logged errors (actions must not block the scan)
+                    _ = _tagWriter.WriteTagValueAsync(action.TagPath, writeValue)
+                        .ContinueWith(t =>
+                        {
+                            if (t.IsFaulted)
+                                _logger.LogError(t.Exception?.InnerException,
+                                    "Failed to write {Value} to {Tag} during {Phase}({Context})",
+                                    action.Value, action.TagPath, phase, context);
+                        }, TaskContinuationOptions.OnlyOnFaulted);
+
+                    _logger.LogDebug("{Phase}({Context}): writing {Value} → {Tag}",
+                        phase, context, action.Value, action.TagPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error executing {Phase} action for tag {Tag}", phase, action.TagPath);
+                }
+            }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────
+
+        private string LookupStateName(string id)
+            => _config.States.FirstOrDefault(s => s.Id == id)?.Name ?? id;
+
+        private static string FormatTriggerLabel(TagTrigger trigger)
+        {
+            var opSymbol = trigger.Operator switch
+            {
+                TriggerOperator.Eq  => "==",
+                TriggerOperator.Neq => "!=",
+                TriggerOperator.Gt  => ">",
+                TriggerOperator.Gte => ">=",
+                TriggerOperator.Lt  => "<",
+                TriggerOperator.Lte => "<=",
+                _ => "?"
+            };
+            return $"{trigger.TagPath} {opSymbol} {trigger.Threshold}";
+        }
+
+        private static bool TryParseDouble(object? value, out double result)
+        {
+            if (value is double d) { result = d; return true; }
+            if (value is float f) { result = f; return true; }
+            if (value is int i) { result = i; return true; }
+            if (value is long l) { result = l; return true; }
+            if (value is decimal dec) { result = (double)dec; return true; }
+            if (value is bool bv) { result = bv ? 1.0 : 0.0; return true; }
+            if (value is string s)
+                return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+            result = 0;
+            return false;
+        }
+
+        private static object ParseActionValue(string value)
+        {
+            if (bool.TryParse(value, out var b)) return b;
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var iv)) return iv;
+            if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var dv)) return dv;
+            return value;
         }
     }
 }
