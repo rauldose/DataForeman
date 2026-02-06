@@ -433,6 +433,7 @@
         RealtimeData.OnTagValueChanged += HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived += HandleFlowExecutionReceived;
         RealtimeData.OnFlowDeployStatusChanged += HandleDeployStatusChanged;
+        RealtimeData.OnFlowRunSummaryReceived += HandleFlowRunSummary;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -610,6 +611,23 @@
         }
         catch (ObjectDisposedException) { }
         catch (OperationCanceledException) { }
+    }
+
+    private void HandleFlowRunSummary(FlowRunSummaryMessage summary)
+    {
+        try
+        {
+            if (_disposed || _cts?.IsCancellationRequested == true) return;
+            if (FlowId != "new" && summary.FlowId == FlowId)
+            {
+                var level = summary.Outcome == "Success" ? "info" : "error";
+                var msg = $"Execution {summary.Outcome}: {summary.NodesExecuted} nodes, {summary.DurationMs:F0}ms";
+                if (!string.IsNullOrEmpty(summary.ErrorDetail))
+                    msg += $" — {summary.ErrorDetail}";
+                AddConsoleMessage(level, summary.TriggerTopic ?? "Engine", msg);
+            }
+        }
+        catch (ObjectDisposedException) { }
     }
 
     private void LoadFlowDefinition(FlowConfig flow)
@@ -1467,6 +1485,7 @@
         RealtimeData.OnTagValueChanged -= HandleTagValueChanged;
         RealtimeData.OnFlowExecutionReceived -= HandleFlowExecutionReceived;
         RealtimeData.OnFlowDeployStatusChanged -= HandleDeployStatusChanged;
+        RealtimeData.OnFlowRunSummaryReceived -= HandleFlowRunSummary;
     }
 
     public class FlowDisplay

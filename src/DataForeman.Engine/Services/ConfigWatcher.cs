@@ -118,13 +118,13 @@ public class ConfigWatcher : IDisposable
                 case "flows":
                     await _configService.LoadFlowsAsync();
                     await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
-                    _flowExecutionService.RefreshFlows();
+                    await _flowExecutionService.RefreshFlowsAsync();
                     break;
                 default:
                     await _configService.LoadAllAsync();
                     await _pollEngine.ReloadConfigurationAsync();
                     await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
-                    _flowExecutionService.RefreshFlows();
+                    await _flowExecutionService.RefreshFlowsAsync();
                     break;
             }
 

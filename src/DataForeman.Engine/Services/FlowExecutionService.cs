@@ -88,7 +88,7 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
     /// <summary>
     /// Starts the flow execution service.
     /// </summary>
-    public Task StartAsync()
+    public async Task StartAsync()
     {
         _logger.LogInformation("Starting flow execution service");
         
@@ -98,18 +98,20 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
         // Compile all enabled flows
         CompileAllFlows();
         
-        _logger.LogInformation("Flow execution service started with {FlowCount} compiled flows", _compiledFlows.Count);
+        // Publish initial deployment statuses (awaited, not fire-and-forget)
+        await PublishAllDeploymentStatusesAsync();
         
-        return Task.CompletedTask;
+        _logger.LogInformation("Flow execution service started with {FlowCount} compiled flows", _compiledFlows.Count);
     }
 
     /// <summary>
-    /// Refreshes compiled flows when configuration changes.
+    /// Refreshes compiled flows when configuration changes and publishes deployment status.
     /// </summary>
-    public void RefreshFlows()
+    public async Task RefreshFlowsAsync()
     {
         _logger.LogInformation("Refreshing compiled flows");
         CompileAllFlows();
+        await PublishAllDeploymentStatusesAsync();
     }
 
     /// <inheritdoc/>
@@ -309,18 +311,8 @@ public class FlowExecutionService : IFlowRunner, IAsyncDisposable
             }
         }
 
-        // Publish deployment status for every flow (both compiled and non-compiled)
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await PublishAllDeploymentStatusesAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to publish flow deployment statuses after compilation");
-            }
-        });
+        _logger.LogInformation("Compiled {Count} flows out of {Total} total", 
+            _compiledFlows.Count, _configService.Flows.Count);
     }
 
     /// <summary>

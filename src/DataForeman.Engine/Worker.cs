@@ -140,7 +140,7 @@ public class Worker : BackgroundService
             // Reload flows and recompile
             await _configService.LoadFlowsAsync();
             await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
-            _flowExecutionService.RefreshFlows();
+            await _flowExecutionService.RefreshFlowsAsync();
             
             _logger.LogInformation("Config reload completed — flows recompiled and deployment statuses published");
         }

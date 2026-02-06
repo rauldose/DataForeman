@@ -51,6 +51,17 @@ public class FlowConfig
     /// </summary>
     public string ComputeContentHash()
     {
+        // Normalize property values to their JSON text representation so that
+        // string "0" and JsonElement(String,"0") produce the same hash.
+        static string NormalizeValue(object? v) => v switch
+        {
+            null => "null",
+            JsonElement je => je.GetRawText(),
+            string s => JsonSerializer.Serialize(s),
+            bool b => b ? "true" : "false",
+            _ => v.ToString() ?? "null"
+        };
+
         var canonical = new
         {
             Name,
@@ -58,7 +69,14 @@ public class FlowConfig
             ScanRateMs,
             Nodes = Nodes
                 .OrderBy(n => n.Id)
-                .Select(n => new { n.Id, n.Type, n.Label, Props = n.Properties.OrderBy(kv => kv.Key).ToList() })
+                .Select(n => new
+                {
+                    n.Id, n.Type, n.Label,
+                    Props = n.Properties
+                        .OrderBy(kv => kv.Key)
+                        .Select(kv => new { kv.Key, Value = NormalizeValue(kv.Value) })
+                        .ToList()
+                })
                 .ToList(),
             Edges = Edges
                 .OrderBy(e => e.Id)

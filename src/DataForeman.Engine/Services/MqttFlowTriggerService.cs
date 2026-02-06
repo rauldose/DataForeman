@@ -140,10 +140,16 @@ public class MqttFlowTriggerService : IAsyncDisposable
     {
         try
         {
+            // Skip internal DataForeman topics — only user-defined flow topics should trigger execution
+            if (topic.StartsWith("dataforeman/"))
+                return;
+
             _logger.LogDebug("HandleMqttMessage called with topic '{Topic}'", topic);
             
-            // Find all matching subscriptions
-            var matchingSubscriptions = _mqttPublisher.GetSubscriptionsForTopic(topic).ToList();
+            // Find all matching subscriptions (excluding internal engine entries)
+            var matchingSubscriptions = _mqttPublisher.GetSubscriptionsForTopic(topic)
+                .Where(s => s.FlowId != "__engine__")
+                .ToList();
 
             _logger.LogInformation("Found {MatchCount} matching subscriptions for topic '{Topic}'", 
                 matchingSubscriptions.Count, topic);
