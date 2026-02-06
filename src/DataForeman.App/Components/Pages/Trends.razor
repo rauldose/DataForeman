@@ -542,10 +542,17 @@
         _showLiveTimeline = !_showLiveTimeline;
         if (_showLiveTimeline)
         {
-            // Build filter from current trend's series tag paths
+            // Build a lookup from "ConnectionName/TagName" → TagId
+            var pathToTagId = ConfigService.GetAllTagsWithConnection()
+                .ToDictionary(
+                    t => $"{t.Connection.Name}/{t.Tag.Name}",
+                    t => t.Tag.Id,
+                    StringComparer.OrdinalIgnoreCase);
+
+            // Convert series tag paths to the TagIds used by RealtimeDataService
             _liveFilterTags = CurrentTrend.Series
-                .Where(s => !string.IsNullOrEmpty(s.TagPath))
-                .Select(s => s.TagPath!)
+                .Where(s => !string.IsNullOrEmpty(s.TagPath) && pathToTagId.ContainsKey(s.TagPath!))
+                .Select(s => pathToTagId[s.TagPath!])
                 .ToHashSet();
         }
     }

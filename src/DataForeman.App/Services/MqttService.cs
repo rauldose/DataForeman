@@ -233,6 +233,20 @@ public class MqttService : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Publishes an arbitrary message to a specific MQTT topic.
+    /// </summary>
+    public async Task PublishMessageAsync(string topic, string payload)
+    {
+        if (_mqttClient == null || !_isConnected) return;
+
+        await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+            .WithTopic(topic)
+            .WithPayload(payload)
+            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build());
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_mqttClient != null)

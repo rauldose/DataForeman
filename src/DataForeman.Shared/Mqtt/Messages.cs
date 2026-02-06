@@ -169,4 +169,11 @@ public static class MqttTopics
     
     public static string GetFlowDeployStatusTopic(string flowId) 
         => $"dataforeman/flows/{flowId}/deploy-status";
+    
+    // Flow manual trigger topics
+    public const string FlowManualTriggerPattern = "dataforeman/flows/{flowId}/trigger";
+    public const string AllFlowManualTriggerWildcard = "dataforeman/flows/+/trigger";
+    
+    public static string GetFlowManualTriggerTopic(string flowId) 
+        => $"dataforeman/flows/{flowId}/trigger";
 }

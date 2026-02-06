@@ -115,6 +115,7 @@
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
                     <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="Show live values on node ports"></SfButton>
+                    <SfButton CssClass="e-flat" IconCss="fa-solid fa-bolt" Content="Run Now" @onclick="RunFlowNow" title="Trigger a single flow execution now"></SfButton>
                     <span class="toolbar-separator"></span>
                     <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
                               IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
@@ -1487,6 +1488,32 @@
     }
     
     // --- Live Value Annotations ---
+
+    private async Task RunFlowNow()
+    {
+        if (CurrentFlow == null || string.IsNullOrEmpty(FlowId) || FlowId == "new")
+        {
+            AddConsoleMessage("WARN", "System", "Save and deploy the flow before running it");
+            return;
+        }
+
+        try
+        {
+            var topic = MqttTopics.GetFlowManualTriggerTopic(CurrentFlow.Id);
+            await MqttService.PublishMessageAsync(topic, "{\"source\":\"ui\"}");
+            AddConsoleMessage("INFO", "System", $"Sent manual trigger for flow '{CurrentFlow.Name}'");
+            
+            // Auto-enable live values to see results
+            if (!_showLiveValues)
+            {
+                _showLiveValues = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            AddConsoleMessage("ERROR", "System", $"Failed to send trigger: {ex.Message}");
+        }
+    }
 
     private void ToggleLiveValues()
     {

@@ -64,7 +64,11 @@ public class Worker : BackgroundService
             await _mqttPublisher.SubscribeAsync(
                 DataForeman.Shared.Mqtt.MqttTopics.ConfigReload, 
                 "__engine__", "__reload__", qos: 1);
-            _mqttPublisher.OnMessageReceived += HandleReloadCommand;
+            // Subscribe to manual flow trigger commands from the App
+            await _mqttPublisher.SubscribeAsync(
+                DataForeman.Shared.Mqtt.MqttTopics.AllFlowManualTriggerWildcard, 
+                "__engine__", "__manual-trigger__", qos: 1);
+            _mqttPublisher.OnMessageReceived += HandleEngineCommand;
 
             // Start MQTT flow trigger service (handles mqtt-in node subscriptions)
             await _mqttFlowTriggerService.StartAsync();
@@ -120,33 +124,46 @@ public class Worker : BackgroundService
             _logger.LogInformation("DataForeman Engine shutting down at: {time}", DateTimeOffset.Now);
 
             _stateMachineService.StopScanTimer();
-            _mqttPublisher.OnMessageReceived -= HandleReloadCommand;
+            _mqttPublisher.OnMessageReceived -= HandleEngineCommand;
             _configWatcher.Stop();
             await _pollEngine.StopAsync();
         }
     }
 
     /// <summary>
-    /// Handles config reload commands received from the App via MQTT.
+    /// Handles commands received from the App via MQTT (config reload, manual flow triggers).
     /// </summary>
-    private async void HandleReloadCommand(string topic, string payload)
+    private async void HandleEngineCommand(string topic, string payload)
     {
-        if (topic != DataForeman.Shared.Mqtt.MqttTopics.ConfigReload) return;
-
         try
         {
-            _logger.LogInformation("Received config reload command from App: {Payload}", payload);
-            
-            // Reload flows and recompile
-            await _configService.LoadFlowsAsync();
-            await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
-            await _flowExecutionService.RefreshFlowsAsync();
-            
-            _logger.LogInformation("Config reload completed — flows recompiled and deployment statuses published");
+            if (topic == DataForeman.Shared.Mqtt.MqttTopics.ConfigReload)
+            {
+                _logger.LogInformation("Received config reload command from App: {Payload}", payload);
+                await _configService.LoadFlowsAsync();
+                await _mqttFlowTriggerService.RefreshSubscriptionsAsync();
+                await _flowExecutionService.RefreshFlowsAsync();
+                _logger.LogInformation("Config reload completed — flows recompiled and deployment statuses published");
+            }
+            else if (topic.StartsWith("dataforeman/flows/") && topic.EndsWith("/trigger"))
+            {
+                // Extract flowId from topic: dataforeman/flows/{flowId}/trigger
+                var segments = topic.Split('/');
+                if (segments.Length >= 3 && !string.IsNullOrWhiteSpace(segments[2]))
+                {
+                    var flowId = segments[2];
+                    _logger.LogInformation("Received manual trigger for flow '{FlowId}'", flowId);
+                    var triggered = await _flowExecutionService.TriggerFlowAsync(flowId, "manual-ui");
+                    if (!triggered)
+                    {
+                        _logger.LogWarning("Manual trigger failed — flow '{FlowId}' not found or not compiled", flowId);
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling config reload command");
+            _logger.LogError(ex, "Error handling engine command on topic '{Topic}'", topic);
         }
     }
 }
