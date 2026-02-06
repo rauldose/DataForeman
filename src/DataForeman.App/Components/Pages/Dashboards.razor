@@ -86,6 +86,7 @@
                 <div class="toolbar-right">
                     @if (IsEditMode)
                     {
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-chart-line" Content="Add Chart" @onclick="ShowChartLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
                         <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
                         <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>
@@ -154,25 +155,69 @@
                             <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                         </SfDropDownList>
                     </div>
-                    @if (NewPanelType == PanelType.Chart && ConfigService.Charts.Any())
-                    {
-                        <div class="form-group">
-                            <label>Chart</label>
-                            <SfDropDownList TItem="ChartConfig" TValue="string" DataSource="@ConfigService.Charts" @bind-Value="SelectedChartId" Placeholder="Select a pre-configured chart">
-                                <DropDownListFieldSettings Text="Name" Value="Id"></DropDownListFieldSettings>
-                            </SfDropDownList>
-                        </div>
-                    }
                     <div class="form-group">
                         <label>Title</label>
-                        <SfTextBox @bind-Value="NewPanelTitle" Placeholder="@(NewPanelType == PanelType.Chart && !string.IsNullOrEmpty(SelectedChartId) ? ConfigService.Charts.FirstOrDefault(c => c.Id == SelectedChartId)?.Name ?? "" : "")"></SfTextBox>
+                        <SfTextBox @bind-Value="NewPanelTitle"></SfTextBox>
                     </div>
                 </div>
             </Content>
             <FooterTemplate>
                 <SfButton @onclick="() => ShowAddPanelDialog = false">Cancel</SfButton>
-                <SfButton CssClass="e-primary" @onclick="AddPanel" Disabled="@(NewPanelType == PanelType.Chart && ConfigService.Charts.Any() && string.IsNullOrEmpty(SelectedChartId))">Add</SfButton>
+                <SfButton CssClass="e-primary" @onclick="AddPanel">Add</SfButton>
             </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- Chart Library Dialog -->
+@if (ShowChartLibraryDialog)
+{
+    <SfDialog @bind-Visible="ShowChartLibraryDialog" Width="480px" IsModal="true" ShowCloseIcon="true" Header="Chart Library" CssClass="chart-library-dialog">
+        <DialogTemplates>
+            <Content>
+                <div class="chart-library">
+                    <div class="form-group">
+                        <SfTextBox @bind-Value="ChartLibrarySearch" Placeholder="Search charts..." CssClass="chart-search"></SfTextBox>
+                    </div>
+                    @{
+                        var filteredCharts = ConfigService.Charts
+                            .Where(c => string.IsNullOrEmpty(ChartLibrarySearch) 
+                                || c.Name.Contains(ChartLibrarySearch, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                    }
+                    @if (!filteredCharts.Any())
+                    {
+                        <div class="empty-state" style="padding:24px;text-align:center;">
+                            <i class="fa-solid fa-chart-line" style="font-size:32px;color:#666;"></i>
+                            <p style="color:#999;margin-top:8px;">@(string.IsNullOrEmpty(ChartLibrarySearch) ? "No charts configured" : "No charts match your search")</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="chart-library-list">
+                            @foreach (var chart in filteredCharts)
+                            {
+                                <div class="chart-library-item" @onclick="() => AddChartWidget(chart.Id)">
+                                    <div class="chart-library-item-info">
+                                        <div class="chart-library-item-name">
+                                            <i class="fa-solid fa-chart-line" style="color:@(chart.Series.FirstOrDefault()?.Color ?? "#3b82f6");margin-right:8px;"></i>
+                                            @chart.Name
+                                        </div>
+                                        <div class="chart-library-item-meta">
+                                            <span class="chart-library-chip">@chart.ChartType</span>
+                                            <span class="chart-library-chip">@chart.Series.Count tag@(chart.Series.Count != 1 ? "s" : "")</span>
+                                        </div>
+                                    </div>
+                                    <button class="chart-library-add-btn" title="Add to dashboard">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div style="padding:8px 0 0;color:#888;font-size:12px;">@filteredCharts.Count chart@(filteredCharts.Count != 1 ? "s" : "") available</div>
+                </div>
+            </Content>
         </DialogTemplates>
     </SfDialog>
 }
@@ -312,8 +357,9 @@
     private bool ShowDeleteDialog;
     private bool ShowAddPanelDialog;
     private bool ShowPanelConfigDialog;
+    private bool ShowChartLibraryDialog;
     private string DeleteDashboardId = "";
-    private string SelectedChartId = "";
+    private string ChartLibrarySearch = "";
     private string SelectedTimeRange = "5m";
     private PanelType NewPanelType = PanelType.Stat;
     private string NewPanelTitle = "";
@@ -338,7 +384,6 @@
     {
         new() { Value = PanelType.Stat, Label = "Single Stat" },
         new() { Value = PanelType.Gauge, Label = "Gauge" },
-        new() { Value = PanelType.Chart, Label = "Chart" },
         new() { Value = PanelType.Table, Label = "Table" }
     };
     
@@ -476,30 +521,53 @@
     {
         NewPanelType = PanelType.Stat;
         NewPanelTitle = "";
-        SelectedChartId = "";
         ShowAddPanelDialog = true;
+    }
+    
+    private void ShowChartLibrary()
+    {
+        ChartLibrarySearch = "";
+        ShowChartLibraryDialog = true;
+    }
+    
+    /// <summary>
+    /// Adds a chart widget from the Chart Library — mirrors React's addWidget(chartId).
+    /// Does NOT close the library so users can add multiple charts.
+    /// </summary>
+    private void AddChartWidget(string chartId)
+    {
+        var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == chartId);
+        if (chart == null) return;
+        
+        var panel = new DashboardPanel
+        {
+            Title = chart.Name,
+            Type = PanelType.Chart,
+            ChartRefId = chartId,
+            GridX = 0,
+            GridY = CurrentDashboard.Panels.Count > 0 
+                ? CurrentDashboard.Panels.Max(p => p.GridY + p.GridHeight) 
+                : 0,
+            GridWidth = 6,
+            GridHeight = 4,
+            ChartConfig = BuildChartPanelConfig(chartId)
+        };
+        
+        CurrentDashboard.Panels.Add(panel);
     }
     
     private void AddPanel()
     {
-        // If chart type selected with a pre-configured chart, use its name as default title
-        var defaultTitle = NewPanelType.ToString();
-        if (NewPanelType == PanelType.Chart && !string.IsNullOrEmpty(SelectedChartId))
-        {
-            var chart = ConfigService.Charts.FirstOrDefault(c => c.Id == SelectedChartId);
-            if (chart != null) defaultTitle = chart.Name;
-        }
-        
         var panel = new DashboardPanel
         {
-            Title = string.IsNullOrEmpty(NewPanelTitle) ? defaultTitle : NewPanelTitle,
+            Title = string.IsNullOrEmpty(NewPanelTitle) ? NewPanelType.ToString() : NewPanelTitle,
             Type = NewPanelType,
             GridX = 0,
             GridY = CurrentDashboard.Panels.Count > 0 
                 ? CurrentDashboard.Panels.Max(p => p.GridY + p.GridHeight) 
                 : 0,
             GridWidth = NewPanelType == PanelType.Table ? 12 : 4,
-            GridHeight = NewPanelType == PanelType.Chart ? 4 : 2
+            GridHeight = 2
         };
         
         // Initialize panel-specific config
@@ -510,10 +578,6 @@
                 break;
             case PanelType.Gauge:
                 panel.GaugeConfig = new GaugePanelConfig();
-                break;
-            case PanelType.Chart:
-                panel.ChartConfig = BuildChartPanelConfig(SelectedChartId);
-                panel.ChartRefId = string.IsNullOrEmpty(SelectedChartId) ? null : SelectedChartId;
                 break;
             case PanelType.Table:
                 panel.TableConfig = new TablePanelConfig();
