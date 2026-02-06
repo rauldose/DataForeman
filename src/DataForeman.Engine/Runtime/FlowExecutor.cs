@@ -160,6 +160,42 @@ public sealed class FlowExecutor : IFlowExecutor
 
                 try
                 {
+                    // Capture input payload for live value annotations
+                    Dictionary<string, object>? inputSnapshot = null;
+                    try
+                    {
+                        var inPayload = msg.Payload;
+                        if (inPayload.HasValue)
+                        {
+                            var inVal = inPayload.Value;
+                            if (inVal.ValueKind == JsonValueKind.Object)
+                            {
+                                inputSnapshot = new Dictionary<string, object>();
+                                foreach (var prop in inVal.EnumerateObject())
+                                {
+                                    inputSnapshot[prop.Name] = prop.Value.ValueKind switch
+                                    {
+                                        JsonValueKind.Number => prop.Value.GetDouble(),
+                                        JsonValueKind.True => true,
+                                        JsonValueKind.False => false,
+                                        JsonValueKind.String => prop.Value.GetString() ?? "",
+                                        _ => prop.Value.ToString()
+                                    };
+                                }
+                            }
+                            else if (inVal.ValueKind != JsonValueKind.Undefined &&
+                                     inVal.ValueKind != JsonValueKind.Null)
+                            {
+                                inputSnapshot = new Dictionary<string, object>
+                                {
+                                    ["value"] = inVal.ToString()
+                                };
+                            }
+                        }
+                    }
+                    catch (JsonException) { }
+                    catch (InvalidOperationException) { }
+
                     var context = new NodeExecutionContext
                     {
                         Node = node.Definition,
@@ -240,6 +276,7 @@ public sealed class FlowExecutor : IFlowExecutor
                         Status = ExecutionStatus.Success,
                         MessagesEmitted = emitter.EmittedMessages.Count,
                         ParentTraceId = options.ParentTraceId,
+                        InputValues = inputSnapshot,
                         OutputValues = outputSnapshot
                     };
 

@@ -114,7 +114,7 @@
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-layer-group" Content="Templates" @onclick="ShowTemplates" title="Apply Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="SaveAsTemplate" title="Save as Template"></SfButton>
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-object-group" @onclick="CreateSubflowFromSelection" title="Create Subflow from Selection"></SfButton>
-                    <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="@(_showLiveValues ? "Hide signal timeline" : "Show signal timeline")"></SfButton>
+                    <SfButton CssClass="@(_showLiveValues ? "e-info" : "e-flat")" IconCss="fa-solid fa-wave-square" Content="Live" @onclick="ToggleLiveValues" title="@(_showLiveValues ? "Hide live port values" : "Show live port values")"></SfButton>
                     <span class="toolbar-separator"></span>
                     <SfButton CssClass="@(CurrentFlow.Enabled ? "e-warning" : "e-success")" 
                               IconCss="@(CurrentFlow.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
@@ -195,73 +195,64 @@
                     </SfDiagramComponent>
                 </div>
                 
-                @if (_showLiveValues)
-                {
-                    <div class="signal-timeline-panel">
-                        <SignalTimeline />
-                    </div>
-                }
-                else
-                {
-                    <div class="properties-panel">
-                        <h3>Properties</h3>
-                        @if (SelectedNode != null)
+                <div class="properties-panel">
+                    <h3>Properties</h3>
+                    @if (SelectedNode != null)
+                    {
+                        var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
+                        <div class="property-header">
+                            <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
+                                <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
+                                @(plugin?.Name ?? GetNodeType(SelectedNode))
+                            </span>
+                        </div>
+                        
+                        @if (plugin != null)
                         {
-                            var plugin = NodeRegistry.Get(GetNodeType(SelectedNode));
-                            <div class="property-header">
-                                <span class="node-type-badge" style="border-color: @(plugin?.Color ?? "#9ca3af")">
-                                    <i class="@(plugin?.Icon ?? "fa-solid fa-question")" style="color: @(plugin?.Color ?? "#9ca3af")"></i>
-                                    @(plugin?.Name ?? GetNodeType(SelectedNode))
-                                </span>
-                            </div>
-                            
-                            @if (plugin != null)
-                            {
-                                <p class="plugin-description">@plugin.Description</p>
-                            }
-                            
-                            <div class="property-group">
-                                <label>Label</label>
-                                <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
-                            </div>
-                            
-                            @if (plugin != null)
-                            {
-                                @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
-                                {
-                                    <div class="property-group">
-                                        <label>@prop.Label @(prop.Required ? "*" : "")</label>
-                                        @RenderPropertyInput(prop)
-                                        @if (!string.IsNullOrEmpty(prop.HelpText))
-                                        {
-                                            <span class="property-hint">@prop.HelpText</span>
-                                        }
-                                    </div>
-                                }
-                            }
-                            
-                            <div class="property-actions">
-                                <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
-                            </div>
-                        }
-                        else
-                        {
-                            <p class="no-selection">Select a node to view properties</p>
+                            <p class="plugin-description">@plugin.Description</p>
                         }
                         
-                        <div class="flow-settings">
-                            <h4>Flow Settings</h4>
-                            <div class="property-group">
-                                <label>Description</label>
-                                <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
-                            </div>
-                            <div class="property-group">
-                                <label>Scan Rate (ms)</label>
-                                <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
-                            </div>
+                        <div class="property-group">
+                            <label>Label</label>
+                            <SfTextBox Value="@SelectedNodeLabel" ValueChanged="@OnLabelChanged"></SfTextBox>
+                        </div>
+                        
+                        @if (plugin != null)
+                        {
+                            @foreach (var prop in plugin.Properties.Where(p => !p.Advanced))
+                            {
+                                <div class="property-group">
+                                    <label>@prop.Label @(prop.Required ? "*" : "")</label>
+                                    @RenderPropertyInput(prop)
+                                    @if (!string.IsNullOrEmpty(prop.HelpText))
+                                    {
+                                        <span class="property-hint">@prop.HelpText</span>
+                                    }
+                                </div>
+                            }
+                        }
+                        
+                        <div class="property-actions">
+                            <SfButton CssClass="e-danger e-small" IconCss="fa-solid fa-trash" @onclick="DeleteSelectedNode">Delete Node</SfButton>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="no-selection">Select a node to view properties</p>
+                    }
+                    
+                    <div class="flow-settings">
+                        <h4>Flow Settings</h4>
+                        <div class="property-group">
+                            <label>Description</label>
+                            <SfTextBox @bind-Value="CurrentFlow.Description" Multiline="true"></SfTextBox>
+                        </div>
+                        <div class="property-group">
+                            <label>Scan Rate (ms)</label>
+                            <SfNumericTextBox TValue="int" @bind-Value="CurrentFlow.ScanRateMs" Min="10" Max="60000"></SfNumericTextBox>
                         </div>
                     </div>
-                }
+                </div>
             </div>
             
             <div class="output-console @(ConsoleExpanded ? "expanded" : "collapsed")">
@@ -418,9 +409,10 @@
     private ElementReference ConsoleBody;
     private System.Timers.Timer? _simulationTimer;
 
-    // Live value annotations on diagram nodes
+    // Live value annotations on diagram node ports
     private bool _showLiveValues = false;
-    private Dictionary<string, string> _liveNodeValues = new();
+    // Per-node live port data: nodeId -> { inputText, outputText }
+    private Dictionary<string, (string InputText, string OutputText)> _livePortValues = new();
 
     private List<FlowDisplay> FlowsList => ConfigService.Flows.Select(f => new FlowDisplay
     {
@@ -600,17 +592,25 @@
 
                 AddConsoleMessage(message.Level, nodeLabel, msgText);
 
-                // Update live value annotation on diagram node
-                if (_showLiveValues && node != null && message.OutputData?.Any() == true)
+                // Update live value annotations on diagram node ports
+                if (_showLiveValues && node != null)
                 {
-                    var valueText = FormatLiveValue(message.OutputData);
-                    _liveNodeValues[message.NodeId] = valueText;
-                    UpdateNodeLiveAnnotation(node, valueText, message.Level == "ERROR");
-                }
-                else if (_showLiveValues && node != null && message.Level == "ERROR")
-                {
-                    _liveNodeValues[message.NodeId] = "ERR";
-                    UpdateNodeLiveAnnotation(node, "ERR", isError: true);
+                    var inputText = message.InputData?.Any() == true ? FormatLiveValue(message.InputData) : null;
+                    var outputText = message.OutputData?.Any() == true ? FormatLiveValue(message.OutputData) : null;
+                    var isError = message.Level == "ERROR";
+
+                    if (isError && outputText == null)
+                        outputText = "ERR";
+
+                    // Merge with existing port data (accumulate across executions)
+                    if (_livePortValues.TryGetValue(message.NodeId, out var existing))
+                    {
+                        inputText ??= existing.InputText;
+                        outputText ??= existing.OutputText;
+                    }
+
+                    _livePortValues[message.NodeId] = (inputText ?? "", outputText ?? "");
+                    UpdatePortAnnotations(node, inputText ?? "", outputText ?? "", isError);
                 }
                 
                 if (!_disposed && _cts?.IsCancellationRequested != true)
@@ -1527,35 +1527,75 @@
         return s.Length > 20 ? s[..17] + "…" : s;
     }
 
-    private void UpdateNodeLiveAnnotation(Node node, string text, bool isError)
+    /// <summary>
+    /// Updates annotations on every in/out port of a node with live values.
+    /// Annotations[0] = node name, [1] = category.
+    /// Annotations[2..2+inputCount-1] = input port labels.
+    /// Annotations[2+inputCount..2+inputCount+outputCount-1] = output port labels.
+    /// </summary>
+    private void UpdatePortAnnotations(Node node, string inputText, string outputText, bool isError)
     {
-        // The 3rd annotation (index 2) is the live value label
-        // Annotations[0] = node name, [1] = category
-        while (node.Annotations.Count < 3)
+        if (node.Ports == null || node.Annotations == null) return;
+
+        var inputPorts = node.Ports.Where(p => p.ID.StartsWith("input-")).ToList();
+        var outputPorts = node.Ports.Where(p => p.ID.StartsWith("output-")).ToList();
+        var totalAnnotationsNeeded = 2 + inputPorts.Count + outputPorts.Count;
+
+        // Ensure we have enough annotations
+        while (node.Annotations.Count < totalAnnotationsNeeded)
         {
             node.Annotations.Add(new ShapeAnnotation
             {
                 Content = "",
                 Style = new TextStyle { Color = "#00e5ff", FontSize = 9 },
-                Offset = new DiagramPoint { X = 1.0, Y = -0.15 },
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Bottom
+                Offset = new DiagramPoint { X = 0, Y = 0.5 },
+                HorizontalAlignment = HorizontalAlignment.Center
             });
         }
 
-        var liveAnnotation = node.Annotations[2];
-        liveAnnotation.Content = text;
-        liveAnnotation.Style.Color = isError ? "#ef5350" : "#00e5ff";
+        var valueColor = isError ? "#ef5350" : "#00e5ff";
+
+        // Set input port annotations
+        for (int i = 0; i < inputPorts.Count; i++)
+        {
+            var ann = node.Annotations[2 + i];
+            ann.Content = inputText;
+            if (ann.Style != null)
+            {
+                ann.Style.Color = valueColor;
+                ann.Style.FontSize = 9;
+            }
+            ann.Offset = new DiagramPoint { X = 0, Y = inputPorts[i].Offset.Y };
+            ann.HorizontalAlignment = HorizontalAlignment.Right;
+            ann.Margin = new DiagramThickness { Right = 15 };
+        }
+
+        // Set output port annotations
+        for (int i = 0; i < outputPorts.Count; i++)
+        {
+            var ann = node.Annotations[2 + inputPorts.Count + i];
+            ann.Content = outputText;
+            if (ann.Style != null)
+            {
+                ann.Style.Color = valueColor;
+                ann.Style.FontSize = 9;
+            }
+            ann.Offset = new DiagramPoint { X = 1, Y = outputPorts[i].Offset.Y };
+            ann.HorizontalAlignment = HorizontalAlignment.Left;
+            ann.Margin = new DiagramThickness { Left = 15 };
+        }
     }
 
     private void ClearAllLiveAnnotations()
     {
-        _liveNodeValues.Clear();
+        _livePortValues.Clear();
         foreach (var node in Nodes)
         {
-            if (node.Annotations.Count >= 3)
+            if (node.Annotations == null) continue;
+            // Remove all annotations beyond the base 2 (name + category)
+            while (node.Annotations.Count > 2)
             {
-                node.Annotations[2].Content = "";
+                node.Annotations.RemoveAt(node.Annotations.Count - 1);
             }
         }
         StateHasChanged();

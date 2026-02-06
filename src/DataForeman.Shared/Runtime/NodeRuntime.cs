@@ -261,6 +261,9 @@ public sealed record NodeExecutionResult
     /// <summary>Parent trace ID for subflow nesting.</summary>
     public string? ParentTraceId { get; init; }
 
+    /// <summary>Snapshot of input payload (for live value annotations).</summary>
+    public Dictionary<string, object>? InputValues { get; init; }
+
     /// <summary>Snapshot of first output payload (for live value annotations).</summary>
     public Dictionary<string, object>? OutputValues { get; init; }
 }
