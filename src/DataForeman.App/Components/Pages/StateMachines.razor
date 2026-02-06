@@ -559,9 +559,12 @@
             else
             {
                 // Existing transition — update source/target in case they changed
-                var existing = CurrentStateMachine.Transitions.First(t => t.Id == connId);
-                existing.FromStateId = connector.SourceID;
-                existing.ToStateId = connector.TargetID;
+                var existing = CurrentStateMachine.Transitions.FirstOrDefault(t => t.Id == connId);
+                if (existing != null)
+                {
+                    existing.FromStateId = connector.SourceID;
+                    existing.ToStateId = connector.TargetID;
+                }
             }
         }
         

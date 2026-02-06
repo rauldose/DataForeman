@@ -239,6 +239,7 @@ public class StateMachineExecutionService : IDisposable
         private DateTime _lastChangeUtc = DateTime.UtcNow;
         private readonly List<TransitionAuditEntry> _auditLog = new();
         private const int AuditLimit = 80;
+        private const double FloatEpsilon = 1e-9;
 
         public string? CurrentStateId => _currentStateId;
 
@@ -432,8 +433,8 @@ public class StateMachineExecutionService : IDisposable
             {
                 return trigger.Operator switch
                 {
-                    TriggerOperator.Eq  => Math.Abs(actual - threshold) < 1e-9,
-                    TriggerOperator.Neq => Math.Abs(actual - threshold) >= 1e-9,
+                    TriggerOperator.Eq  => Math.Abs(actual - threshold) < FloatEpsilon,
+                    TriggerOperator.Neq => Math.Abs(actual - threshold) >= FloatEpsilon,
                     TriggerOperator.Gt  => actual > threshold,
                     TriggerOperator.Gte => actual >= threshold,
                     TriggerOperator.Lt  => actual < threshold,
@@ -480,15 +481,22 @@ public class StateMachineExecutionService : IDisposable
                 try
                 {
                     object writeValue = ParseActionValue(action.Value);
-                    // Fire-and-forget with logged errors (actions must not block the scan)
-                    _ = _tagWriter.WriteTagValueAsync(action.TagPath, writeValue)
-                        .ContinueWith(t =>
+                    var tagPath = action.TagPath;
+                    var val = action.Value;
+                    // Fire-and-forget with exception observation (actions must not block the scan)
+                    _ = Task.Run(async () =>
+                    {
+                        try
                         {
-                            if (t.IsFaulted)
-                                _logger.LogError(t.Exception?.InnerException,
-                                    "Failed to write {Value} to {Tag} during {Phase}({Context})",
-                                    action.Value, action.TagPath, phase, context);
-                        }, TaskContinuationOptions.OnlyOnFaulted);
+                            await _tagWriter.WriteTagValueAsync(tagPath, writeValue);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex,
+                                "Failed to write {Value} to {Tag} during {Phase}({Context})",
+                                val, tagPath, phase, context);
+                        }
+                    });
 
                     _logger.LogDebug("{Phase}({Context}): writing {Value} → {Tag}",
                         phase, context, action.Value, action.TagPath);
