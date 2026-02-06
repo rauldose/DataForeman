@@ -355,6 +355,15 @@
     private bool ShowReplaceWithSubflowDialog;
     private string PendingSubflowId = "";
     private List<FlowTemplate> AvailableTemplates => ConfigService.FlowTemplates.ToList();
+
+    private List<FlowTagPathOption> FlowTagPathOptions => ConfigService.GetAllTagsWithConnection()
+        .Select(t => new FlowTagPathOption
+        {
+            Path = $"{t.Connection.Name}/{t.Tag.Name}",
+            Label = $"{t.Connection.Name} / {t.Tag.Name}"
+        })
+        .OrderBy(t => t.Label)
+        .ToList();
     
     // Node property values storage
     private Dictionary<string, Dictionary<string, object>> NodeProperties = new();
@@ -865,6 +874,23 @@
                 builder.OpenComponent<SfNumericTextBox<double>>(0); builder.AddAttribute(1, "Value", double.TryParse(currentValue, out var dblVal) ? dblVal : 0); builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString()))); builder.CloseComponent(); break;
             case PropertyType.Boolean:
                 builder.OpenComponent<SfCheckBox<bool>>(0); builder.AddAttribute(1, "Checked", currentValue?.ToLower() == "true"); builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, val => SetPropertyValue(nodeId, prop.Key, val.ToString().ToLower()))); builder.CloseComponent(); break;
+            case PropertyType.TagPath:
+                var tagOpts = FlowTagPathOptions;
+                builder.OpenComponent<SfDropDownList<string, FlowTagPathOption>>(0);
+                builder.AddAttribute(1, "Value", currentValue ?? "");
+                builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, val => SetPropertyValue(nodeId, prop.Key, val)));
+                builder.AddAttribute(3, "DataSource", tagOpts);
+                builder.AddAttribute(4, "Placeholder", "Select tag...");
+                builder.AddAttribute(5, "AllowFiltering", true);
+                builder.AddAttribute(6, "ChildContent", (RenderFragment)(b2 =>
+                {
+                    b2.OpenComponent<DropDownListFieldSettings>(0);
+                    b2.AddAttribute(1, "Text", "Label");
+                    b2.AddAttribute(2, "Value", "Path");
+                    b2.CloseComponent();
+                }));
+                builder.CloseComponent();
+                break;
             case PropertyType.Select:
             case PropertyType.TextArea:
             default:
@@ -1355,6 +1381,11 @@
         public string NodeLabel { get; set; } = "";
         public string Message { get; set; } = "";
     }
+
+    public class FlowTagPathOption
+    {
+        public string Path { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+    }
 }
 
-```
