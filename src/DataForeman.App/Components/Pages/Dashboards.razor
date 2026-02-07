@@ -783,7 +783,16 @@
     private void EditDashboard(string id) { Navigation.NavigateTo($"/dashboards/{id}"); IsEditMode = true; }
     private void GoBack() => Navigation.NavigateTo("/dashboards");
     
-    private void EnterEditMode() => IsEditMode = true;
+    private async Task EnterEditMode()
+    {
+        if (!AppState.IsOwner(CurrentDashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can edit this dashboard", "e-toast-warning", "Permission Denied");
+            return;
+        }
+        IsEditMode = true;
+    }
     private void ExitEditMode() => IsEditMode = false;
     private void ToggleFullscreen() => IsFullscreen = !IsFullscreen;
     private void RefreshData() => StateHasChanged();
@@ -957,6 +966,13 @@
 
     private async Task SaveDashboard()
     {
+        if (!AppState.IsOwner(CurrentDashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can save this dashboard", "e-toast-warning", "Permission Denied");
+            return;
+        }
+
         // Sync panel positions/sizes from the layout component before saving
         if (DashboardLayout != null && DashboardId != "new")
         {
@@ -1002,6 +1018,15 @@
 
     private async Task ExecuteDeleteDashboard()
     {
+        var dashboard = ConfigService.GetDashboard(DeleteDashboardId);
+        if (dashboard != null && !AppState.IsOwner(dashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this dashboard", "e-toast-warning", "Permission Denied");
+            ShowDeleteDialog = false;
+            return;
+        }
+
         await ConfigService.DeleteDashboardAsync(DeleteDashboardId);
         ShowDeleteDialog = false;
     }

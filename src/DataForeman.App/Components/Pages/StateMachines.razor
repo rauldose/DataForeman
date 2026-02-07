@@ -679,12 +679,26 @@
 
     private async Task ToggleEnabled()
     {
+        if (!AppState.IsOwner(CurrentStateMachine.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can enable/disable this state machine", "e-toast-warning", "Permission Denied");
+            return;
+        }
         CurrentStateMachine.Enabled = !CurrentStateMachine.Enabled;
         await SaveStateMachine();
     }
 
     private async Task SaveStateMachine()
     {
+        var isExisting = ConfigService.GetStateMachine(CurrentStateMachine.Id) != null;
+        if (isExisting && !AppState.IsOwner(CurrentStateMachine.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can save this state machine", "e-toast-warning", "Permission Denied");
+            return;
+        }
+
         // Sync diagram nodes back to state machine config
         SyncDiagramToConfig();
         
@@ -1108,6 +1122,17 @@
     {
         if (_deletingStateMachineId != null)
         {
+            var sm = ConfigService.GetStateMachine(_deletingStateMachineId);
+            if (sm != null && !AppState.IsOwner(sm.OwnerId))
+            {
+                if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                    await l.ShowToastAsync("Only the owner can delete this state machine", "e-toast-warning", "Permission Denied");
+                _deleteDialogVisible = false;
+                _deletingStateMachineId = null;
+                _deletingStateMachineName = null;
+                return;
+            }
+
             await ConfigService.DeleteStateMachineAsync(_deletingStateMachineId);
             LoadStateMachines();
             _deleteDialogVisible = false;
