@@ -24,10 +24,7 @@
         {
             <SfButton CssClass="@NavBtnClass("/charts")" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
         }
-        @if (AppState.HasPermission("flows", "read"))
-        {
-            <SfButton CssClass="@NavBtnClass("/flows")" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
-        }
+        <SfButton CssClass="@NavBtnClass("/flows")" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
         @if (AppState.HasPermission("state_machines", "read"))
         {
             <SfButton CssClass="@NavBtnClass("/state-machines")" @onclick='() => NavigateTo("/state-machines")'>State Machines</SfButton>
