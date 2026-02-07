@@ -1107,15 +1107,21 @@
         Navigation.NavigateTo("/state-machines");
     }
 
-    private void ConfirmDeleteStateMachine(string id)
+    private async Task ConfirmDeleteStateMachine(string id)
     {
         var stateMachine = ConfigService.GetStateMachine(id);
-        if (stateMachine != null)
+        if (stateMachine == null) return;
+        
+        if (!AppState.IsOwner(stateMachine.OwnerId))
         {
-            _deletingStateMachineId = id;
-            _deletingStateMachineName = stateMachine.Name;
-            _deleteDialogVisible = true;
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this state machine", "e-toast-warning", "Permission Denied");
+            return;
         }
+        
+        _deletingStateMachineId = id;
+        _deletingStateMachineName = stateMachine.Name;
+        _deleteDialogVisible = true;
     }
 
     private async Task ConfirmDelete()

@@ -562,8 +562,15 @@
             await layout.ShowToastAsync("Chart saved", "e-toast-success", "Saved");
     }
 
-    private void ConfirmDeleteChart(string id)
+    private async Task ConfirmDeleteChart(string id)
     {
+        var chart = ConfigService.GetChart(id);
+        if (chart != null && !AppState.IsOwner(chart.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this chart", "e-toast-warning", "Permission Denied");
+            return;
+        }
         DeleteChartId = id;
         ShowDeleteDialog = true;
     }
