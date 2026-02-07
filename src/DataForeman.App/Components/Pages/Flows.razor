@@ -97,7 +97,7 @@
         <div class="flow-editor" @key="@FlowId">
             <div class="editor-toolbar">
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
-                <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="flow-name-input"></SfTextBox>
+                <SfTextBox @bind-Value="CurrentFlow.Name" Placeholder="Flow Name" CssClass="name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
                 @if (!string.IsNullOrEmpty(_editingSubflowId))
                 {

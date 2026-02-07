@@ -8,6 +8,7 @@
 @inject MqttService MqttService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Dashboards - DataForeman</PageTitle>
@@ -19,11 +20,13 @@
         <div class="page-toolbar">
             <h2><i class="fa-solid fa-gauge"></i> Dashboards</h2>
             <div class="toolbar-actions">
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewDashboard">New Dashboard</SfButton>
+                <PermissionGuard Feature="dashboards" Operation="create">
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewDashboard">New Dashboard</SfButton>
+                </PermissionGuard>
             </div>
         </div>
         
-        @if (!ConfigService.Dashboards.Any())
+        @if (!VisibleDashboards.Any())
         {
             <div class="empty-state">
                 <i class="fa-solid fa-gauge"></i>
@@ -34,12 +37,20 @@
         else
         {
             <div class="dashboard-grid">
-                @foreach (var dashboard in ConfigService.Dashboards)
+                @foreach (var dashboard in VisibleDashboards)
                 {
                     <div class="dashboard-card" @onclick="() => ViewDashboard(dashboard.Id)">
                         <div class="dashboard-card-header">
                             <i class="fa-solid fa-gauge"></i>
                             <span class="dashboard-name">@dashboard.Name</span>
+                            @if (dashboard.IsShared)
+                            {
+                                <span class="shared-badge" title="Shared with others"><i class="fa-solid fa-share-nodes"></i></span>
+                            }
+                            @if (!AppState.IsOwner(dashboard.OwnerId) && dashboard.IsShared)
+                            {
+                                <span class="readonly-badge" title="Read only">Read Only</span>
+                            }
                         </div>
                         <div class="dashboard-card-body">
                             <span class="dashboard-description">@(dashboard.Description ?? "No description")</span>
@@ -48,8 +59,15 @@
                             </div>
                         </div>
                         <div class="dashboard-card-actions" @onclick:stopPropagation="true">
-                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
-                            <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
+                            @if (AppState.IsOwner(dashboard.OwnerId))
+                            {
+                                <PermissionGuard Feature="dashboards" Operation="update">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
+                                </PermissionGuard>
+                                <PermissionGuard Feature="dashboards" Operation="delete">
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
+                                </PermissionGuard>
+                            }
                         </div>
                     </div>
                 }
@@ -61,12 +79,12 @@
         <!-- Dashboard View/Edit -->
         <div class="dashboard-viewer">
             <!-- Toolbar -->
-            <div class="dashboard-toolbar">
+            <div class="editor-toolbar">
                 <div class="toolbar-left">
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
                     @if (IsEditMode)
                     {
-                        <SfTextBox @bind-Value="CurrentDashboard.Name" Placeholder="Dashboard Name" CssClass="dashboard-name-input"></SfTextBox>
+                        <SfTextBox @bind-Value="CurrentDashboard.Name" Placeholder="Dashboard Name" CssClass="name-input"></SfTextBox>
                     }
                     else
                     {
@@ -81,7 +99,7 @@
                                         @bind-Value="SelectedTimeRange" Width="120px" CssClass="time-dropdown">
                             <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                         </SfDropDownList>
-                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-sync" @onclick="RefreshData"></SfButton>
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-sync" @onclick="RefreshData"></SfButton>
                     </div>
                 </div>
                 
@@ -91,7 +109,15 @@
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-chart-line" Content="Add Chart" @onclick="ShowChartLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-play" Content="Add Flow" @onclick="ShowFlowLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
-                        <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                        @if (AppState.IsOwner(CurrentDashboard.OwnerId))
+                        {
+                            <div class="share-toggle" title="@(CurrentDashboard.IsShared ? "Shared with others" : "Private")">
+                                <SfCheckBox @bind-Checked="CurrentDashboard.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
+                            </div>
+                            <PermissionGuard Feature="dashboards" Operation="update">
+                                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                            </PermissionGuard>
+                        }
                         <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>
                     }
                     else
@@ -99,7 +125,10 @@
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-tv" @onclick="ShowTVModeDialog" Content="TV Mode"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="ExportDashboard" Content="Export"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-import" @onclick="ShowImportDialog" Content="Import"></SfButton>
-                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
+                        @if (AppState.IsOwner(CurrentDashboard.OwnerId))
+                        {
+                            <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
+                        }
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-expand" @onclick="ToggleFullscreen"></SfButton>
                     }
                 </div>
@@ -559,6 +588,10 @@
     
     private SfDashboardLayout? DashboardLayout;
     private DashboardConfig CurrentDashboard = new();
+    
+    /// <summary>Dashboards visible to the current user: owned + shared.</summary>
+    private IEnumerable<DashboardConfig> VisibleDashboards => ConfigService.Dashboards
+        .Where(d => AppState.IsOwner(d.OwnerId) || d.IsShared);
     private DashboardPanel? SelectedPanel;
     private DashboardPanel? ConfiguringPanel;
     private bool IsEditMode;
@@ -643,7 +676,11 @@
         {
             if (DashboardId == "new")
             {
-                CurrentDashboard = new DashboardConfig { Name = "New Dashboard" };
+                CurrentDashboard = new DashboardConfig
+                {
+                    Name = "New Dashboard",
+                    OwnerId = AppState.CurrentUser?.Id
+                };
                 IsEditMode = true;
             }
             else
@@ -746,7 +783,16 @@
     private void EditDashboard(string id) { Navigation.NavigateTo($"/dashboards/{id}"); IsEditMode = true; }
     private void GoBack() => Navigation.NavigateTo("/dashboards");
     
-    private void EnterEditMode() => IsEditMode = true;
+    private async Task EnterEditMode()
+    {
+        if (!AppState.IsOwner(CurrentDashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can edit this dashboard", "e-toast-warning", "Permission Denied");
+            return;
+        }
+        IsEditMode = true;
+    }
     private void ExitEditMode() => IsEditMode = false;
     private void ToggleFullscreen() => IsFullscreen = !IsFullscreen;
     private void RefreshData() => StateHasChanged();
@@ -920,6 +966,13 @@
 
     private async Task SaveDashboard()
     {
+        if (!AppState.IsOwner(CurrentDashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can save this dashboard", "e-toast-warning", "Permission Denied");
+            return;
+        }
+
         // Sync panel positions/sizes from the layout component before saving
         if (DashboardLayout != null && DashboardId != "new")
         {
@@ -957,14 +1010,30 @@
             await layout.ShowToastAsync("Dashboard saved", "e-toast-success", "Saved");
     }
 
-    private void ConfirmDeleteDashboard(string id)
+    private async Task ConfirmDeleteDashboard(string id)
     {
+        var dashboard = ConfigService.GetDashboard(id);
+        if (dashboard != null && !AppState.IsOwner(dashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this dashboard", "e-toast-warning", "Permission Denied");
+            return;
+        }
         DeleteDashboardId = id;
         ShowDeleteDialog = true;
     }
 
     private async Task ExecuteDeleteDashboard()
     {
+        var dashboard = ConfigService.GetDashboard(DeleteDashboardId);
+        if (dashboard != null && !AppState.IsOwner(dashboard.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this dashboard", "e-toast-warning", "Permission Denied");
+            ShowDeleteDialog = false;
+            return;
+        }
+
         await ConfigService.DeleteDashboardAsync(DeleteDashboardId);
         ShowDeleteDialog = false;
     }

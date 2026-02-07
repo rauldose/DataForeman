@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using DataForeman.Shared.Models;
+using DataForeman.Shared.Mqtt;
 
 namespace DataForeman.Engine.Services;
 
@@ -29,6 +30,12 @@ public class InternalTagStore : IDisposable
     private Timer? _flushTimer;
     private volatile bool _dirty;
     private string? _persistPath;
+
+    /// <summary>
+    /// Raised whenever an internal tag value is created or updated,
+    /// enabling MQTT publishing for inline auto-created tags.
+    /// </summary>
+    public event Action<InternalTagValueMessage>? OnValueChanged;
 
     public InternalTagStore(ILogger<InternalTagStore> logger, ConfigService configService)
     {
@@ -107,6 +114,10 @@ public class InternalTagStore : IDisposable
         _dirty = true;
         
         _logger.LogDebug("Set global context '{Path}' = {Value}", path, value);
+        OnValueChanged?.Invoke(new InternalTagValueMessage
+        {
+            Scope = "global", Path = path, Value = value, Timestamp = tagValue.TimestampUtc
+        });
     }
 
     /// <summary>
@@ -150,6 +161,10 @@ public class InternalTagStore : IDisposable
         _values[key] = tagValue;
         
         _logger.LogDebug("Set flow context '{FlowId}/{Path}' = {Value}", flowId, path, value);
+        OnValueChanged?.Invoke(new InternalTagValueMessage
+        {
+            Scope = "flow", Path = path, FlowId = flowId, Value = value, Timestamp = tagValue.TimestampUtc
+        });
     }
 
     /// <summary>
@@ -208,6 +223,10 @@ public class InternalTagStore : IDisposable
         _values[key] = tagValue;
         
         _logger.LogDebug("Set node context '{FlowId}/{NodeId}/{Path}' = {Value}", flowId, nodeId, path, value);
+        OnValueChanged?.Invoke(new InternalTagValueMessage
+        {
+            Scope = "node", Path = path, FlowId = flowId, NodeId = nodeId, Value = value, Timestamp = tagValue.TimestampUtc
+        });
     }
 
     /// <summary>

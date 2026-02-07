@@ -10,6 +10,8 @@ public class DashboardConfig
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? OwnerId { get; set; }
+    public bool IsShared { get; set; }
     public List<DashboardPanel> Panels { get; set; } = new();
     public List<DashboardVariable> Variables { get; set; } = new();
     public DashboardSettings Settings { get; set; } = new();

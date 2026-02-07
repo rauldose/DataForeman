@@ -10,6 +10,8 @@ public class StateMachineConfig
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? OwnerId { get; set; }
+    public bool IsShared { get; set; }
     public bool Enabled { get; set; } = false;
     public string? InitialStateId { get; set; }
     public List<MachineState> States { get; set; } = new();

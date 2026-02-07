@@ -120,6 +120,23 @@ public class FlowDeploymentStatusMessage
 }
 
 /// <summary>
+/// MQTT message for internal tag (context) value updates.
+/// Published by Engine to topic: dataforeman/context/{scope}/{path}
+/// Enables inline internal tags — flows auto-create tags via context-set,
+/// and the UI receives them without manual pre-registration.
+/// </summary>
+public class InternalTagValueMessage
+{
+    public string Scope { get; set; } = "global";
+    public string Path { get; set; } = string.Empty;
+    public string? FlowId { get; set; }
+    public string? NodeId { get; set; }
+    public object? Value { get; set; }
+    public int Quality { get; set; } = 0;
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 /// MQTT topics used by DataForeman.
 /// </summary>
 public static class MqttTopics
@@ -176,4 +193,11 @@ public static class MqttTopics
     
     public static string GetFlowManualTriggerTopic(string flowId) 
         => $"dataforeman/flows/{flowId}/trigger";
+    
+    // Internal tag (context) topics — enables inline auto-created tags
+    public const string ContextValuePattern = "dataforeman/context/{scope}/{path}";
+    public const string AllContextValuesWildcard = "dataforeman/context/#";
+    
+    public static string GetContextValueTopic(string scope, string path)
+        => $"dataforeman/context/{scope}/{path}";
 }

@@ -17,6 +17,7 @@ public class Worker : BackgroundService
     private readonly ConfigWatcher _configWatcher;
     private readonly StateMachineExecutionService _stateMachineService;
     private readonly EngineHealthMonitor _healthMonitor;
+    private readonly InternalTagStore _internalTagStore;
 
     public Worker(
         ILogger<Worker> logger,
@@ -28,7 +29,8 @@ public class Worker : BackgroundService
         PollEngine pollEngine,
         ConfigWatcher configWatcher,
         StateMachineExecutionService stateMachineService,
-        EngineHealthMonitor healthMonitor)
+        EngineHealthMonitor healthMonitor,
+        InternalTagStore internalTagStore)
     {
         _logger = logger;
         _configService = configService;
@@ -40,6 +42,7 @@ public class Worker : BackgroundService
         _configWatcher = configWatcher;
         _stateMachineService = stateMachineService;
         _healthMonitor = healthMonitor;
+        _internalTagStore = internalTagStore;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -59,6 +62,13 @@ public class Worker : BackgroundService
             await _mqttPublisher.ConnectAsync();
             _mqttPublisher.OnConnectionChanged += connected =>
                 _healthMonitor.SetMqttConnected(connected);
+
+            // Wire up internal tag store → MQTT publishing for inline auto-created tags
+            _internalTagStore.OnValueChanged += async msg =>
+            {
+                try { await _mqttPublisher.PublishInternalTagValueAsync(msg); }
+                catch (Exception ex) { _logger.LogError(ex, "Failed to publish internal tag value for {Path}", msg.Path); }
+            };
 
             // Subscribe to config reload commands from the App
             await _mqttPublisher.SubscribeAsync(

@@ -1,0 +1,43 @@
+@* 
+    PermissionGuard - Conditionally renders children based on user permissions.
+    Equivalent to React's PermissionGuard component.
+    
+    Usage:
+        <PermissionGuard Feature="flows" Operation="update">
+            <SfButton @onclick="SaveFlow">Save</SfButton>
+        </PermissionGuard>
+*@
+@inject AppStateService AppState
+
+@if (HasRequiredPermission())
+{
+    @ChildContent
+}
+else if (ShowFallback)
+{
+    <span class="permission-denied" title="@FallbackMessage">@FallbackMessage</span>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Feature { get; set; } = "";
+    [Parameter] public string Operation { get; set; } = "read";
+    [Parameter] public bool RequireAll { get; set; } = false;
+    [Parameter] public bool ShowFallback { get; set; } = false;
+    [Parameter] public string FallbackMessage { get; set; } = "Insufficient permissions";
+
+    private bool HasRequiredPermission()
+    {
+        if (string.IsNullOrEmpty(Feature)) return true;
+
+        if (Operation.Contains(','))
+        {
+            var ops = Operation.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return RequireAll
+                ? ops.All(op => AppState.HasPermission(Feature, op))
+                : ops.Any(op => AppState.HasPermission(Feature, op));
+        }
+
+        return AppState.HasPermission(Feature, Operation);
+    }
+}

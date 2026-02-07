@@ -5,6 +5,7 @@
 @inject RealtimeDataService RealtimeData
 @inject HistoryService HistoryService
 @inject NavigationManager Navigation
+@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Charts - DataForeman</PageTitle>
@@ -16,11 +17,13 @@
         <div class="page-toolbar">
             <h2><i class="fa-solid fa-chart-line"></i> Charts</h2>
             <div class="toolbar-actions">
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewChart">New Chart</SfButton>
+                <PermissionGuard Feature="charts" Operation="create">
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewChart">New Chart</SfButton>
+                </PermissionGuard>
             </div>
         </div>
         
-        @if (!ConfigService.Charts.Any())
+        @if (!VisibleCharts.Any())
         {
             <div class="empty-state">
                 <i class="fa-solid fa-chart-area"></i>
@@ -38,6 +41,21 @@
                     <GridColumn Field="@nameof(ChartDisplay.SeriesCount)" HeaderText="Series" Width="80"></GridColumn>
                     <GridColumn Field="@nameof(ChartDisplay.AxisCount)" HeaderText="Axes" Width="80"></GridColumn>
                     <GridColumn Field="@nameof(ChartDisplay.Mode)" HeaderText="Mode" Width="100"></GridColumn>
+                    <GridColumn HeaderText="Shared" Width="80">
+                        <Template>
+                            @{
+                                var item = (context as ChartDisplay);
+                                @if (item?.IsShared == true)
+                                {
+                                    <span class="shared-badge"><i class="fa-solid fa-share-nodes"></i> Shared</span>
+                                }
+                                @if (item?.IsOwner == false)
+                                {
+                                    <span class="readonly-badge">Read Only</span>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
                     <GridColumn HeaderText="Actions" Width="120">
                         <Template>
                             @{
@@ -45,7 +63,12 @@
                                 <div class="action-buttons">
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditChart(item!.Id)"></SfButton>
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-expand" @onclick="() => ViewChart(item!.Id)"></SfButton>
-                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
+                                    @if (item?.IsOwner == true)
+                                    {
+                                        <PermissionGuard Feature="charts" Operation="delete">
+                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
+                                        </PermissionGuard>
+                                    }
                                 </div>
                             }
                         </Template>
@@ -60,7 +83,7 @@
         <div class="chart-editor">
             <div class="editor-toolbar">
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
-                <SfTextBox @bind-Value="CurrentChart.Name" Placeholder="Chart Name" CssClass="chart-name-input"></SfTextBox>
+                <SfTextBox @bind-Value="CurrentChart.Name" Placeholder="Chart Name" CssClass="name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
                 
                 <!-- Mode Toggle -->
@@ -75,7 +98,15 @@
                 
                 <SfButton CssClass="@(_showConfigPanel ? "e-info" : "e-flat")" IconCss="fa-solid fa-sliders" 
                           @onclick="() => _showConfigPanel = !_showConfigPanel" title="Toggle config panel"></SfButton>
-                <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
+                @if (AppState.IsOwner(CurrentChart.OwnerId))
+                {
+                    <div class="share-toggle" title="@(CurrentChart.IsShared ? "Shared with others" : "Private")">
+                        <SfCheckBox @bind-Checked="CurrentChart.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
+                    </div>
+                    <PermissionGuard Feature="charts" Operation="update">
+                        <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
+                    </PermissionGuard>
+                }
             </div>
             
             <div class="editor-content">
@@ -307,14 +338,19 @@
     
     private List<string> AxisPositions = new() { "Left", "Right" };
     
-    private List<ChartDisplay> ChartsList => ConfigService.Charts.Select(c => new ChartDisplay
+    private IEnumerable<ChartConfig> VisibleCharts => ConfigService.Charts
+        .Where(c => AppState.IsOwner(c.OwnerId) || c.IsShared);
+    
+    private List<ChartDisplay> ChartsList => VisibleCharts.Select(c => new ChartDisplay
     {
         Id = c.Id,
         Name = c.Name,
         ChartType = c.ChartType,
         SeriesCount = c.Series.Count,
         AxisCount = c.YAxes.Count,
-        Mode = c.Settings.Mode.ToString()
+        Mode = c.Settings.Mode.ToString(),
+        IsShared = c.IsShared,
+        IsOwner = AppState.IsOwner(c.OwnerId)
     }).ToList();
     
     private IEnumerable<TagConfig> FilteredTags
@@ -353,6 +389,7 @@
                 CurrentChart = new ChartConfig 
                 { 
                     Name = "New Chart",
+                    OwnerId = AppState.CurrentUser?.Id,
                     YAxes = new List<ChartAxisConfig> { new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" } }
                 };
             }
@@ -501,6 +538,13 @@
 
     private async Task SaveChart()
     {
+        if (ChartId != "new" && !AppState.IsOwner(CurrentChart.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can save this chart", "e-toast-warning", "Permission Denied");
+            return;
+        }
+
         CurrentChart.UpdatedAt = DateTime.UtcNow;
         
         if (ChartId == "new")
@@ -518,14 +562,30 @@
             await layout.ShowToastAsync("Chart saved", "e-toast-success", "Saved");
     }
 
-    private void ConfirmDeleteChart(string id)
+    private async Task ConfirmDeleteChart(string id)
     {
+        var chart = ConfigService.GetChart(id);
+        if (chart != null && !AppState.IsOwner(chart.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this chart", "e-toast-warning", "Permission Denied");
+            return;
+        }
         DeleteChartId = id;
         ShowDeleteDialog = true;
     }
 
     private async Task ExecuteDeleteChart()
     {
+        var chart = ConfigService.GetChart(DeleteChartId);
+        if (chart != null && !AppState.IsOwner(chart.OwnerId))
+        {
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } l)
+                await l.ShowToastAsync("Only the owner can delete this chart", "e-toast-warning", "Permission Denied");
+            ShowDeleteDialog = false;
+            return;
+        }
+
         await ConfigService.DeleteChartAsync(DeleteChartId);
         ShowDeleteDialog = false;
     }
@@ -574,6 +634,8 @@
         public int SeriesCount { get; set; } 
         public int AxisCount { get; set; } 
         public string Mode { get; set; } = ""; 
+        public bool IsShared { get; set; }
+        public bool IsOwner { get; set; } = true;
     }
     
     public class ChartDataPoint 

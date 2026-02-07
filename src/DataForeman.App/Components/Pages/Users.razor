@@ -1,0 +1,270 @@
+@page "/users"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject UserService UserService
+@inject AppStateService AppState
+
+<PageTitle>Users - DataForeman</PageTitle>
+
+<div class="page-container">
+    <div class="page-toolbar">
+        <h2><i class="fa-solid fa-users"></i> Users</h2>
+        <div class="toolbar-actions">
+            <PermissionGuard Feature="users" Operation="create">
+                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="OpenAddUserDialog">Add User</SfButton>
+            </PermissionGuard>
+        </div>
+    </div>
+
+    <SfGrid DataSource="@UsersList" AllowPaging="true" AllowSorting="true">
+        <GridPageSettings PageSize="10"></GridPageSettings>
+        <GridColumns>
+            <GridColumn Field="@nameof(UserDisplay.Email)" HeaderText="Email" Width="250"></GridColumn>
+            <GridColumn Field="@nameof(UserDisplay.DisplayName)" HeaderText="Display Name" Width="200"></GridColumn>
+            <GridColumn HeaderText="Status" Width="100">
+                <Template>
+                    @{
+                        var item = (context as UserDisplay);
+                        <span class="status-indicator @(item?.IsActive == true ? "enabled" : "disabled")">
+                            <i class="fa-solid fa-circle"></i> @(item?.IsActive == true ? "Active" : "Inactive")
+                        </span>
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn HeaderText="Actions" Width="180">
+                <Template>
+                    @{
+                        var item = (context as UserDisplay);
+                        if (item != null)
+                        {
+                            <div class="action-buttons">
+                                <PermissionGuard Feature="users" Operation="update">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditUser(item.Id)" title="Edit"></SfButton>
+                                </PermissionGuard>
+                                <PermissionGuard Feature="users" Operation="update">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-key" @onclick="() => ManagePermissions(item.Id)" title="Permissions"></SfButton>
+                                </PermissionGuard>
+                                <PermissionGuard Feature="users" Operation="delete">
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteUser(item.Id)" title="Delete"></SfButton>
+                                </PermissionGuard>
+                            </div>
+                        }
+                    }
+                </Template>
+            </GridColumn>
+        </GridColumns>
+    </SfGrid>
+</div>
+
+@* Add/Edit User Dialog *@
+@if (ShowUserDialog)
+{
+    <SfDialog @bind-Visible="ShowUserDialog" Width="450px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>@(IsEditMode ? "Edit User" : "Add User")</Header>
+            <Content>
+                <div class="dialog-form">
+                    <div class="form-field">
+                        <label>Email</label>
+                        <SfTextBox @bind-Value="UserForm.Email" Placeholder="Email address" Enabled="@(!IsEditMode)"></SfTextBox>
+                    </div>
+                    <div class="form-field">
+                        <label>Display Name</label>
+                        <SfTextBox @bind-Value="UserForm.DisplayName" Placeholder="Display name"></SfTextBox>
+                    </div>
+                    @if (!IsEditMode)
+                    {
+                        <div class="form-field">
+                            <label>Password (min 8 chars)</label>
+                            <SfTextBox @bind-Value="UserForm.Password" Placeholder="Password" Type="InputType.Password"></SfTextBox>
+                        </div>
+                    }
+                </div>
+            </Content>
+        </DialogTemplates>
+        <DialogButtons>
+            <DialogButton Content="Cancel" @onclick="() => ShowUserDialog = false"></DialogButton>
+            <DialogButton Content="@(IsEditMode ? "Update" : "Create")" IsPrimary="true" @onclick="SaveUser"></DialogButton>
+        </DialogButtons>
+    </SfDialog>
+}
+
+@* Permissions Dialog *@
+@if (ShowPermissionsDialog)
+{
+    <SfDialog @bind-Visible="ShowPermissionsDialog" Width="650px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Permissions - @SelectedUserEmail</Header>
+            <Content>
+                <SfGrid DataSource="@EditingPermissions" AllowPaging="false">
+                    <GridColumns>
+                        <GridColumn Field="@nameof(FeaturePermission.Feature)" HeaderText="Feature" Width="180" IsPrimaryKey="true" AllowEditing="false"></GridColumn>
+                        <GridColumn HeaderText="Read" Width="70">
+                            <Template>
+                                @{ var p = context as FeaturePermission; if (p != null) { <SfCheckBox @bind-Checked="p.CanRead" TChecked="bool"></SfCheckBox> } }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn HeaderText="Create" Width="70">
+                            <Template>
+                                @{ var p = context as FeaturePermission; if (p != null) { <SfCheckBox @bind-Checked="p.CanCreate" TChecked="bool"></SfCheckBox> } }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn HeaderText="Update" Width="70">
+                            <Template>
+                                @{ var p = context as FeaturePermission; if (p != null) { <SfCheckBox @bind-Checked="p.CanUpdate" TChecked="bool"></SfCheckBox> } }
+                            </Template>
+                        </GridColumn>
+                        <GridColumn HeaderText="Delete" Width="70">
+                            <Template>
+                                @{ var p = context as FeaturePermission; if (p != null) { <SfCheckBox @bind-Checked="p.CanDelete" TChecked="bool"></SfCheckBox> } }
+                            </Template>
+                        </GridColumn>
+                    </GridColumns>
+                </SfGrid>
+            </Content>
+        </DialogTemplates>
+        <DialogButtons>
+            <DialogButton Content="Cancel" @onclick="() => ShowPermissionsDialog = false"></DialogButton>
+            <DialogButton Content="Save Permissions" IsPrimary="true" @onclick="SavePermissions"></DialogButton>
+        </DialogButtons>
+    </SfDialog>
+}
+
+@* Delete Confirmation *@
+@if (ShowDeleteDialog)
+{
+    <SfDialog @bind-Visible="ShowDeleteDialog" Width="350px" IsModal="true" ShowCloseIcon="true">
+        <DialogTemplates>
+            <Header>Confirm Delete</Header>
+            <Content><p>Delete this user?</p></Content>
+        </DialogTemplates>
+        <DialogButtons>
+            <DialogButton Content="Cancel" @onclick="() => ShowDeleteDialog = false"></DialogButton>
+            <DialogButton Content="Delete" IsPrimary="true" CssClass="e-danger" @onclick="ExecuteDeleteUser"></DialogButton>
+        </DialogButtons>
+    </SfDialog>
+}
+
+@code {
+    private List<UserDisplay> UsersList = new();
+    private bool ShowUserDialog, ShowPermissionsDialog, ShowDeleteDialog;
+    private bool IsEditMode;
+    private UserFormModel UserForm = new();
+    private string? EditingUserId;
+    private string? SelectedUserEmail;
+    private string? DeleteUserId;
+    private List<FeaturePermission> EditingPermissions = new();
+
+    protected override void OnInitialized()
+    {
+        LoadUsers();
+    }
+
+    private void LoadUsers()
+    {
+        UsersList = UserService.Users.Select(u => new UserDisplay
+        {
+            Id = u.Id,
+            Email = u.Email,
+            DisplayName = u.DisplayName ?? "",
+            IsActive = u.IsActive
+        }).ToList();
+    }
+
+    private void OpenAddUserDialog()
+    {
+        UserForm = new UserFormModel();
+        IsEditMode = false;
+        EditingUserId = null;
+        ShowUserDialog = true;
+    }
+
+    private void EditUser(string id)
+    {
+        var user = UserService.GetUserById(id);
+        if (user == null) return;
+        UserForm = new UserFormModel { Email = user.Email, DisplayName = user.DisplayName ?? "" };
+        IsEditMode = true;
+        EditingUserId = id;
+        ShowUserDialog = true;
+    }
+
+    private async Task SaveUser()
+    {
+        if (IsEditMode && EditingUserId != null)
+        {
+            UserService.UpdateUser(EditingUserId, UserForm.DisplayName, null);
+        }
+        else
+        {
+            UserService.CreateUser(UserForm.Email, UserForm.Password ?? "", UserForm.DisplayName);
+        }
+        ShowUserDialog = false;
+        LoadUsers();
+
+        var layout = DataForeman.App.Components.Layout.MainLayout.Instance;
+        if (layout != null)
+            await layout.ShowToastAsync("User saved", "e-toast-success", "Saved");
+    }
+
+    private void ManagePermissions(string id)
+    {
+        var user = UserService.GetUserById(id);
+        if (user == null) return;
+        SelectedUserEmail = user.Email;
+        EditingUserId = id;
+        EditingPermissions = user.Permissions.Select(p => new FeaturePermission
+        {
+            Feature = p.Feature,
+            CanCreate = p.CanCreate,
+            CanRead = p.CanRead,
+            CanUpdate = p.CanUpdate,
+            CanDelete = p.CanDelete
+        }).ToList();
+        ShowPermissionsDialog = true;
+    }
+
+    private async Task SavePermissions()
+    {
+        if (EditingUserId != null)
+        {
+            UserService.UpdateUserPermissions(EditingUserId, EditingPermissions);
+        }
+        ShowPermissionsDialog = false;
+
+        var layout = DataForeman.App.Components.Layout.MainLayout.Instance;
+        if (layout != null)
+            await layout.ShowToastAsync("Permissions saved", "e-toast-success", "Saved");
+    }
+
+    private void ConfirmDeleteUser(string id)
+    {
+        DeleteUserId = id;
+        ShowDeleteDialog = true;
+    }
+
+    private void ExecuteDeleteUser()
+    {
+        if (DeleteUserId != null)
+        {
+            UserService.DeleteUser(DeleteUserId);
+        }
+        ShowDeleteDialog = false;
+        LoadUsers();
+    }
+
+    class UserDisplay
+    {
+        public string Id { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
+    class UserFormModel
+    {
+        public string Email { get; set; } = "";
+        public string? DisplayName { get; set; }
+        public string? Password { get; set; }
+    }
+}

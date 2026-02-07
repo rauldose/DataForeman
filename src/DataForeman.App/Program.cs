@@ -1,5 +1,6 @@
 using DataForeman.App.Components;
 using DataForeman.App.Services;
+using Microsoft.AspNetCore.Components.Authorization;
 using Syncfusion.Blazor;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,14 @@ builder.Services.AddRazorComponents()
 
 // Add Syncfusion Blazor services
 builder.Services.AddSyncfusionBlazor();
+
+// Authentication & Authorization
+builder.Services.AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddSingleton<UserService>();
+builder.Services.AddScoped<AuthStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<AuthStateProvider>());
+builder.Services.AddScoped<AppStateService>();
 
 builder.Services.AddSingleton<ConfigService>();
 builder.Services.AddSingleton<MqttService>();
