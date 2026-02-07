@@ -407,13 +407,7 @@ public class RealtimeDataService : IDisposable
     {
         try
         {
-            // Build a cache key matching the format used by InternalTagStore
-            var key = message.Scope switch
-            {
-                "flow" when message.FlowId != null => $"flow:{message.FlowId}:{message.Path}",
-                "node" when message.FlowId != null && message.NodeId != null => $"node:{message.FlowId}:{message.NodeId}:{message.Path}",
-                _ => $"global:{message.Path}"
-            };
+            var key = InternalTagValue.BuildKey(message.Scope, message.Path, message.FlowId, message.NodeId);
 
             var cache = _internalTagValues.GetOrAdd(key, k => new InternalTagValueCache { Key = k });
             cache.Value = message.Value;

@@ -80,6 +80,20 @@ public sealed record InternalTagValue
     
     /// <summary>The context scope.</summary>
     public ContextScope Scope { get; init; }
+
+    /// <summary>
+    /// Builds a canonical cache key for an internal tag.
+    /// Shared between Engine (InternalTagStore) and App (RealtimeDataService).
+    /// </summary>
+    public static string BuildKey(string scope, string path, string? flowId = null, string? nodeId = null)
+    {
+        return scope switch
+        {
+            "flow" when flowId != null => $"flow:{flowId}:{path}",
+            "node" when flowId != null && nodeId != null => $"node:{flowId}:{nodeId}:{path}",
+            _ => $"global:{path}"
+        };
+    }
 }
 
 /// <summary>
