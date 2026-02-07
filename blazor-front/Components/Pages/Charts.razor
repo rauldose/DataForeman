@@ -7,7 +7,6 @@
 @using Syncfusion.Blazor.Navigations
 @using System.Text.Json
 @inject DataService DataService
-@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Chart Composer - DataForeman</PageTitle>
@@ -16,9 +15,7 @@
     <div class="page-header">
         <h1>Chart Composer</h1>
         <div class="page-actions">
-            <PermissionGuard Feature="charts" Operation="create">
-                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Chart" OnClick="@CreateNewChart"></SfButton>
-            </PermissionGuard>
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Chart" OnClick="@CreateNewChart"></SfButton>
         </div>
     </div>
     
@@ -102,9 +99,7 @@
                             <SfDateTimePicker @bind-Value="@CustomEndDate" Placeholder="End Date" Format="yyyy-MM-dd HH:mm" CssClass="custom-date-picker"></SfDateTimePicker>
                         }
                         <SfButton CssClass="e-outline" IconCss="e-icons e-refresh" Content="Refresh"></SfButton>
-                        <PermissionGuard Feature="charts" Operation="update">
-                            <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
-                        </PermissionGuard>
+                        <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveChart"></SfButton>
                     </div>
                     
                     <div class="chart-content-area">

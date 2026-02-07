@@ -276,45 +276,6 @@ public class DataService
         }
     }
 
-    /// <summary>
-    /// Updates permissions for a user.
-    /// </summary>
-    public async Task<bool> UpdateUserPermissionsAsync(Guid userId, List<UserPermissionInfo> permissions)
-    {
-        try
-        {
-            // Remove existing permissions
-            var existing = await _dbContext.UserPermissions
-                .Where(p => p.UserId == userId)
-                .ToListAsync();
-            _dbContext.UserPermissions.RemoveRange(existing);
-
-            // Add new permissions
-            foreach (var perm in permissions)
-            {
-                _dbContext.UserPermissions.Add(new UserPermission
-                {
-                    UserId = userId,
-                    Feature = perm.Feature,
-                    CanCreate = perm.CanCreate,
-                    CanRead = perm.CanRead,
-                    CanUpdate = perm.CanUpdate,
-                    CanDelete = perm.CanDelete,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                });
-            }
-
-            await _dbContext.SaveChangesAsync();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating permissions for user {UserId}", userId);
-            return false;
-        }
-    }
-
     #endregion
 
     #region Flows

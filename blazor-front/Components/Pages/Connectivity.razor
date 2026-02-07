@@ -4,7 +4,6 @@
 @using System.Text.Json
 @inject DataService DataService
 @inject SimulatorService SimulatorService
-@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Connectivity - DataForeman</PageTitle>
@@ -13,9 +12,7 @@
     <div class="page-header">
         <h1>Connectivity</h1>
         <div class="page-actions">
-            <PermissionGuard Feature="connectivity" Operation="create">
-                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Connection" OnClick="@OpenAddConnectionDialog"></SfButton>
-            </PermissionGuard>
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Connection" OnClick="@OpenAddConnectionDialog"></SfButton>
         </div>
     </div>
     
@@ -64,9 +61,7 @@
                                                     if (conn != null)
                                                     {
                                                         <div class="action-buttons">
-                                                            <PermissionGuard Feature="connectivity" Operation="update">
-                                                                <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" Title="Edit" OnClick="@(() => EditConnection(conn))"></SfButton>
-                                                            </PermissionGuard>
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" Title="Edit" OnClick="@(() => EditConnection(conn))"></SfButton>
                                                             <SfButton CssClass="e-flat e-small" IconCss="e-icons e-eye" Title="View Tags" OnClick="@(() => ViewConnectionTags(conn))"></SfButton>
                                                             @if (conn.Type == "Simulator")
                                                             {
@@ -76,9 +71,7 @@
                                                             {
                                                                 <SfButton CssClass="e-flat e-small" IconCss="e-icons e-refresh" Title="Test Connection" OnClick="@(() => TestConnection(conn))"></SfButton>
                                                             }
-                                                            <PermissionGuard Feature="connectivity" Operation="delete">
-                                                                <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" Title="Delete" OnClick="@(() => ConfirmDeleteConnection(conn))"></SfButton>
-                                                            </PermissionGuard>
+                                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" Title="Delete" OnClick="@(() => ConfirmDeleteConnection(conn))"></SfButton>
                                                         </div>
                                                     }
                                                 }
@@ -112,9 +105,7 @@
                                         <SfButton CssClass="e-outline" IconCss="e-icons e-repeat" Content="Generate Tags" OnClick="@GenerateSimulatedTags"></SfButton>
                                     }
                                 }
-                                <PermissionGuard Feature="connectivity" Operation="create">
-                                    <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag" OnClick="@OpenAddTagDialog"></SfButton>
-                                </PermissionGuard>
+                                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Tag" OnClick="@OpenAddTagDialog"></SfButton>
                             </div>
                             
                             @if (FilteredTags.Count == 0)
@@ -161,12 +152,8 @@
                                                     if (tag != null)
                                                     {
                                                         <div class="action-buttons">
-                                                            <PermissionGuard Feature="connectivity" Operation="update">
-                                                                <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" Title="Edit" OnClick="@(() => EditTag(tag))"></SfButton>
-                                                            </PermissionGuard>
-                                                            <PermissionGuard Feature="connectivity" Operation="delete">
-                                                                <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" Title="Delete" OnClick="@(() => ConfirmDeleteTag(tag))"></SfButton>
-                                                            </PermissionGuard>
+                                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" Title="Edit" OnClick="@(() => EditTag(tag))"></SfButton>
+                                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" Title="Delete" OnClick="@(() => ConfirmDeleteTag(tag))"></SfButton>
                                                         </div>
                                                     }
                                                 }
