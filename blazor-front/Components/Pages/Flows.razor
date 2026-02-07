@@ -48,6 +48,19 @@
                         </Template>
                     </GridColumn>
                     <GridColumn Field="@nameof(FlowListItem.UpdatedAt)" HeaderText="Last Updated" Width="150" Format="g"></GridColumn>
+                    <GridColumn HeaderText="Shared" Width="80">
+                        <Template>
+                            @{
+                                var flow = context as FlowListItem;
+                                if (flow != null)
+                                {
+                                    <span class="status-badge @(flow.Shared ? "shared" : "")">
+                                        @(flow.Shared ? "Shared" : "Private")
+                                    </span>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
                     <GridColumn HeaderText="Actions" Width="150">
                         <Template>
                             @{
@@ -79,6 +92,12 @@
                 {
                     <span class="save-message">@_saveMessage</span>
                 }
+                <PermissionGuard Feature="flows" Operation="update">
+                    <div class="share-toggle" title="@(CurrentFlow.Shared ? "Shared with other users" : "Private - click to share")">
+                        <SfSwitch @bind-Checked="CurrentFlow.Shared" TChecked="bool" ValueChange="@OnShareToggled"></SfSwitch>
+                        <span class="share-label">@(CurrentFlow.Shared ? "Shared" : "Private")</span>
+                    </div>
+                </PermissionGuard>
                 <PermissionGuard Feature="flows" Operation="update">
                     <SfButton CssClass="@(CurrentFlow.Deployed ? "e-danger" : "e-success")" IconCss="@(CurrentFlow.Deployed ? "e-icons e-stop" : "e-icons e-play")" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
                 </PermissionGuard>
@@ -1013,6 +1032,7 @@
                     Name = f.Name,
                     Description = f.Description ?? "",
                     Deployed = f.Deployed,
+                    Shared = f.Shared,
                     UpdatedAt = f.UpdatedAt,
                     Definition = f.Definition
                 }).ToList();
@@ -1496,6 +1516,18 @@
         Navigation.NavigateTo("/flows");
     }
     
+    private async Task OnShareToggled(Syncfusion.Blazor.Buttons.ChangeEventArgs<bool> args)
+    {
+        try
+        {
+            await DataService.UpdateFlowAsync(CurrentFlow.Id, null, null, null, null, null, CurrentFlow.Shared, null);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to update sharing: {ex.Message}");
+        }
+    }
+
     private async Task ToggleDeploy()
     {
         var newDeployState = !CurrentFlow.Deployed;
@@ -2116,6 +2148,7 @@
         public string Name { get; set; } = "";
         public string Description { get; set; } = "";
         public bool Deployed { get; set; }
+        public bool Shared { get; set; }
         public string Status => Deployed ? "Deployed" : "Stopped";
         public DateTime UpdatedAt { get; set; }
         public string Definition { get; set; } = "{}";
