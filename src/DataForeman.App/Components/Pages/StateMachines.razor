@@ -88,7 +88,7 @@
         <div class="state-machine-editor" @key="@StateMachineId">
             <div class="editor-toolbar">
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
-                <SfTextBox @bind-Value="CurrentStateMachine.Name" Placeholder="State Machine Name" CssClass="state-machine-name-input"></SfTextBox>
+                <SfTextBox @bind-Value="CurrentStateMachine.Name" Placeholder="State Machine Name" CssClass="name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
                 <SfButton CssClass="@(CurrentStateMachine.Enabled ? "e-warning" : "e-success")" 
                           IconCss="@(CurrentStateMachine.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"

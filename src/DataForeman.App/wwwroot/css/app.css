@@ -456,8 +456,7 @@ html, body {
     gap: 0.5rem;
 }
 
-/* Legacy name-input aliases */
-.chart-name-input, .flow-name-input { width: 200px; }
+/* Legacy name-input aliases – kept as comments for reference */
 
 .mode-toggle {
     display: flex;
@@ -1096,10 +1095,6 @@ html, body {
     font-weight: 600;
 }
 
-.dashboard-name-input {
-    width: 200px !important;
-}
-
 .time-controls {
     display: flex;
     align-items: center;
@@ -1699,8 +1694,6 @@ html, body {
 }
 
 /* ── State Machine Editor Layout ────────────────────────────── */
-.state-machine-name-input { width: 200px; }
-
 .state-palette {
     width: 140px;
     min-width: 140px;
@@ -1747,30 +1740,6 @@ html, body {
 }
 
 /* ── Trend Viewer Layout ────────────────────────────────────── */
-.trend-name-input { width: 200px; }
-
-/* viewer-toolbar/viewer-content are aliases for editor-toolbar/editor-content (kept for backwards compat) */
-.viewer-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-subtle);
-    flex-wrap: wrap;
-}
-.viewer-toolbar .e-btn {
-    font-size: 0.8125rem !important;
-    padding: 0.25rem 0.75rem !important;
-}
-
-.viewer-content {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-}
-
 .config-panel {
     width: 280px;
     min-width: 280px;
