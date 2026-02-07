@@ -304,8 +304,11 @@
                                         <div class="trace-values">
                                             @if (pts.Any())
                                             {
-                                                <span>Min: @pts.Min(p => p.Value).ToString("F2")</span>
-                                                <span>Max: @pts.Max(p => p.Value).ToString("F2")</span>
+                                                var minVal = double.MaxValue;
+                                                var maxVal = double.MinValue;
+                                                foreach (var p in pts) { if (p.Value < minVal) minVal = p.Value; if (p.Value > maxVal) maxVal = p.Value; }
+                                                <span>Min: @minVal.ToString("F2")</span>
+                                                <span>Max: @maxVal.ToString("F2")</span>
                                                 <span class="tv-cur">Cur: @pts.Last().Value.ToString("F2")</span>
                                             }
                                             else
@@ -624,8 +627,9 @@
                     .Select(h => new TrendDataPoint { Timestamp = h.Timestamp, Value = h.Value })
                     .ToList();
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[Trends] Failed to load history for {series.TagPath}: {ex.Message}");
                 _seriesData[series.Id] = new List<TrendDataPoint>();
             }
         }
