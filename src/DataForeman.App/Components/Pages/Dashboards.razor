@@ -8,6 +8,7 @@
 @inject MqttService MqttService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Dashboards - DataForeman</PageTitle>
@@ -19,7 +20,9 @@
         <div class="page-toolbar">
             <h2><i class="fa-solid fa-gauge"></i> Dashboards</h2>
             <div class="toolbar-actions">
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewDashboard">New Dashboard</SfButton>
+                <PermissionGuard Feature="dashboards" Operation="create">
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewDashboard">New Dashboard</SfButton>
+                </PermissionGuard>
             </div>
         </div>
         
@@ -48,8 +51,12 @@
                             </div>
                         </div>
                         <div class="dashboard-card-actions" @onclick:stopPropagation="true">
-                            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
-                            <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
+                            <PermissionGuard Feature="dashboards" Operation="update">
+                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
+                            </PermissionGuard>
+                            <PermissionGuard Feature="dashboards" Operation="delete">
+                                <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
+                            </PermissionGuard>
                         </div>
                     </div>
                 }
@@ -91,7 +98,9 @@
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-chart-line" Content="Add Chart" @onclick="ShowChartLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-play" Content="Add Flow" @onclick="ShowFlowLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
-                        <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                        <PermissionGuard Feature="dashboards" Operation="update">
+                            <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                        </PermissionGuard>
                         <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>
                     }
                     else

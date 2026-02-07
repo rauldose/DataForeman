@@ -5,6 +5,7 @@
 @inject RealtimeDataService RealtimeData
 @inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
+@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>State Machines - DataForeman</PageTitle>
@@ -15,7 +16,9 @@
         <div class="page-toolbar">
             <h2><i class="fa-solid fa-diagram-project"></i> State Machines</h2>
             <div class="toolbar-actions">
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewStateMachine">New State Machine</SfButton>
+                <PermissionGuard Feature="state_machines" Operation="create">
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewStateMachine">New State Machine</SfButton>
+                </PermissionGuard>
             </div>
         </div>
         
@@ -51,7 +54,9 @@
                                 var item = (context as StateMachineDisplay);
                                 <div class="action-buttons">
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditStateMachine(item!.Id)"></SfButton>
-                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteStateMachine(item!.Id)"></SfButton>
+                                    <PermissionGuard Feature="state_machines" Operation="delete">
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteStateMachine(item!.Id)"></SfButton>
+                                    </PermissionGuard>
                                 </div>
                             }
                         </Template>
@@ -71,7 +76,9 @@
                           IconCss="@(CurrentStateMachine.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
                           Content="@(CurrentStateMachine.Enabled ? "Disable" : "Enable")"
                           @onclick="ToggleEnabled"></SfButton>
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveStateMachine">Save</SfButton>
+                <PermissionGuard Feature="state_machines" Operation="update">
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveStateMachine">Save</SfButton>
+                </PermissionGuard>
             </div>
             
             <div class="editor-content">

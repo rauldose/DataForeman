@@ -1,0 +1,136 @@
+@page "/login"
+@rendermode InteractiveServer
+@layout DataForeman.App.Components.Layout.EmptyLayout
+@inject AuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Login - DataForeman</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <span class="login-icon">⚙</span>
+            <h2>DataForeman</h2>
+            <p>Sign in to continue</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="login-error">@ErrorMessage</div>
+        }
+
+        <div class="login-form">
+            <div class="form-field">
+                <label>Email</label>
+                <SfTextBox @bind-Value="Email" Placeholder="Enter email" Type="InputType.Email"></SfTextBox>
+            </div>
+            <div class="form-field">
+                <label>Password</label>
+                <SfTextBox @bind-Value="Password" Placeholder="Enter password" Type="InputType.Password"></SfTextBox>
+            </div>
+            <SfButton CssClass="e-primary login-btn" @onclick="HandleLogin" Disabled="@IsLoading">
+                @(IsLoading ? "Signing in..." : "Sign In")
+            </SfButton>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: #1a1a2e;
+    }
+    .login-card {
+        background: #16213e;
+        border: 1px solid #0f3460;
+        border-radius: 8px;
+        padding: 40px;
+        width: 360px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .login-header {
+        text-align: center;
+        margin-bottom: 24px;
+    }
+    .login-icon {
+        font-size: 32px;
+    }
+    .login-header h2 {
+        margin: 8px 0 4px;
+        color: #e0e0e0;
+    }
+    .login-header p {
+        color: #888;
+        font-size: 13px;
+        margin: 0;
+    }
+    .login-error {
+        background: rgba(244,67,54,0.15);
+        color: #ef5350;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 13px;
+        margin-bottom: 16px;
+    }
+    .login-form {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .form-field label {
+        font-size: 13px;
+        color: #aaa;
+    }
+    .login-btn {
+        width: 100%;
+        margin-top: 8px;
+    }
+</style>
+
+@code {
+    private string Email = "";
+    private string Password = "";
+    private string? ErrorMessage;
+    private bool IsLoading;
+
+    private async Task HandleLogin()
+    {
+        ErrorMessage = null;
+        IsLoading = true;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
+            {
+                ErrorMessage = "Email and password are required";
+                return;
+            }
+
+            var success = await AuthProvider.LoginAsync(Email, Password);
+            if (success)
+            {
+                Navigation.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                ErrorMessage = "Invalid email or password";
+            }
+        }
+        catch (Exception)
+        {
+            ErrorMessage = "An error occurred during login";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+}

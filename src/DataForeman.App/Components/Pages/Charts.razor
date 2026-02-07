@@ -5,6 +5,7 @@
 @inject RealtimeDataService RealtimeData
 @inject HistoryService HistoryService
 @inject NavigationManager Navigation
+@inject AppStateService AppState
 @implements IDisposable
 
 <PageTitle>Charts - DataForeman</PageTitle>
@@ -16,7 +17,9 @@
         <div class="page-toolbar">
             <h2><i class="fa-solid fa-chart-line"></i> Charts</h2>
             <div class="toolbar-actions">
-                <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewChart">New Chart</SfButton>
+                <PermissionGuard Feature="charts" Operation="create">
+                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-plus" @onclick="CreateNewChart">New Chart</SfButton>
+                </PermissionGuard>
             </div>
         </div>
         
@@ -45,7 +48,9 @@
                                 <div class="action-buttons">
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditChart(item!.Id)"></SfButton>
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-expand" @onclick="() => ViewChart(item!.Id)"></SfButton>
-                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
+                                    <PermissionGuard Feature="charts" Operation="delete">
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
+                                    </PermissionGuard>
                                 </div>
                             }
                         </Template>
@@ -75,7 +80,9 @@
                 
                 <SfButton CssClass="@(_showConfigPanel ? "e-info" : "e-flat")" IconCss="fa-solid fa-sliders" 
                           @onclick="() => _showConfigPanel = !_showConfigPanel" title="Toggle config panel"></SfButton>
-                <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
+                <PermissionGuard Feature="charts" Operation="update">
+                    <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
+                </PermissionGuard>
             </div>
             
             <div class="editor-content">

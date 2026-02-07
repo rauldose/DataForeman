@@ -1,5 +1,7 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject AppStateService AppState
+@inject AuthStateProvider AuthProvider
 @implements IDisposable
 
 <div class="app-container">
@@ -9,19 +11,46 @@
         <span class="brand-name">DataForeman</span>
         <AppBarSpacer></AppBarSpacer>
         <SfButton CssClass="@NavBtnClass("/")" @onclick='() => NavigateTo("/")'>Home</SfButton>
-        <SfButton CssClass="@NavBtnClass("/dashboards")" @onclick='() => NavigateTo("/dashboards")'>Dashboards</SfButton>
-        <SfButton CssClass="@NavBtnClass("/connectivity")" @onclick='() => NavigateTo("/connectivity")'>Connectivity</SfButton>
+        @if (AppState.HasPermission("dashboards", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/dashboards")" @onclick='() => NavigateTo("/dashboards")'>Dashboards</SfButton>
+        }
+        @if (AppState.HasPermission("connectivity", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/connectivity")" @onclick='() => NavigateTo("/connectivity")'>Connectivity</SfButton>
+        }
         <SfButton CssClass="@NavBtnClass("/internal-tags")" @onclick='() => NavigateTo("/internal-tags")'>Internal Tags</SfButton>
-        <SfButton CssClass="@NavBtnClass("/charts")" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
-        <SfButton CssClass="@NavBtnClass("/flows")" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
-        <SfButton CssClass="@NavBtnClass("/state-machines")" @onclick='() => NavigateTo("/state-machines")'>State Machines</SfButton>
-        <SfButton CssClass="@NavBtnClass("/trends")" @onclick='() => NavigateTo("/trends")'>Trends</SfButton>
-        <SfButton CssClass="@NavBtnClass("/diagnostic")" @onclick='() => NavigateTo("/diagnostic")'>Diagnostic</SfButton>
+        @if (AppState.HasPermission("charts", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/charts")" @onclick='() => NavigateTo("/charts")'>Charts</SfButton>
+        }
+        @if (AppState.HasPermission("flows", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/flows")" @onclick='() => NavigateTo("/flows")'>Flows</SfButton>
+        }
+        @if (AppState.HasPermission("state_machines", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/state-machines")" @onclick='() => NavigateTo("/state-machines")'>State Machines</SfButton>
+        }
+        @if (AppState.HasPermission("trends", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/trends")" @onclick='() => NavigateTo("/trends")'>Trends</SfButton>
+        }
+        @if (AppState.HasPermission("diagnostics", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/diagnostic")" @onclick='() => NavigateTo("/diagnostic")'>Diagnostic</SfButton>
+        }
+        @if (AppState.HasPermission("users", "read"))
+        {
+            <SfButton CssClass="@NavBtnClass("/users")" @onclick='() => NavigateTo("/users")'>Users</SfButton>
+        }
         <AppBarSpacer></AppBarSpacer>
         <div class="engine-status @(EngineConnected ? "connected" : "disconnected")">
             <span class="status-dot">●</span>
             <span>Engine: @(EngineConnected ? "Online" : "Offline")</span>
         </div>
+        <span class="user-label">@UserDisplayName</span>
+        <SfButton CssClass="e-flat nav-btn" IconCss="fa-solid fa-right-from-bracket" @onclick="SignOut" title="Sign Out"></SfButton>
     </SfAppBar>
 
     <!-- Global toast container for user feedback -->
@@ -41,6 +70,7 @@
     
     private SfToast? _toast;
     private bool EngineConnected => RealtimeData?.GetEngineStatus()?.IsRunning ?? false;
+    private string UserDisplayName = "";
     
     /// <summary>
     /// Accessible to child pages via CascadingValue or direct call through the static instance.
@@ -55,9 +85,41 @@
             RealtimeData.OnEngineStatusChanged += HandleStatusChanged;
         }
         Navigation.LocationChanged += OnLocationChanged;
+        AppState.OnChange += HandleStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadUserInfo();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            var user = await AuthProvider.GetCurrentUserAsync();
+            if (user != null)
+            {
+                AppState.SetCurrentUser(user);
+                UserDisplayName = user.DisplayName ?? user.Email;
+            }
+        }
+        catch
+        {
+            // Expected during prerendering
+        }
     }
     
     private void HandleStatusChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleStateChanged()
     {
         InvokeAsync(StateHasChanged);
     }
@@ -70,6 +132,13 @@
     private void NavigateTo(string url)
     {
         Navigation.NavigateTo(url);
+    }
+
+    private async Task SignOut()
+    {
+        await AuthProvider.LogoutAsync();
+        AppState.Clear();
+        Navigation.NavigateTo("/login", forceLoad: true);
     }
 
     /// <summary>
@@ -110,5 +179,6 @@
             RealtimeData.OnEngineStatusChanged -= HandleStatusChanged;
         }
         Navigation.LocationChanged -= OnLocationChanged;
+        AppState.OnChange -= HandleStateChanged;
     }
 }
