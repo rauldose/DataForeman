@@ -1,0 +1,71 @@
+{
+  "users": [
+    {
+      "id": "caad7774-f9ad-45a1-8a7d-43274d12baea",
+      "email": "admin@dataforeman.local",
+      "displayName": "Administrator",
+      "passwordHash": "$2a$11$Qodmgg3NhevgnUwDwrsNBuI30zlh0tpf.n44fHqlf4sXjkuGOrl42",
+      "isActive": true,
+      "permissions": [
+        {
+          "feature": "dashboards",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "flows",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "charts",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "connectivity",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "state_machines",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "trends",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "diagnostics",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        },
+        {
+          "feature": "users",
+          "canCreate": true,
+          "canRead": true,
+          "canUpdate": true,
+          "canDelete": true
+        }
+      ],
+      "createdAt": "2026-02-07T22:02:32.6227248Z",
+      "updatedAt": "2026-02-07T22:02:32.2721123Z"
+    }
+  ]
+}
