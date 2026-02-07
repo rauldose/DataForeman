@@ -1,0 +1,13 @@
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Only redirect after first render to ensure JS interop is ready
+            // This prevents redirecting before tokens can be read from localStorage
+            Navigation.NavigateTo("login");
+        }
+    }
+}

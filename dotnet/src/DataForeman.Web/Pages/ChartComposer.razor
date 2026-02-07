@@ -1,0 +1,1041 @@
+@page "/charts"
+@page "/charts/{Id:guid}"
+@rendermode InteractiveServer
+@inject HttpClient Http
+@inject NavigationManager NavigationManager
+@inject IAuthTokenStorage TokenStorage
+
+<PageTitle>Chart Composer - DataForeman</PageTitle>
+
+<div class="chart-composer-container">
+    @if (Id == null)
+    {
+        <!-- Chart List View -->
+        <div class="page-header">
+            <h1>Chart Composer</h1>
+            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Chart" OnClick="ShowCreateDialog"></SfButton>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <SfSpinner Visible="true" Label="Loading charts..." />
+            </div>
+        }
+        else if (charts == null || !charts.Any())
+        {
+            <div class="empty-state">
+                <div class="empty-icon">📈</div>
+                <h3>No Charts Yet</h3>
+                <p>Create your first chart to visualize time-series data from your industrial systems.</p>
+                <SfButton CssClass="e-primary" Content="Create Chart" OnClick="ShowCreateDialog"></SfButton>
+            </div>
+        }
+        else
+        {
+            <SfGrid DataSource="@charts" AllowPaging="true" AllowSorting="true">
+                <GridColumns>
+                    <GridColumn Field="@nameof(ChartConfigDto.Name)" HeaderText="Name" Width="200">
+                        <Template>
+                            @{
+                                var chart = (context as ChartConfigDto);
+                                <a href="/charts/@chart?.Id">@chart?.Name</a>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(ChartConfigDto.Description)" HeaderText="Description" Width="300"></GridColumn>
+                    <GridColumn Field="@nameof(ChartConfigDto.ChartType)" HeaderText="Type" Width="120">
+                        <Template>
+                            @{
+                                var chart = (context as ChartConfigDto);
+                                <span class="chart-type-badge">@chart?.ChartType</span>
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(ChartConfigDto.IsShared)" HeaderText="Shared" Width="100">
+                        <Template>
+                            @{
+                                var chart = (context as ChartConfigDto);
+                                @(chart?.IsShared == true ? "Yes" : "No")
+                            }
+                        </Template>
+                    </GridColumn>
+                    <GridColumn Field="@nameof(ChartConfigDto.UpdatedAt)" HeaderText="Last Updated" Width="180" Format="g"></GridColumn>
+                    <GridColumn HeaderText="Actions" Width="150">
+                        <Template>
+                            @{
+                                var chart = (context as ChartConfigDto);
+                                <SfButton IconCss="e-icons e-edit" CssClass="e-flat" OnClick="@(() => EditChart(chart?.Id))"></SfButton>
+                                <SfButton IconCss="e-icons e-delete" CssClass="e-flat e-danger" OnClick="@(() => DeleteChart(chart?.Id))"></SfButton>
+                            }
+                        </Template>
+                    </GridColumn>
+                </GridColumns>
+                <GridPageSettings PageSize="15"></GridPageSettings>
+            </SfGrid>
+        }
+    }
+    else
+    {
+        <!-- Chart Editor View -->
+        <div class="editor-toolbar">
+            <SfButton IconCss="e-icons e-arrow-left" CssClass="e-flat" OnClick="BackToList"></SfButton>
+            <span class="chart-name">@currentChart?.Name</span>
+            @if (hasUnsavedChanges)
+            {
+                <span class="unsaved-badge">Unsaved</span>
+            }
+            <div class="toolbar-spacer"></div>
+            
+            <div class="toolbar-group">
+                <span class="toolbar-label">PRIMARY</span>
+                <SfButton IconCss="e-icons e-save" Content="Save" CssClass="e-primary" OnClick="SaveChart"></SfButton>
+            </div>
+            
+            <div class="toolbar-divider"></div>
+            
+            <div class="toolbar-group">
+                <span class="toolbar-label">VIEW</span>
+                <SfButton IconCss="e-icons e-eye" 
+                          Content="Crosshair" 
+                          CssClass="@(showCrosshair ? "e-primary" : "e-outline")"
+                          OnClick="ToggleCrosshair"></SfButton>
+            </div>
+            
+            <div class="toolbar-divider"></div>
+            
+            <div class="toolbar-group">
+                <span class="toolbar-label">DATA</span>
+                <SfButton IconCss="e-icons e-refresh" 
+                          Content="@(autoRefresh ? "Live" : "Live")" 
+                          CssClass="@(autoRefresh ? "e-primary" : "e-outline")"
+                          OnClick="ToggleAutoRefresh"></SfButton>
+                @if (autoRefresh)
+                {
+                    <SfDropDownList TValue="int" TItem="RefreshOption" 
+                                    @bind-Value="refreshInterval"
+                                    DataSource="@refreshOptions"
+                                    Width="80px"
+                                    CssClass="refresh-dropdown">
+                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                }
+                <SfButton IconCss="e-icons e-search" Content="Query" CssClass="e-outline" OnClick="QueryData"></SfButton>
+            </div>
+            
+            <div class="toolbar-divider"></div>
+            
+            <div class="toolbar-group">
+                <span class="toolbar-label">ZOOM</span>
+                <SfButton IconCss="e-icons e-zoom-in" CssClass="e-outline" OnClick="ZoomIn"></SfButton>
+                <SfButton IconCss="e-icons e-zoom-out" CssClass="e-outline" OnClick="ZoomOut"></SfButton>
+                <SfButton IconCss="e-icons e-reload" Content="Reset" CssClass="e-outline" OnClick="ResetZoom"></SfButton>
+            </div>
+            
+            <div class="toolbar-divider"></div>
+            
+            <div class="toolbar-group">
+                <span class="toolbar-label">TOOLS</span>
+                <SfButton IconCss="e-icons e-settings" Content="Settings" CssClass="e-outline" OnClick="ShowSettings"></SfButton>
+                <SfButton IconCss="e-icons e-export" Content="Export" CssClass="e-outline" OnClick="ExportChart"></SfButton>
+            </div>
+        </div>
+
+        <div class="editor-content">
+            <!-- Tag Configuration Panel -->
+            <div class="config-panel">
+                <div class="panel-section">
+                    <h4>Tags</h4>
+                    <SfButton IconCss="e-icons e-plus" CssClass="e-outline e-small" Content="Add Tag" OnClick="ShowAddTagDialog"></SfButton>
+                </div>
+                
+                <div class="tag-list">
+                    @foreach (var tagConfig in tagConfigs)
+                    {
+                        <div class="tag-item @(tagConfig.Hidden ? "hidden" : "")">
+                            <div class="tag-color" style="background-color: @tagConfig.Color"></div>
+                            <div class="tag-info">
+                                <span class="tag-name">@tagConfig.TagPath</span>
+                                <span class="tag-axis">Y-Axis @tagConfig.YAxisId</span>
+                            </div>
+                            <div class="tag-actions">
+                                <SfButton IconCss="@(tagConfig.Hidden ? "e-icons e-eye-slash" : "e-icons e-eye")" 
+                                          CssClass="e-flat e-small" 
+                                          OnClick="@(() => ToggleTagVisibility(tagConfig))"></SfButton>
+                                <SfButton IconCss="e-icons e-delete" 
+                                          CssClass="e-flat e-small" 
+                                          OnClick="@(() => RemoveTag(tagConfig))"></SfButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+                
+                <div class="panel-section">
+                    <h4>Time Range</h4>
+                </div>
+                
+                <div class="time-range-config">
+                    <SfDropDownList TValue="string" TItem="TimeModeOption" 
+                                    @bind-Value="timeMode"
+                                    DataSource="@timeModes"
+                                    Placeholder="Time Mode"
+                                    FloatLabelType="FloatLabelType.Auto">
+                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                    
+                    @if (timeMode == "rolling" || timeMode == "shifted")
+                    {
+                        <SfDropDownList TValue="int" TItem="DurationOption" 
+                                        @bind-Value="timeDuration"
+                                        DataSource="@durationOptions"
+                                        Placeholder="Duration"
+                                        FloatLabelType="FloatLabelType.Auto">
+                            <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                    }
+                    
+                    @if (timeMode == "fixed")
+                    {
+                        <SfDatePicker TValue="DateTime" @bind-Value="timeFrom" Placeholder="From" FloatLabelType="FloatLabelType.Auto"></SfDatePicker>
+                        <SfDatePicker TValue="DateTime" @bind-Value="timeTo" Placeholder="To" FloatLabelType="FloatLabelType.Auto"></SfDatePicker>
+                    }
+                </div>
+            </div>
+
+            <!-- Chart Canvas -->
+            <div class="chart-canvas">
+                <SfChart @ref="chart" Title="@currentChart?.Name" Height="100%">
+                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" 
+                                       LabelFormat="HH:mm:ss"
+                                       IntervalType="IntervalType.Auto"
+                                       EdgeLabelPlacement="EdgeLabelPlacement.Shift">
+                        <ChartAxisMajorGridLines Width="0.5" Color="#e0e0e0"></ChartAxisMajorGridLines>
+                    </ChartPrimaryXAxis>
+                    
+                    <ChartPrimaryYAxis Title="Value" 
+                                       LabelFormat="{value}"
+                                       RangePadding="ChartRangePadding.Auto">
+                        <ChartAxisMajorGridLines Width="0.5" Color="#e0e0e0"></ChartAxisMajorGridLines>
+                    </ChartPrimaryYAxis>
+                    
+                    <ChartTooltipSettings Enable="true" Shared="true"></ChartTooltipSettings>
+                    
+                    <ChartZoomSettings EnableSelectionZooming="true" 
+                                       EnablePinchZooming="true" 
+                                       EnableMouseWheelZooming="true"
+                                       Mode="ZoomMode.X">
+                    </ChartZoomSettings>
+                    
+                    @if (showCrosshair)
+                    {
+                        <ChartCrosshairSettings Enable="true" LineType="LineType.Both">
+                        </ChartCrosshairSettings>
+                    }
+                    
+                    <ChartSeriesCollection>
+                        @foreach (var tagConfig in tagConfigs.Where(t => !t.Hidden))
+                        {
+                            <ChartSeries DataSource="@GetTagData(tagConfig.TagId)" 
+                                         XName="Timestamp" 
+                                         YName="Value" 
+                                         Name="@tagConfig.TagPath"
+                                         Type="GetChartSeriesType()"
+                                         Fill="@tagConfig.Color"
+                                         Width="2">
+                                <ChartMarker Visible="@(chartDataPoints.Count < 100)" Width="6" Height="6">
+                                    <ChartDataLabel Visible="false"></ChartDataLabel>
+                                </ChartMarker>
+                            </ChartSeries>
+                        }
+                    </ChartSeriesCollection>
+                    
+                    <ChartLegendSettings Visible="true" Position="LegendPosition.Bottom"></ChartLegendSettings>
+                </SfChart>
+                
+                @if (isLoadingData)
+                {
+                    <div class="chart-loading-overlay">
+                        <SfSpinner Visible="true" Label="Loading data..." />
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Points Table (collapsible) -->
+        @if (showPointsTable)
+        {
+            <div class="points-table-container">
+                <div class="points-header" @onclick="TogglePointsTable">
+                    <span>Points (@chartDataPoints.Count)</span>
+                    <SfButton IconCss="e-icons e-chevron-down" CssClass="e-flat e-small"></SfButton>
+                </div>
+                <SfGrid DataSource="@chartDataPoints" AllowPaging="true" Height="200px">
+                    <GridColumns>
+                        <GridColumn Field="Timestamp" HeaderText="Time" Width="180" Format="yyyy-MM-dd HH:mm:ss.fff"></GridColumn>
+                        <GridColumn Field="TagPath" HeaderText="Tag" Width="200"></GridColumn>
+                        <GridColumn Field="Value" HeaderText="Value" Width="120" Format="N3"></GridColumn>
+                    </GridColumns>
+                    <GridPageSettings PageSize="50"></GridPageSettings>
+                </SfGrid>
+            </div>
+        }
+    }
+</div>
+
+<!-- Add Tag Dialog -->
+<SfDialog @bind-Visible="@showAddTagDialog" Width="500px" IsModal="true" ShowCloseIcon="true" Header="Add Tag to Chart">
+    <DialogTemplates>
+        <Content>
+            <div class="add-tag-form">
+                <div class="form-group mb-3">
+                    <SfDropDownList TValue="string" TItem="TagOption" 
+                                    @bind-Value="newTagPath"
+                                    DataSource="@availableTags"
+                                    Placeholder="Select Tag"
+                                    FloatLabelType="FloatLabelType.Auto"
+                                    AllowFiltering="true">
+                        <DropDownListFieldSettings Text="TagPath" Value="TagPath"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                </div>
+                <div class="form-group mb-3">
+                    <SfColorPicker @bind-Value="newTagColor" Mode="ColorPickerMode.Palette"></SfColorPicker>
+                </div>
+                <div class="form-group mb-3">
+                    <SfDropDownList TValue="int" TItem="YAxisOption" 
+                                    @bind-Value="newTagYAxis"
+                                    DataSource="@yAxisOptions"
+                                    Placeholder="Y-Axis"
+                                    FloatLabelType="FloatLabelType.Auto">
+                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" CssClass="e-flat" OnClick="CloseAddTagDialog"></DialogButton>
+        <DialogButton Content="Add" CssClass="e-primary" IsPrimary="true" OnClick="AddTag"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+<!-- Settings Dialog -->
+<SfDialog @bind-Visible="@showSettingsDialog" Width="500px" IsModal="true" ShowCloseIcon="true" Header="Chart Settings">
+    <DialogTemplates>
+        <Content>
+            <div class="settings-form">
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="chartName" Placeholder="Chart Name" FloatLabelType="FloatLabelType.Auto"></SfTextBox>
+                </div>
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="chartDescription" Placeholder="Description" FloatLabelType="FloatLabelType.Auto" Multiline="true"></SfTextBox>
+                </div>
+                <div class="form-group mb-3">
+                    <SfDropDownList TValue="string" TItem="ChartTypeOption" 
+                                    @bind-Value="chartType"
+                                    DataSource="@chartTypes"
+                                    Placeholder="Chart Type"
+                                    FloatLabelType="FloatLabelType.Auto">
+                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                </div>
+                <div class="form-group mb-3">
+                    <SfCheckBox @bind-Checked="chartIsShared" Label="Share with other users"></SfCheckBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" CssClass="e-flat" OnClick="CloseSettings"></DialogButton>
+        <DialogButton Content="Save" CssClass="e-primary" IsPrimary="true" OnClick="SaveSettings"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+<!-- Create Chart Dialog -->
+<SfDialog @bind-Visible="@showCreateDialog" Width="500px" IsModal="true" ShowCloseIcon="true" Header="Create New Chart">
+    <DialogTemplates>
+        <Content>
+            <div class="settings-form">
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="newChartName" Placeholder="Chart Name" FloatLabelType="FloatLabelType.Auto"></SfTextBox>
+                </div>
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="newChartDescription" Placeholder="Description (optional)" FloatLabelType="FloatLabelType.Auto" Multiline="true"></SfTextBox>
+                </div>
+            </div>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" CssClass="e-flat" OnClick="CloseCreateDialog"></DialogButton>
+        <DialogButton Content="Create" CssClass="e-primary" IsPrimary="true" Disabled="@(string.IsNullOrWhiteSpace(newChartName))" OnClick="CreateChartAndNavigate"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+<style>
+    .chart-composer-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .loading-container, .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px;
+        background: #1e1e1e;
+        border-radius: 8px;
+        border: 1px solid #333;
+    }
+
+    .empty-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.7; }
+    .empty-state h3 { margin: 0 0 8px; color: #ffffff; }
+    .empty-state p { color: #888; margin-bottom: 24px; }
+
+    .chart-type-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        background: rgba(33, 150, 243, 0.12);
+        color: #2196f3;
+    }
+
+    .editor-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #1e1e1e;
+        border-bottom: 1px solid #333;
+    }
+    .chart-name { font-weight: 600; font-size: 16px; color: #ffffff; }
+    .unsaved-badge { 
+        padding: 2px 8px; 
+        background: rgba(255, 152, 0, 0.12); 
+        color: #ffa726; 
+        border-radius: 4px; 
+        font-size: 12px; 
+        margin-left: 8px; 
+    }
+    .toolbar-spacer { flex: 1; }
+    .toolbar-group { display: flex; align-items: center; gap: 4px; }
+    .toolbar-label { font-size: 10px; color: #888; margin-right: 8px; text-transform: uppercase; }
+    .toolbar-divider { width: 1px; height: 32px; background: #333; margin: 0 8px; }
+    .refresh-dropdown { margin-left: 4px; }
+
+    .editor-content {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .config-panel {
+        width: 280px;
+        border-right: 1px solid #333;
+        background: #1e1e1e;
+        overflow-y: auto;
+        padding: 16px;
+    }
+    .panel-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    .panel-section h4 { margin: 0; font-size: 14px; color: #ffffff; }
+
+    .tag-list { margin-bottom: 24px; }
+    .tag-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        background: #252525;
+        border: 1px solid #333;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+    .tag-item.hidden { opacity: 0.5; }
+    .tag-color { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
+    .tag-info { flex: 1; min-width: 0; }
+    .tag-name { display: block; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #b0b0b0; }
+    .tag-axis { display: block; font-size: 11px; color: #666; }
+    .tag-actions { display: flex; gap: 2px; }
+
+    .time-range-config { display: flex; flex-direction: column; gap: 12px; }
+
+    .chart-canvas {
+        flex: 1;
+        position: relative;
+        background: #252525;
+        padding: 16px;
+    }
+    .chart-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(30, 30, 30, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .points-table-container {
+        border-top: 1px solid #333;
+        background: #1e1e1e;
+    }
+    .points-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 16px;
+        cursor: pointer;
+        background: #252525;
+        color: #b0b0b0;
+    }
+    .points-header:hover { background: #333; }
+</style>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private SfChart? chart;
+    private List<ChartConfigDto>? charts;
+    private ChartConfigDto? currentChart;
+    private bool isLoading = true;
+    private bool isLoadingData = false;
+    private bool hasUnsavedChanges = false;
+    private bool showCrosshair = false;
+    private bool autoRefresh = false;
+    private int refreshInterval = 1000;
+    private bool showPointsTable = false;
+    private bool showAddTagDialog = false;
+    private bool showSettingsDialog = false;
+    private bool showCreateDialog = false;
+    private System.Timers.Timer? refreshTimer;
+    
+    // Tag configuration
+    private List<TagConfigItem> tagConfigs = new();
+    private List<ChartDataPoint> chartDataPoints = new();
+    
+    // Time range
+    private string timeMode = "rolling";
+    private int timeDuration = 3600000; // 1 hour in ms
+    private DateTime timeFrom = DateTime.Now.AddHours(-1);
+    private DateTime timeTo = DateTime.Now;
+    
+    // Add tag dialog
+    private string? newTagPath;
+    private string newTagColor = "#1976d2";
+    private int newTagYAxis = 0;
+    
+    // Settings
+    private string chartName = "";
+    private string chartDescription = "";
+    private string chartType = "line";
+    private bool chartIsShared = false;
+    
+    // Create dialog
+    private string newChartName = "";
+    private string newChartDescription = "";
+
+    // Options
+    private List<TagOption> availableTags = new();
+    private List<RefreshOption> refreshOptions = new()
+    {
+        new("0.5s", 500),
+        new("1s", 1000),
+        new("5s", 5000),
+        new("10s", 10000)
+    };
+    private List<TimeModeOption> timeModes = new()
+    {
+        new("Rolling", "rolling"),
+        new("Fixed", "fixed"),
+        new("Shifted", "shifted")
+    };
+    private List<DurationOption> durationOptions = new()
+    {
+        new("5 minutes", 300000),
+        new("15 minutes", 900000),
+        new("1 hour", 3600000),
+        new("4 hours", 14400000),
+        new("24 hours", 86400000)
+    };
+    private List<YAxisOption> yAxisOptions = new()
+    {
+        new("Primary Y-Axis", 0),
+        new("Secondary Y-Axis", 1)
+    };
+    private List<ChartTypeOption> chartTypes = new()
+    {
+        new("Line", "line"),
+        new("Area", "area"),
+        new("Spline", "spline"),
+        new("Step Line", "stepline")
+    };
+
+    private string[] defaultColors = new[] { "#1976d2", "#388e3c", "#f57c00", "#7b1fa2", "#c62828", "#00838f", "#6d4c41", "#455a64" };
+    private int colorIndex = 0;
+    private Guid? _previousId;
+    private bool _firstLoad = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await EnsureAuthHeaderAsync();
+        await LoadTags();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only reload if the Id parameter changed or first load
+        if (_firstLoad || _previousId != Id)
+        {
+            _firstLoad = false;
+            _previousId = Id;
+            await EnsureAuthHeaderAsync();
+            
+            if (Id == null)
+            {
+                await LoadCharts();
+            }
+            else
+            {
+                await LoadChart(Id.Value);
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        refreshTimer?.Stop();
+        refreshTimer?.Dispose();
+    }
+
+    private async Task EnsureAuthHeaderAsync()
+    {
+        var token = await TokenStorage.GetTokenAsync();
+        if (!string.IsNullOrEmpty(token))
+        {
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        }
+    }
+
+    private async Task LoadCharts()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<ChartsResponse>("api/charts");
+            charts = response?.Charts ?? new List<ChartConfigDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading charts: {ex.Message}");
+            charts = new List<ChartConfigDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadChart(Guid id)
+    {
+        isLoading = true;
+        try
+        {
+            currentChart = await Http.GetFromJsonAsync<ChartConfigDto>($"api/charts/{id}");
+            if (currentChart != null)
+            {
+                chartName = currentChart.Name ?? "";
+                chartDescription = currentChart.Description ?? "";
+                chartType = currentChart.ChartType ?? "line";
+                chartIsShared = currentChart.IsShared;
+                
+                // Load tag configs from chart
+                LoadChartConfig();
+                
+                // Initial data query
+                await QueryData();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading chart: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadTags()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<TagsResponse>("api/connectivity/tags");
+            availableTags = response?.Tags?.Select(t => new TagOption(t.TagPath ?? "", Guid.NewGuid())).ToList() ?? new List<TagOption>();
+        }
+        catch { }
+    }
+
+    private void LoadChartConfig()
+    {
+        tagConfigs.Clear();
+        // TODO: Parse currentChart.Config and populate tagConfigs
+    }
+
+    private void ShowCreateDialog()
+    {
+        newChartName = "";
+        newChartDescription = "";
+        showCreateDialog = true;
+    }
+    
+    private void CloseCreateDialog()
+    {
+        showCreateDialog = false;
+    }
+    
+    private async Task CreateChartAndNavigate()
+    {
+        if (string.IsNullOrWhiteSpace(newChartName)) return;
+        
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/charts", new
+            {
+                Name = newChartName,
+                Description = newChartDescription
+            });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ChartConfigDto>();
+                if (result != null)
+                {
+                    showCreateDialog = false;
+                    NavigationManager.NavigateTo($"/charts/{result.Id}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating chart: {ex.Message}");
+        }
+    }
+
+    private void EditChart(Guid? id)
+    {
+        if (id != null)
+        {
+            NavigationManager.NavigateTo($"/charts/{id}");
+        }
+    }
+
+    private async Task DeleteChart(Guid? id)
+    {
+        if (id != null)
+        {
+            try
+            {
+                await Http.DeleteAsync($"api/charts/{id}");
+                await LoadCharts();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting chart: {ex.Message}");
+            }
+        }
+    }
+
+    private void BackToList()
+    {
+        NavigationManager.NavigateTo("/charts");
+    }
+
+    private async Task SaveChart()
+    {
+        if (currentChart == null) return;
+        
+        try
+        {
+            var config = new
+            {
+                tagConfigs = tagConfigs.Select(t => new { t.TagId, t.TagPath, t.Color, t.YAxisId, t.Hidden }).ToList(),
+                timeMode,
+                timeDuration,
+                chartType
+            };
+            
+            await Http.PutAsJsonAsync($"api/charts/{currentChart.Id}", new
+            {
+                name = chartName,
+                description = chartDescription,
+                chart_type = chartType,
+                is_shared = chartIsShared,
+                config = config
+            });
+            
+            hasUnsavedChanges = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving chart: {ex.Message}");
+        }
+    }
+
+    private void ToggleCrosshair()
+    {
+        showCrosshair = !showCrosshair;
+    }
+
+    private void ToggleAutoRefresh()
+    {
+        autoRefresh = !autoRefresh;
+        
+        if (autoRefresh)
+        {
+            StartAutoRefresh();
+        }
+        else
+        {
+            StopAutoRefresh();
+        }
+    }
+
+    private void StartAutoRefresh()
+    {
+        refreshTimer = new System.Timers.Timer(refreshInterval);
+        refreshTimer.Elapsed += async (s, e) => await InvokeAsync(async () =>
+        {
+            await QueryData();
+            StateHasChanged();
+        });
+        refreshTimer.Start();
+    }
+
+    private void StopAutoRefresh()
+    {
+        refreshTimer?.Stop();
+        refreshTimer?.Dispose();
+        refreshTimer = null;
+    }
+
+    private async Task QueryData()
+    {
+        if (tagConfigs.Count == 0) return;
+        
+        isLoadingData = true;
+        try
+        {
+            DateTime from, to;
+            if (timeMode == "rolling")
+            {
+                to = DateTime.Now;
+                from = to.AddMilliseconds(-timeDuration);
+            }
+            else if (timeMode == "shifted")
+            {
+                to = DateTime.Now.AddMilliseconds(-timeDuration / 2);
+                from = to.AddMilliseconds(-timeDuration);
+            }
+            else
+            {
+                from = timeFrom;
+                to = timeTo;
+            }
+            
+            var tagIds = tagConfigs.Select(t => t.TagId).ToList();
+            
+            var response = await Http.PostAsJsonAsync("api/charts/query", new
+            {
+                TagIds = tagIds,
+                From = from.ToUniversalTime(),
+                To = to.ToUniversalTime(),
+                Limit = 10000
+            });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<QueryResponse>();
+                chartDataPoints = result?.Items?.Select(i => new ChartDataPoint
+                {
+                    TagId = i.TagId,
+                    TagPath = tagConfigs.FirstOrDefault(t => t.TagId == i.TagId)?.TagPath ?? "",
+                    Timestamp = i.Timestamp,
+                    Value = i.Value
+                }).ToList() ?? new List<ChartDataPoint>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error querying data: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingData = false;
+        }
+    }
+
+    private void ZoomIn()
+    {
+        // Handled by chart component
+    }
+
+    private void ZoomOut()
+    {
+        // Handled by chart component
+    }
+
+    private async Task ResetZoom()
+    {
+        // TODO: Implement zoom reset when API is available
+        await QueryData();
+    }
+
+    private void ShowSettings()
+    {
+        showSettingsDialog = true;
+    }
+
+    private void CloseSettings()
+    {
+        showSettingsDialog = false;
+    }
+
+    private async Task SaveSettings()
+    {
+        if (currentChart != null)
+        {
+            currentChart = currentChart with 
+            { 
+                Name = chartName, 
+                Description = chartDescription, 
+                ChartType = chartType,
+                IsShared = chartIsShared
+            };
+            await SaveChart();
+        }
+        showSettingsDialog = false;
+    }
+
+    private void ExportChart()
+    {
+        // TODO: Implement chart export
+    }
+
+    private void ShowAddTagDialog()
+    {
+        newTagPath = null;
+        newTagColor = defaultColors[colorIndex % defaultColors.Length];
+        newTagYAxis = 0;
+        showAddTagDialog = true;
+    }
+
+    private void CloseAddTagDialog()
+    {
+        showAddTagDialog = false;
+    }
+
+    private async Task AddTag()
+    {
+        if (string.IsNullOrEmpty(newTagPath)) return;
+        
+        var tag = availableTags.FirstOrDefault(t => t.TagPath == newTagPath);
+        if (tag == null) return;
+        
+        tagConfigs.Add(new TagConfigItem
+        {
+            TagId = tag.Id,
+            TagPath = tag.TagPath,
+            Color = newTagColor,
+            YAxisId = newTagYAxis,
+            Hidden = false
+        });
+        
+        colorIndex++;
+        hasUnsavedChanges = true;
+        showAddTagDialog = false;
+        
+        await QueryData();
+    }
+
+    private void ToggleTagVisibility(TagConfigItem tagConfig)
+    {
+        tagConfig.Hidden = !tagConfig.Hidden;
+        hasUnsavedChanges = true;
+    }
+
+    private async Task RemoveTag(TagConfigItem tagConfig)
+    {
+        tagConfigs.Remove(tagConfig);
+        hasUnsavedChanges = true;
+        await QueryData();
+    }
+
+    private void TogglePointsTable()
+    {
+        showPointsTable = !showPointsTable;
+    }
+
+    private List<ChartDataPoint> GetTagData(Guid tagId)
+    {
+        return chartDataPoints.Where(p => p.TagId == tagId).ToList();
+    }
+
+    private ChartSeriesType GetChartSeriesType()
+    {
+        return chartType switch
+        {
+            "area" => ChartSeriesType.Area,
+            "spline" => ChartSeriesType.Spline,
+            "stepline" => ChartSeriesType.StepLine,
+            _ => ChartSeriesType.Line
+        };
+    }
+
+    // Record types
+    private record ChartsResponse(List<ChartConfigDto> Charts);
+    private record TagsResponse(List<TagMetadataDto> Tags);
+    private record TagOption(string TagPath, Guid Id);
+    private record RefreshOption(string Label, int Value);
+    private record TimeModeOption(string Label, string Value);
+    private record DurationOption(string Label, int Value);
+    private record YAxisOption(string Label, int Value);
+    private record ChartTypeOption(string Label, string Value);
+    private record QueryResponse(List<QueryItem> Items);
+    private record QueryItem(Guid TagId, DateTime Timestamp, double Value);
+
+    private class TagConfigItem
+    {
+        public Guid TagId { get; set; }
+        public string TagPath { get; set; } = "";
+        public string Color { get; set; } = "#1976d2";
+        public int YAxisId { get; set; }
+        public bool Hidden { get; set; }
+    }
+
+    private class ChartDataPoint
+    {
+        public Guid TagId { get; set; }
+        public string TagPath { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+        public double Value { get; set; }
+    }
+}

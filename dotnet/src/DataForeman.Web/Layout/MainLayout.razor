@@ -1,0 +1,130 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject AuthStateProvider AuthStateProvider
+@inject IAuthTokenStorage TokenStorage
+
+@if (!_authChecked)
+{
+    <div class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+}
+else if (_isAuthenticated)
+{
+    <div class="page">
+        <SfSidebar @ref="Sidebar" Width="250px" DockSize="50px" EnableDock="true" Type="SidebarType.Auto" @bind-IsOpen="sidebarOpen">
+            <ChildContent>
+                <div class="sidebar-header">
+                    <img src="favicon.png" alt="DataForeman" class="logo" />
+                    <span class="app-name">DataForeman</span>
+                </div>
+                <SfMenu TValue="MenuItem" CssClass="sidebar-menu" Orientation="Syncfusion.Blazor.Navigations.Orientation.Vertical">
+                    <MenuItems>
+                        <MenuItem Text="Dashboards" IconCss="e-icons e-chart" Url="/">
+                        </MenuItem>
+                        <MenuItem Text="Connectivity" IconCss="e-icons e-link">
+                            <MenuItems>
+                                <MenuItem Text="Devices" Url="/connectivity/devices"></MenuItem>
+                                <MenuItem Text="Tags" Url="/connectivity/tags"></MenuItem>
+                                <MenuItem Text="Poll Groups" Url="/connectivity/poll-groups"></MenuItem>
+                            </MenuItems>
+                        </MenuItem>
+                        <MenuItem Text="Charts" IconCss="e-icons e-chart-2d" Url="/charts">
+                        </MenuItem>
+                        <MenuItem Text="Flows" IconCss="e-icons e-flow" Url="/flows">
+                        </MenuItem>
+                        <MenuItem Text="Diagnostics" IconCss="e-icons e-diagnostics" Url="/diagnostics">
+                        </MenuItem>
+                    </MenuItems>
+                </SfMenu>
+            </ChildContent>
+        </SfSidebar>
+
+        <main class="main-content">
+            <div class="top-bar">
+                <SfButton IconCss="e-icons e-menu" CssClass="menu-toggle" OnClick="ToggleSidebar"></SfButton>
+                <div class="spacer"></div>
+                <span class="user-name">@_userName</span>
+                <SfButton Content="Logout" CssClass="e-flat" OnClick="Logout"></SfButton>
+            </div>
+
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    </div>
+}
+else
+{
+    <RedirectToLogin />
+}
+
+<style>
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #121212;
+        color: #ffffff;
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #333;
+        border-top: 4px solid #2196f3;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    private SfSidebar? Sidebar;
+    private bool sidebarOpen = true;
+    private bool _authChecked = false;
+    private bool _isAuthenticated = false;
+    private string? _userName;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Enable JS interop for token storage
+            if (TokenStorage is ServerAuthTokenStorage serverStorage)
+            {
+                serverStorage.SetJsInteropReady();
+                await serverStorage.InitializeAsync();
+            }
+            
+            // Check authentication after JS interop is available
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = state.User.Identity?.IsAuthenticated ?? false;
+            _userName = state.User.Identity?.Name;
+            _authChecked = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleSidebar()
+    {
+        sidebarOpen = !sidebarOpen;
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        AuthStateProvider.NotifyUserLogout();
+        _isAuthenticated = false;
+        _authChecked = true;
+        NavigationManager.NavigateTo("login");
+    }
+}

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
+    <PackageReference Include="Syncfusion.Blazor.Buttons" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Calendars" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Charts" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Diagram" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.DropDowns" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Grid" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Inputs" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Layouts" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Navigations" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Popups" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.SplitButtons" Version="32.1.23" />
+    <PackageReference Include="Syncfusion.Blazor.Themes" Version="32.1.23" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataForeman.Shared\DataForeman.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

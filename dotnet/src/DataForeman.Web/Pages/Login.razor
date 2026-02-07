@@ -1,0 +1,204 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@inject IAuthService AuthService
+@inject AuthStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject IAuthTokenStorage TokenStorage
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-header">
+            <img src="favicon.png" alt="DataForeman" class="login-logo" />
+            <h2>DataForeman</h2>
+            <p>Industrial Telemetry Platform</p>
+        </div>
+
+        <div class="login-form">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+
+            <div class="form-group">
+                <SfTextBox @bind-Value="loginModel.Email"
+                           Placeholder="Email"
+                           FloatLabelType="FloatLabelType.Auto"
+                           CssClass="login-input" />
+            </div>
+
+            <div class="form-group">
+                <SfTextBox @bind-Value="loginModel.Password"
+                           Placeholder="Password"
+                           Type="InputType.Password"
+                           FloatLabelType="FloatLabelType.Auto"
+                           CssClass="login-input" />
+            </div>
+
+            <div class="form-group">
+                <SfButton CssClass="e-primary login-button" 
+                          OnClick="HandleLogin"
+                          Disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span>Logging in...</span>
+                    }
+                    else
+                    {
+                        <span>Login</span>
+                    }
+                </SfButton>
+            </div>
+        </div>
+
+        <div class="login-footer">
+            <p>Default: admin@example.com / password</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .login-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background: #121212;
+    }
+
+    .login-card {
+        background: #1e1e1e;
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .login-logo {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 16px;
+    }
+
+    .login-header h2 {
+        margin: 0;
+        color: #ffffff;
+        font-weight: 500;
+    }
+
+    .login-header p {
+        margin: 8px 0 0;
+        color: #888;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .login-input {
+        width: 100%;
+    }
+    
+    .login-input input {
+        background-color: #252525 !important;
+        color: #ffffff !important;
+        border-color: #333 !important;
+    }
+
+    .login-button {
+        width: 100%;
+        height: 44px;
+        background-color: #2196f3 !important;
+        border-color: #2196f3 !important;
+    }
+
+    .login-button:hover {
+        background-color: #1976d2 !important;
+        border-color: #1976d2 !important;
+    }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 20px;
+        color: #666;
+        font-size: 12px;
+    }
+
+    .alert-danger {
+        background-color: rgba(244, 67, 54, 0.12);
+        color: #f44336;
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 16px;
+    }
+</style>
+
+@code {
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+    private bool isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if already authenticated
+        if (await AuthService.IsAuthenticatedAsync())
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Enable JS interop for token storage
+            if (TokenStorage is ServerAuthTokenStorage serverStorage)
+            {
+                serverStorage.SetJsInteropReady();
+                await serverStorage.InitializeAsync();
+            }
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await AuthService.LoginAsync(loginModel.Email, loginModel.Password);
+            if (result != null)
+            {
+                AuthStateProvider.NotifyUserAuthentication(result.Token);
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Invalid email or password";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Login failed. Please try again.";
+            Console.WriteLine($"Login error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+}

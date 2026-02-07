@@ -1,0 +1,45 @@
+# Build outputs
+bin/
+obj/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Visual Studio
+.vs/
+*.rsuser
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# SQLite database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+logs/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db

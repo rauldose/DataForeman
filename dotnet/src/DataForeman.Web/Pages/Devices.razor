@@ -1,0 +1,286 @@
+@page "/connectivity/devices"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>Devices - DataForeman</PageTitle>
+
+<div class="page-header">
+    <h1>Devices</h1>
+    <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add Device" OnClick="ShowAddDialog"></SfButton>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-container">
+        <SfSpinner Visible="true" Label="Loading devices..." />
+    </div>
+}
+else
+{
+    <SfGrid @ref="Grid" DataSource="@connections" AllowPaging="true" AllowSorting="true" AllowFiltering="true">
+        <GridColumns>
+            <GridColumn Field="@nameof(ConnectionDto.Name)" HeaderText="Name" Width="200"></GridColumn>
+            <GridColumn Field="@nameof(ConnectionDto.Type)" HeaderText="Type" Width="150">
+                <Template>
+                    @{
+                        var conn = (context as ConnectionDto);
+                        <span class="connection-type @conn?.Type">@GetTypeLabel(conn?.Type)</span>
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn Field="@nameof(ConnectionDto.Enabled)" HeaderText="Status" Width="120">
+                <Template>
+                    @{
+                        var conn = (context as ConnectionDto);
+                        <span class="status-badge @(conn?.Enabled == true ? "enabled" : "disabled")">
+                            @(conn?.Enabled == true ? "Enabled" : "Disabled")
+                        </span>
+                    }
+                </Template>
+            </GridColumn>
+            <GridColumn Field="@nameof(ConnectionDto.MaxTagsPerGroup)" HeaderText="Max Tags/Group" Width="150"></GridColumn>
+            <GridColumn Field="@nameof(ConnectionDto.UpdatedAt)" HeaderText="Last Updated" Width="180" Format="g"></GridColumn>
+            <GridColumn HeaderText="Actions" Width="150">
+                <Template>
+                    @{
+                        var conn = (context as ConnectionDto);
+                        <SfButton IconCss="e-icons e-edit" CssClass="e-flat" OnClick="@(() => EditConnection(conn))"></SfButton>
+                        <SfButton IconCss="e-icons e-delete" CssClass="e-flat e-danger" OnClick="@(() => DeleteConnection(conn?.Id))"></SfButton>
+                    }
+                </Template>
+            </GridColumn>
+        </GridColumns>
+        <GridPageSettings PageSize="15"></GridPageSettings>
+    </SfGrid>
+}
+
+<!-- Add/Edit Dialog -->
+<SfDialog @ref="Dialog" Width="500px" IsModal="true" ShowCloseIcon="true" Visible="@showDialog" Header="@dialogTitle">
+    <DialogTemplates>
+        <Content>
+            <EditForm Model="@editModel" OnValidSubmit="SaveConnection">
+                <DataAnnotationsValidator />
+                
+                <div class="form-group mb-3">
+                    <SfTextBox @bind-Value="editModel.Name"
+                               Placeholder="Device Name"
+                               FloatLabelType="FloatLabelType.Auto" />
+                </div>
+                
+                <div class="form-group mb-3">
+                    <SfDropDownList TValue="string" TItem="ConnectionTypeOption" 
+                                    @bind-Value="editModel.Type"
+                                    DataSource="@connectionTypes"
+                                    FloatLabelType="FloatLabelType.Auto"
+                                    Placeholder="Connection Type">
+                        <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                    </SfDropDownList>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <SfCheckBox @bind-Checked="editModel.Enabled" Label="Enabled"></SfCheckBox>
+                </div>
+                
+                <div class="form-group mb-3">
+                    <SfNumericTextBox @bind-Value="editModel.MaxTagsPerGroup"
+                                      Min="1" Max="10000"
+                                      Placeholder="Max Tags Per Group"
+                                      FloatLabelType="FloatLabelType.Auto" />
+                </div>
+            </EditForm>
+        </Content>
+    </DialogTemplates>
+    <DialogButtons>
+        <DialogButton Content="Cancel" CssClass="e-flat" OnClick="CloseDialog"></DialogButton>
+        <DialogButton Content="Save" CssClass="e-primary" IsPrimary="true" OnClick="SaveConnection"></DialogButton>
+    </DialogButtons>
+</SfDialog>
+
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .connection-type {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .connection-type.eip { background: rgba(33, 150, 243, 0.12); color: #2196f3; }
+    .connection-type.opcua-client { background: rgba(156, 39, 176, 0.12); color: #ab47bc; }
+    .connection-type.opcua-server { background: rgba(233, 30, 99, 0.12); color: #ec407a; }
+    .connection-type.s7 { background: rgba(76, 175, 80, 0.12); color: #66bb6a; }
+    .connection-type.system { background: rgba(255, 152, 0, 0.12); color: #ffa726; }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+    }
+
+    .status-badge.enabled { background: rgba(76, 175, 80, 0.12); color: #4caf50; }
+    .status-badge.disabled { background: rgba(244, 67, 54, 0.12); color: #f44336; }
+
+    .loading-container {
+        display: flex;
+        justify-content: center;
+        padding: 60px;
+    }
+</style>
+
+@code {
+    private SfGrid<ConnectionDto>? Grid;
+    private SfDialog? Dialog;
+    private List<ConnectionDto>? connections;
+    private bool isLoading = true;
+    private bool showDialog = false;
+    private string dialogTitle = "Add Device";
+    private ConnectionEditModel editModel = new();
+    private Guid? editingId;
+
+    private List<ConnectionTypeOption> connectionTypes = new()
+    {
+        new("EtherNet/IP", "eip"),
+        new("OPC UA Client", "opcua-client"),
+        new("OPC UA Server", "opcua-server"),
+        new("Siemens S7", "s7"),
+        new("System", "system")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConnections();
+    }
+
+    private async Task LoadConnections()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<ConnectionsResponse>("api/connectivity/connections");
+            connections = response?.Connections ?? new List<ConnectionDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading connections: {ex.Message}");
+            connections = new List<ConnectionDto>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetTypeLabel(string? type) => type switch
+    {
+        "eip" => "EtherNet/IP",
+        "opcua-client" => "OPC UA Client",
+        "opcua-server" => "OPC UA Server",
+        "s7" => "Siemens S7",
+        "system" => "System",
+        _ => type ?? "Unknown"
+    };
+
+    private void ShowAddDialog()
+    {
+        editModel = new ConnectionEditModel { Enabled = true, MaxTagsPerGroup = 500 };
+        editingId = null;
+        dialogTitle = "Add Device";
+        showDialog = true;
+    }
+
+    private void EditConnection(ConnectionDto? conn)
+    {
+        if (conn == null) return;
+        
+        editModel = new ConnectionEditModel
+        {
+            Name = conn.Name,
+            Type = conn.Type,
+            Enabled = conn.Enabled,
+            MaxTagsPerGroup = conn.MaxTagsPerGroup ?? 500
+        };
+        editingId = conn.Id;
+        dialogTitle = "Edit Device";
+        showDialog = true;
+    }
+
+    private void CloseDialog()
+    {
+        showDialog = false;
+    }
+
+    private async Task SaveConnection()
+    {
+        try
+        {
+            if (editingId == null)
+            {
+                // Create new
+                await Http.PostAsJsonAsync("api/connectivity/connections", new CreateConnectionRequest(
+                    editModel.Name ?? "",
+                    editModel.Type ?? "eip",
+                    editModel.Enabled,
+                    null,
+                    editModel.MaxTagsPerGroup,
+                    8
+                ));
+            }
+            else
+            {
+                // Update existing
+                await Http.PutAsJsonAsync($"api/connectivity/connections/{editingId}", new UpdateConnectionRequest(
+                    editModel.Name,
+                    editModel.Type,
+                    editModel.Enabled,
+                    null,
+                    editModel.MaxTagsPerGroup,
+                    null
+                ));
+            }
+            
+            showDialog = false;
+            await LoadConnections();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving connection: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteConnection(Guid? id)
+    {
+        if (id == null) return;
+        
+        try
+        {
+            await Http.DeleteAsync($"api/connectivity/connections/{id}");
+            await LoadConnections();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting connection: {ex.Message}");
+        }
+    }
+
+    private record ConnectionsResponse(List<ConnectionDto> Connections);
+    private record ConnectionTypeOption(string Label, string Value);
+
+    private class ConnectionEditModel
+    {
+        public string? Name { get; set; }
+        public string? Type { get; set; }
+        public bool Enabled { get; set; }
+        public int MaxTagsPerGroup { get; set; }
+    }
+}
