@@ -79,12 +79,12 @@
         <!-- Dashboard View/Edit -->
         <div class="dashboard-viewer">
             <!-- Toolbar -->
-            <div class="dashboard-toolbar">
+            <div class="editor-toolbar">
                 <div class="toolbar-left">
                     <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
                     @if (IsEditMode)
                     {
-                        <SfTextBox @bind-Value="CurrentDashboard.Name" Placeholder="Dashboard Name" CssClass="dashboard-name-input"></SfTextBox>
+                        <SfTextBox @bind-Value="CurrentDashboard.Name" Placeholder="Dashboard Name" CssClass="name-input"></SfTextBox>
                     }
                     else
                     {
@@ -99,7 +99,7 @@
                                         @bind-Value="SelectedTimeRange" Width="120px" CssClass="time-dropdown">
                             <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
                         </SfDropDownList>
-                        <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-sync" @onclick="RefreshData"></SfButton>
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-sync" @onclick="RefreshData"></SfButton>
                     </div>
                 </div>
                 
@@ -115,7 +115,7 @@
                                 <SfCheckBox @bind-Checked="CurrentDashboard.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
                             </div>
                             <PermissionGuard Feature="dashboards" Operation="update">
-                                <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                                <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
                             </PermissionGuard>
                         }
                         <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>

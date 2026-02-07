@@ -215,9 +215,9 @@
     else
     {
         <div class="trend-viewer" @key="@TrendId">
-            <div class="viewer-toolbar">
+            <div class="editor-toolbar">
                 <SfButton CssClass="e-flat" IconCss="fa-solid fa-arrow-left" @onclick="GoBack"></SfButton>
-                <SfTextBox @bind-Value="CurrentTrend.Name" Placeholder="Trend Name" CssClass="trend-name-input"></SfTextBox>
+                <SfTextBox @bind-Value="CurrentTrend.Name" Placeholder="Trend Name" CssClass="name-input"></SfTextBox>
                 <div class="toolbar-spacer"></div>
                 
                 <SfDropDownList TValue="TrendTimeRangeType" TItem="TimeRangeOption" 
@@ -235,7 +235,7 @@
                 <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveTrend">Save</SfButton>
             </div>
             
-            <div class="viewer-content">
+            <div class="editor-content">
                 <div class="timeline-container">
                     @if (_showLiveTimeline)
                     {
