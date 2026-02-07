@@ -32,11 +32,15 @@ public class DashboardPanel
     public int GridWidth { get; set; } = 6;
     public int GridHeight { get; set; } = 4;
     
+    /// <summary>Reference to a pre-configured chart ID (from charts.json) for Chart panels.</summary>
+    public string? ChartRefId { get; set; }
+    
     // Panel-specific configuration
     public ChartPanelConfig? ChartConfig { get; set; }
     public GaugePanelConfig? GaugeConfig { get; set; }
     public StatPanelConfig? StatConfig { get; set; }
     public TablePanelConfig? TableConfig { get; set; }
+    public FlowPanelConfig? FlowConfig { get; set; }
 }
 
 /// <summary>
@@ -49,7 +53,8 @@ public enum PanelType
     Gauge,
     Stat,
     Table,
-    Text
+    Text,
+    Flow
 }
 
 /// <summary>
@@ -201,6 +206,15 @@ public class DashboardSettings
     public bool AutoRefresh { get; set; } = true;
     public string Theme { get; set; } = "dark";
     public bool Editable { get; set; } = true;
+}
+
+/// <summary>
+/// Flow panel configuration — triggers a manual flow from the dashboard.
+/// </summary>
+public class FlowPanelConfig
+{
+    public string FlowId { get; set; } = string.Empty;
+    public string? TitleOverride { get; set; }
 }
 
 /// <summary>

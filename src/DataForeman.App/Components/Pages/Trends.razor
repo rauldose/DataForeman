@@ -102,6 +102,20 @@
         margin-left: auto;
     }
     
+    .trace-values {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        font-size: 10px;
+        font-family: 'Consolas', monospace;
+        padding: 4px 8px;
+        min-width: 90px;
+        border-left: 1px solid #333;
+        justify-content: center;
+    }
+    .trace-values span { color: #9ca3af; }
+    .trace-values .tv-cur { color: #22c55e; font-weight: 600; }
+    
     .trace-canvas {
         flex: 1;
         padding: 4px;
@@ -283,6 +297,24 @@
                                                     }
                                                 }
                                             </svg>
+                                        </div>
+                                        @{
+                                            var pts = GetSeriesData(series.Id);
+                                        }
+                                        <div class="trace-values">
+                                            @if (pts.Any())
+                                            {
+                                                var minVal = double.MaxValue;
+                                                var maxVal = double.MinValue;
+                                                foreach (var p in pts) { if (p.Value < minVal) minVal = p.Value; if (p.Value > maxVal) maxVal = p.Value; }
+                                                <span>Min: @minVal.ToString("F2")</span>
+                                                <span>Max: @maxVal.ToString("F2")</span>
+                                                <span class="tv-cur">Cur: @pts.Last().Value.ToString("F2")</span>
+                                            }
+                                            else
+                                            {
+                                                <span>—</span>
+                                            }
                                         </div>
                                     </div>
                                 }
@@ -578,11 +610,28 @@
 
     private async Task RefreshData()
     {
-        // For now, generate sample data. In production, this would fetch from HistoryService
         _seriesData.Clear();
+        var duration = GetTimeRangeDuration();
+        var endTime = DateTime.UtcNow;
+        var startTime = endTime - duration;
+
         foreach (var series in CurrentTrend.Series)
         {
-            _seriesData[series.Id] = GenerateSampleData(50);
+            if (string.IsNullOrWhiteSpace(series.TagPath)) continue;
+            try
+            {
+                var historyPoints = await HistoryService.GetHistoricalDataAsync(
+                    series.TagPath, startTime, endTime, maxPoints: 500);
+
+                _seriesData[series.Id] = historyPoints
+                    .Select(h => new TrendDataPoint { Timestamp = h.Timestamp, Value = h.Value })
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Trends] Failed to load history for {series.TagPath}: {ex.Message}");
+                _seriesData[series.Id] = new List<TrendDataPoint>();
+            }
         }
         StateHasChanged();
     }
@@ -590,24 +639,6 @@
     private List<TrendDataPoint> GetSeriesData(string seriesId)
     {
         return _seriesData.TryGetValue(seriesId, out var data) ? data : new List<TrendDataPoint>();
-    }
-
-    private List<TrendDataPoint> GenerateSampleData(int points)
-    {
-        var data = new List<TrendDataPoint>();
-        var now = DateTime.UtcNow;
-        var random = new Random();
-        
-        for (int i = 0; i < points; i++)
-        {
-            data.Add(new TrendDataPoint
-            {
-                Timestamp = now.AddMinutes(-points + i),
-                Value = 20 + random.NextDouble() * 60
-            });
-        }
-        
-        return data;
     }
 
     private void StartAutoRefresh()

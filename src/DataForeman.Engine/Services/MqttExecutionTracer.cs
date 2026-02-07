@@ -51,7 +51,7 @@ public class MqttExecutionTracer : IExecutionTracer
                 Message = trace.Status == ExecutionStatus.Failed 
                     ? $"Failed: {trace.Error}" 
                     : $"Executed in {trace.Duration.TotalMilliseconds:F1}ms, emitted {trace.MessagesEmitted} messages",
-                InputData = null,
+                InputData = trace.InputValues,
                 OutputData = trace.OutputValues,
                 Timestamp = trace.EndUtc
             };

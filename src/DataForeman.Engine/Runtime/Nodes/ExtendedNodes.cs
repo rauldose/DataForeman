@@ -2,6 +2,7 @@
 // Implements all node types defined in the App's NodePluginRegistry
 // that were previously missing from the Engine.
 
+using DataForeman.Engine.Services;
 using DataForeman.Shared.Definition;
 using DataForeman.Shared.Runtime;
 using System.Collections.Concurrent;
@@ -1162,6 +1163,14 @@ public sealed class HttpRequestRuntime : NodeRuntimeBase
 /// </summary>
 public sealed class CSharpScriptRuntime : NodeRuntimeBase
 {
+    private readonly CSharpScriptService? _scriptService;
+    private readonly Dictionary<string, object?> _nodeState = new();
+
+    public CSharpScriptRuntime(CSharpScriptService? scriptService = null)
+    {
+        _scriptService = scriptService;
+    }
+
     public static NodeDescriptor Descriptor => new()
     {
         Type = "script-csharp",
@@ -1196,23 +1205,62 @@ public sealed class CSharpScriptRuntime : NodeRuntimeBase
         }
     };
 
-    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    public override async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
         var cfg = context.GetConfig<ScriptCfg>();
         if (string.IsNullOrWhiteSpace(cfg?.Code))
         {
             context.Logger.Warn("C# Script: no code configured");
             context.Emitter.Emit("output", context.Message);
-            return ValueTask.CompletedTask;
+            return;
+        }
+
+        if (_scriptService == null)
+        {
+            context.Logger.Warn("C# Script: CSharpScriptService not available — passing through");
+            context.Emitter.Emit("output", context.Message);
+            return;
         }
 
         try
         {
-            // Forward message — actual script execution happens via CSharpScriptService
-            // integration at the FlowExecutionService level when available
-            const int LogPreviewLength = 80;
-            context.Logger.Info($"Script executing: {cfg.Code[..Math.Min(cfg.Code.Length, LogPreviewLength)]}...");
-            context.Emitter.Emit("output", context.Message);
+            // Extract input value from message payload
+            var inputValue = NumericHelper.ExtractInputValue(context.Message);
+            var timeout = cfg.Timeout > 0 ? cfg.Timeout : 5000;
+            var result = await _scriptService.ExecuteAsync(cfg.Code, _nodeState, inputValue, timeout, ct);
+
+            // Log script output
+            foreach (var logMsg in result.LogMessages)
+                context.Logger.Info($"[script] {logMsg}");
+
+            if (result.Success)
+            {
+                if (result.ReturnValue != null)
+                {
+                    var outPayload = CreatePayload(result.ReturnValue);
+                    var outMessage = context.Message with { Payload = outPayload };
+                    context.Emitter.Emit("output", outMessage);
+                }
+                else
+                {
+                    // null return = suppress output (deadband-style)
+                    context.Logger.Info("Script returned null — output suppressed");
+                }
+            }
+            else
+            {
+                var ex = new InvalidOperationException(result.ErrorMessage ?? "Script execution failed");
+                if ((cfg.OnError ?? "stop") == "continue")
+                {
+                    context.Logger.Warn($"Script error (continuing): {result.ErrorMessage}");
+                    context.Emitter.Emit("output", context.Message);
+                }
+                else
+                {
+                    context.Logger.Error($"Script error: {result.ErrorMessage}");
+                    context.Emitter.EmitError(ex, context.Message);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1227,18 +1275,15 @@ public sealed class CSharpScriptRuntime : NodeRuntimeBase
                 context.Emitter.EmitError(ex, context.Message);
             }
         }
-
-        return ValueTask.CompletedTask;
     }
 
     private sealed class ScriptCfg { public string? Code { get; set; } public int Timeout { get; set; } = 5000; public string? OnError { get; set; } }
 }
 
-// ─── Passthrough stubs for less-common nodes ────────────────────
+// ─── Script and function nodes ──────────────────────────────────
 
 /// <summary>
-/// JavaScript function node — placeholder that passes through messages.
-/// Full JS execution requires a JavaScript engine integration.
+/// JavaScript function node — executes user JS code via Jint interpreter.
 /// </summary>
 public sealed class JavaScriptRuntime : NodeRuntimeBase
 {
@@ -1247,7 +1292,7 @@ public sealed class JavaScriptRuntime : NodeRuntimeBase
         Type = "func-javascript",
         DisplayName = "JavaScript",
         Category = "Function",
-        Description = "Runs JavaScript code (placeholder — passes through)",
+        Description = "Runs JavaScript code via Jint interpreter",
         Icon = "fa-js",
         Color = "#f7df1e",
         InputPorts = new[]
@@ -1269,10 +1314,54 @@ public sealed class JavaScriptRuntime : NodeRuntimeBase
 
     public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
-        context.Logger.Warn("JavaScript node: runtime execution not yet available — passing message through");
-        context.Emitter.Emit("output", context.Message);
+        var cfg = context.GetConfig<JsCfg>();
+        if (string.IsNullOrWhiteSpace(cfg?.Code))
+        {
+            context.Logger.Warn("JavaScript: no code configured");
+            context.Emitter.Emit("output", context.Message);
+            return ValueTask.CompletedTask;
+        }
+
+        try
+        {
+            // Extract input value
+            var inputValue = NumericHelper.ExtractInputValue(context.Message);
+            var timeoutSec = cfg.Timeout > 0 ? cfg.Timeout / 1000.0 : 5.0;
+
+            var engine = new Jint.Engine(opts =>
+            {
+                Jint.ConstraintsOptionsExtensions.TimeoutInterval(opts, TimeSpan.FromSeconds(timeoutSec));
+                Jint.ConstraintsOptionsExtensions.MaxStatements(opts, 10000);
+                Jint.OptionsExtensions.LimitRecursion(opts, 64);
+            });
+
+            // Expose input value and logging to script
+            engine.SetValue("input", inputValue);
+            engine.SetValue("log", new Action<object>(msg => context.Logger.Info($"[js] {msg}")));
+
+            var result = engine.Evaluate(cfg.Code);
+            var nativeResult = result.ToObject();
+
+            if (nativeResult != null)
+            {
+                var payload = CreatePayload(nativeResult);
+                context.Emitter.Emit("output", context.Message with { Payload = payload });
+            }
+            else
+            {
+                context.Emitter.Emit("output", context.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"JavaScript error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+
         return ValueTask.CompletedTask;
     }
+
+    private sealed class JsCfg { public string? Code { get; set; } public int Timeout { get; set; } = 5000; }
 }
 
 /// <summary>
@@ -1444,11 +1533,77 @@ public sealed class StorageFileRuntime : NodeRuntimeBase
         }
     };
 
-    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    public override async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
-        context.Logger.Warn("File Storage node: file I/O not yet implemented — passing through");
-        context.Emitter.Emit("output", context.Message);
-        return ValueTask.CompletedTask;
+        var cfg = context.GetConfig<FileCfg>();
+        if (string.IsNullOrWhiteSpace(cfg?.FilePath))
+        {
+            context.Logger.Warn("File Storage: no file path configured");
+            context.Emitter.Emit("output", context.Message);
+            return;
+        }
+
+        // Resolve relative paths against the config directory
+        var filePath = Path.GetFullPath(cfg.FilePath);
+        var operation = cfg.Operation ?? "read";
+
+        try
+        {
+            switch (operation.ToLowerInvariant())
+            {
+                case "read":
+                {
+                    if (!File.Exists(filePath))
+                    {
+                        context.Logger.Warn($"File not found: {filePath}");
+                        context.Emitter.Emit("output", context.Message);
+                        return;
+                    }
+                    var content = await File.ReadAllTextAsync(filePath, ct);
+                    context.Logger.Info($"Read {content.Length} chars from {filePath}");
+                    var payload = CreatePayload(content);
+                    context.Emitter.Emit("output", context.Message with { Payload = payload });
+                    break;
+                }
+                case "write":
+                {
+                    var data = context.Message.Payload?.ToString() ?? "";
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir))
+                        Directory.CreateDirectory(dir);
+                    await File.WriteAllTextAsync(filePath, data, ct);
+                    context.Logger.Info($"Wrote {data.Length} chars to {filePath}");
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+                }
+                case "append":
+                {
+                    var data = context.Message.Payload?.ToString() ?? "";
+                    var dir = Path.GetDirectoryName(filePath);
+                    if (!string.IsNullOrEmpty(dir))
+                        Directory.CreateDirectory(dir);
+                    await File.AppendAllTextAsync(filePath, data + Environment.NewLine, ct);
+                    context.Logger.Info($"Appended {data.Length} chars to {filePath}");
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+                }
+                default:
+                    context.Logger.Warn($"Unknown file operation: {operation}");
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"File Storage error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+    }
+
+    private sealed class FileCfg
+    {
+        public string? FilePath { get; set; }
+        public string? Operation { get; set; }
     }
 }
 
@@ -1483,10 +1638,1215 @@ public sealed class StorageSqliteRuntime : NodeRuntimeBase
         }
     };
 
+    public override async ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<SqliteCfg>();
+        if (string.IsNullOrWhiteSpace(cfg?.Database))
+        {
+            context.Logger.Warn("SQLite Storage: no database path configured");
+            context.Emitter.Emit("output", context.Message);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(cfg.Query))
+        {
+            context.Logger.Warn("SQLite Storage: no SQL query configured");
+            context.Emitter.Emit("output", context.Message);
+            return;
+        }
+
+        var dbPath = Path.GetFullPath(cfg.Database);
+        var connStr = $"Data Source={dbPath}";
+
+        try
+        {
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connStr);
+            await connection.OpenAsync(ct);
+
+            var isSelect = cfg.Query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
+
+            if (isSelect)
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = cfg.Query;
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+
+                var rows = new List<Dictionary<string, object?>>();
+                while (await reader.ReadAsync(ct))
+                {
+                    var row = new Dictionary<string, object?>();
+                    for (var i = 0; i < reader.FieldCount; i++)
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    rows.Add(row);
+                }
+
+                context.Logger.Info($"SQLite query returned {rows.Count} rows from {dbPath}");
+                var payload = CreatePayload(rows);
+                context.Emitter.Emit("output", context.Message with { Payload = payload });
+            }
+            else
+            {
+                using var cmd = connection.CreateCommand();
+                cmd.CommandText = cfg.Query;
+                var affected = await cmd.ExecuteNonQueryAsync(ct);
+                context.Logger.Info($"SQLite execute affected {affected} rows in {dbPath}");
+                var payload = CreatePayload(affected);
+                context.Emitter.Emit("output", context.Message with { Payload = payload });
+            }
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"SQLite Storage error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+    }
+
+    private sealed class SqliteCfg
+    {
+        public string? Database { get; set; }
+        public string? Query { get; set; }
+    }
+}
+
+// ─── Math (Extended) ────────────────────────────────────────────
+
+/// <summary>
+/// Clamp — constrains a value between min and max bounds.
+/// </summary>
+public sealed class ClampRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "clamp",
+        DisplayName = "Clamp",
+        Category = "Math",
+        Description = "Constrains a value between min and max bounds",
+        Icon = "fa-compress-arrows-alt",
+        Color = "#9C27B0",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "min", Label = "Minimum", Type = "number" },
+                new ConfigProperty { Name = "max", Label = "Maximum", Type = "number" },
+                new ConfigProperty { Name = "property", Label = "Value Property", Type = "string" }
+            }
+        }
+    };
+
     public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
     {
-        context.Logger.Warn("SQLite Storage node: database I/O not yet implemented — passing through");
-        context.Emitter.Emit("output", context.Message);
+        var cfg = context.GetConfig<ClampCfg>();
+        var val = NumericHelper.Extract(context.Message, cfg?.Property);
+        var min = cfg?.Min ?? 0;
+        var max = cfg?.Max ?? 100;
+        var result = Math.Min(Math.Max(val, min), max);
+        context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class ClampCfg { public double Min { get; set; } public double Max { get; set; } = 100; public string? Property { get; set; } }
+}
+
+/// <summary>
+/// Round — rounds a value using configurable mode and precision.
+/// </summary>
+public sealed class RoundRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "round",
+        DisplayName = "Round",
+        Category = "Math",
+        Description = "Rounds a value using configurable mode and precision",
+        Icon = "fa-circle-dot",
+        Color = "#00897B",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "mode", Label = "Rounding Mode", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "round", Label = "Round" },
+                        new SelectOption { Value = "floor", Label = "Floor" },
+                        new SelectOption { Value = "ceil", Label = "Ceiling" },
+                        new SelectOption { Value = "trunc", Label = "Truncate" }
+                    }
+                },
+                new ConfigProperty { Name = "precision", Label = "Decimal Places", Type = "number" },
+                new ConfigProperty { Name = "property", Label = "Value Property", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<RoundCfg>();
+        var val = NumericHelper.Extract(context.Message, cfg?.Property);
+        var precision = (int)(cfg?.Precision ?? 0);
+        var factor = Math.Pow(10, precision);
+
+        var result = (cfg?.Mode ?? "round") switch
+        {
+            "floor" => Math.Floor(val * factor) / factor,
+            "ceil" => Math.Ceiling(val * factor) / factor,
+            "trunc" => Math.Truncate(val * factor) / factor,
+            _ => Math.Round(val * factor) / factor
+        };
+
+        context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class RoundCfg { public string? Mode { get; set; } public double Precision { get; set; } public string? Property { get; set; } }
+}
+
+// ─── Logic (Extended) ───────────────────────────────────────────
+
+/// <summary>
+/// Gate — conditionally passes or blocks messages.
+/// </summary>
+public sealed class GateRuntime : NodeRuntimeBase
+{
+    private JsonElement? _lastPayload;
+
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "gate",
+        DisplayName = "Gate",
+        Category = "Logic",
+        Description = "Conditionally passes or blocks messages based on a condition input",
+        Icon = "fa-door-open",
+        Color = "#00BCD4",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "condition", Label = "Condition", Direction = PortDirection.Input, Required = true },
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "falseOutputMode", Label = "When False", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "null", Label = "Suppress Output" },
+                        new SelectOption { Value = "previous", Label = "Emit Previous Value" }
+                    }
+                }
+            }
+        }
+    };
+
+    private JsonElement? _lastCondition;
+    private MessageEnvelope? _lastInput;
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<GateCfg>();
+        var portName = context.Message.SourcePort ?? "input";
+
+        if (portName == "condition")
+            _lastCondition = context.Message.Payload;
+        else
+            _lastInput = context.Message;
+
+        if (_lastInput == null) return ValueTask.CompletedTask;
+
+        var isOpen = NumericHelper.IsTruthy(_lastCondition);
+        if (isOpen)
+        {
+            _lastPayload = _lastInput.Payload;
+            context.Emitter.Emit("output", _lastInput);
+        }
+        else
+        {
+            var mode = cfg?.FalseOutputMode ?? "null";
+            if (mode == "previous" && _lastPayload is JsonElement prev)
+            {
+                context.Emitter.Emit("output", _lastInput with { Payload = prev });
+            }
+            // "null" mode: suppress output
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class GateCfg { public string? FalseOutputMode { get; set; } }
+}
+
+/// <summary>
+/// Merge — combines messages from two inputs using a configurable strategy.
+/// </summary>
+public sealed class MergeRuntime : NodeRuntimeBase
+{
+    private readonly Dictionary<string, object?> _inputValues = new();
+
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "merge",
+        DisplayName = "Merge",
+        Category = "Logic",
+        Description = "Combines messages from two inputs using a configurable strategy",
+        Icon = "fa-code-merge",
+        Color = "#7B1FA2",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input1", Label = "Input 1", Direction = PortDirection.Input, Required = true },
+            new PortDescriptor { Name = "input2", Label = "Input 2", Direction = PortDirection.Input }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "merged", Label = "Merged", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "strategy", Label = "Strategy", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "first-valid", Label = "First Valid" },
+                        new SelectOption { Value = "latest", Label = "Latest" },
+                        new SelectOption { Value = "min", Label = "Minimum" },
+                        new SelectOption { Value = "max", Label = "Maximum" },
+                        new SelectOption { Value = "average", Label = "Average" },
+                        new SelectOption { Value = "sum", Label = "Sum" }
+                    }
+                }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<MergeCfg>();
+        var portName = context.Message.SourcePort ?? "input1";
+        _inputValues[portName] = context.Message.Payload;
+
+        var strategy = cfg?.Strategy ?? "first-valid";
+
+        object? result = strategy switch
+        {
+            "latest" => context.Message.Payload,
+            "first-valid" => _inputValues.Values.FirstOrDefault(v => v != null),
+            _ => ApplyNumericStrategy(strategy)
+        };
+
+        if (result != null)
+            context.Emitter.Emit("merged", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+
+        return ValueTask.CompletedTask;
+    }
+
+    private object? ApplyNumericStrategy(string strategy)
+    {
+        var values = _inputValues.Values
+            .OfType<JsonElement>()
+            .Where(e => e.ValueKind == JsonValueKind.Number || e.TryGetProperty("value", out _))
+            .Select(e => e.ValueKind == JsonValueKind.Number ? e.GetDouble() :
+                         e.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : (double?)null)
+            .Where(v => v.HasValue)
+            .Select(v => v!.Value)
+            .ToList();
+
+        if (values.Count == 0) return null;
+
+        return strategy switch
+        {
+            "min" => values.Min(),
+            "max" => values.Max(),
+            "average" => values.Average(),
+            "sum" => values.Sum(),
+            _ => values.FirstOrDefault()
+        };
+    }
+
+    private sealed class MergeCfg { public string? Strategy { get; set; } }
+}
+
+/// <summary>
+/// State Machine — manages state transitions based on events.
+/// </summary>
+public sealed class StateMachineNodeRuntime : NodeRuntimeBase
+{
+    private string? _currentState;
+
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "state-machine",
+        DisplayName = "State Machine",
+        Category = "Logic",
+        Description = "Manages state transitions based on events",
+        Icon = "fa-diagram-project",
+        Color = "#7B1FA2",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "event", Label = "Event", Direction = PortDirection.Input, Required = true },
+            new PortDescriptor { Name = "reset", Label = "Reset", Direction = PortDirection.Input }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "currentState", Label = "Current State", Direction = PortDirection.Output },
+            new PortDescriptor { Name = "transition", Label = "Transition", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "initialState", Label = "Initial State", Type = "string" },
+                new ConfigProperty { Name = "transitions", Label = "Transitions (source:event->target,...)", Type = "string" },
+                new ConfigProperty { Name = "resetOnInvalid", Label = "Reset on Invalid", Type = "boolean" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<StateMachineCfg>();
+        var initial = cfg?.InitialState ?? "idle";
+        _currentState ??= initial;
+
+        var portName = context.Message.SourcePort ?? "event";
+
+        if (portName == "reset")
+        {
+            _currentState = initial;
+            context.Emitter.Emit("currentState", context.Message.Derive(context.CurrentUtc, CreatePayload(new { state = _currentState })));
+            return ValueTask.CompletedTask;
+        }
+
+        // Extract event name from payload
+        var eventName = "unknown";
+        if (context.Message.Payload is { } p)
+        {
+            if (p.TryGetProperty("event", out var ev))
+                eventName = ev.GetString() ?? "unknown";
+            else if (p.ValueKind == JsonValueKind.String)
+                eventName = p.GetString() ?? "unknown";
+            else if (p.TryGetProperty("value", out var vv))
+                eventName = vv.ToString();
+        }
+
+        // Parse transitions: "source:event->target,source2:event2->target2"
+        var transitions = ParseTransitions(cfg?.Transitions ?? "");
+        var key = $"{_currentState}:{eventName}";
+
+        if (transitions.TryGetValue(key, out var target))
+        {
+            var from = _currentState;
+            _currentState = target;
+            context.Emitter.Emit("transition", context.Message.Derive(context.CurrentUtc, CreatePayload(new { from, to = target, @event = eventName })));
+            context.Emitter.Emit("currentState", context.Message.Derive(context.CurrentUtc, CreatePayload(new { state = _currentState })));
+        }
+        else if (cfg?.ResetOnInvalid == true)
+        {
+            _currentState = initial;
+            context.Emitter.Emit("currentState", context.Message.Derive(context.CurrentUtc, CreatePayload(new { state = _currentState })));
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private static Dictionary<string, string> ParseTransitions(string raw)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(raw)) return result;
+        foreach (var part in raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // Format: source:event->target
+            var arrowIdx = part.IndexOf("->", StringComparison.Ordinal);
+            if (arrowIdx < 0) continue;
+            var left = part[..arrowIdx];
+            var target = part[(arrowIdx + 2)..].Trim();
+            result[left.Trim()] = target;
+        }
+        return result;
+    }
+
+    private sealed class StateMachineCfg { public string? InitialState { get; set; } public string? Transitions { get; set; } public bool ResetOnInvalid { get; set; } }
+}
+
+/// <summary>
+/// Range Check — checks if a value falls within a configured range.
+/// </summary>
+public sealed class RangeCheckRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "range-check",
+        DisplayName = "Range Check",
+        Category = "Logic",
+        Description = "Checks if a value falls within a configured range",
+        Icon = "fa-ruler-combined",
+        Color = "#4CAF50",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "inRange", Label = "In Range", Direction = PortDirection.Output },
+            new PortDescriptor { Name = "value", Label = "Value", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "min", Label = "Minimum", Type = "number" },
+                new ConfigProperty { Name = "max", Label = "Maximum", Type = "number" },
+                new ConfigProperty { Name = "rangeMode", Label = "Range Mode", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "inclusive", Label = "Inclusive" },
+                        new SelectOption { Value = "exclusive", Label = "Exclusive" },
+                        new SelectOption { Value = "minInclusive", Label = "Min Inclusive" },
+                        new SelectOption { Value = "maxInclusive", Label = "Max Inclusive" }
+                    }
+                },
+                new ConfigProperty { Name = "outputMode", Label = "Output Mode", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "boolean", Label = "Boolean Only" },
+                        new SelectOption { Value = "both", Label = "Boolean + Value" }
+                    }
+                },
+                new ConfigProperty { Name = "property", Label = "Value Property", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<RangeCheckCfg>();
+        var val = NumericHelper.Extract(context.Message, cfg?.Property);
+        var min = cfg?.Min ?? 0;
+        var max = cfg?.Max ?? 100;
+        var mode = cfg?.RangeMode ?? "inclusive";
+
+        var inRange = mode switch
+        {
+            "exclusive" => val > min && val < max,
+            "minInclusive" => val >= min && val < max,
+            "maxInclusive" => val > min && val <= max,
+            _ => val >= min && val <= max // inclusive
+        };
+
+        context.Emitter.Emit("inRange", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = inRange })));
+
+        if ((cfg?.OutputMode ?? "both") == "both")
+            context.Emitter.Emit("value", context.Message);
+
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class RangeCheckCfg { public double Min { get; set; } public double Max { get; set; } = 100; public string? RangeMode { get; set; } public string? OutputMode { get; set; } public string? Property { get; set; } }
+}
+
+/// <summary>
+/// Boolean Logic — applies boolean operations on two inputs.
+/// </summary>
+public sealed class BooleanLogicRuntime : NodeRuntimeBase
+{
+    private JsonElement? _lastInput1;
+    private JsonElement? _lastInput2;
+
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "boolean-logic",
+        DisplayName = "Boolean Logic",
+        Category = "Logic",
+        Description = "Applies boolean operations on two inputs",
+        Icon = "fa-microchip",
+        Color = "#9C27B0",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input1", Label = "Input 1", Direction = PortDirection.Input, Required = true },
+            new PortDescriptor { Name = "input2", Label = "Input 2", Direction = PortDirection.Input }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "result", Label = "Result", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "operation", Label = "Operation", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "and", Label = "AND" },
+                        new SelectOption { Value = "or", Label = "OR" },
+                        new SelectOption { Value = "xor", Label = "XOR" },
+                        new SelectOption { Value = "not", Label = "NOT (Input 1 only)" },
+                        new SelectOption { Value = "nand", Label = "NAND" },
+                        new SelectOption { Value = "nor", Label = "NOR" }
+                    }
+                }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<BoolLogicCfg>();
+        var portName = context.Message.SourcePort ?? "input1";
+
+        if (portName == "input2")
+            _lastInput2 = context.Message.Payload;
+        else
+            _lastInput1 = context.Message.Payload;
+
+        var a = NumericHelper.IsTruthy(_lastInput1);
+        var b = NumericHelper.IsTruthy(_lastInput2);
+        var op = cfg?.Operation ?? "and";
+
+        var result = op switch
+        {
+            "or" => a || b,
+            "xor" => a ^ b,
+            "not" => !a,
+            "nand" => !(a && b),
+            "nor" => !(a || b),
+            _ => a && b // and
+        };
+
+        context.Emitter.Emit("result", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class BoolLogicCfg { public string? Operation { get; set; } }
+}
+
+// ─── Data Transform (Extended) ──────────────────────────────────
+
+/// <summary>
+/// Type Convert — converts a value to a target type.
+/// </summary>
+public sealed class TypeConvertRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "type-convert",
+        DisplayName = "Type Convert",
+        Category = "Data Transform",
+        Description = "Converts a value to a target type",
+        Icon = "fa-exchange-alt",
+        Color = "#00BCD4",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "targetType", Label = "Target Type", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "number", Label = "Number" },
+                        new SelectOption { Value = "string", Label = "String" },
+                        new SelectOption { Value = "boolean", Label = "Boolean" }
+                    }
+                },
+                new ConfigProperty { Name = "onError", Label = "On Error", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "null", Label = "Emit Null" },
+                        new SelectOption { Value = "original", Label = "Pass Original" },
+                        new SelectOption { Value = "default", Label = "Use Default" }
+                    }
+                },
+                new ConfigProperty { Name = "defaultValue", Label = "Default Value", Type = "string" },
+                new ConfigProperty { Name = "property", Label = "Value Property", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<TypeConvertCfg>();
+        var target = cfg?.TargetType ?? "string";
+        var onError = cfg?.OnError ?? "null";
+        var prop = cfg?.Property ?? "value";
+
+        object? inputVal = null;
+        if (context.Message.Payload is { } p && p.TryGetProperty(prop, out var el))
+            inputVal = el.ToString();
+        else if (context.Message.Payload is { } pp)
+            inputVal = pp.ToString();
+
+        var raw = inputVal?.ToString() ?? "";
+
+        try
+        {
+            object converted = target switch
+            {
+                "number" => double.Parse(raw),
+                "boolean" => raw.Equals("true", StringComparison.OrdinalIgnoreCase) || raw == "1",
+                _ => raw
+            };
+            context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = converted })));
+        }
+        catch
+        {
+            switch (onError)
+            {
+                case "original":
+                    context.Emitter.Emit("output", context.Message);
+                    break;
+                case "default":
+                    context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = cfg?.DefaultValue ?? "" })));
+                    break;
+                default: // "null"
+                    context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = (object?)null })));
+                    break;
+            }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class TypeConvertCfg { public string? TargetType { get; set; } public string? OnError { get; set; } public string? DefaultValue { get; set; } public string? Property { get; set; } }
+}
+
+/// <summary>
+/// String Ops — performs string operations on input values.
+/// </summary>
+public sealed class StringOpsRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "string-ops",
+        DisplayName = "String Operations",
+        Category = "Data Transform",
+        Description = "Performs string operations on input values",
+        Icon = "fa-font",
+        Color = "#795548",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "operation", Label = "Operation", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "uppercase", Label = "Uppercase" },
+                        new SelectOption { Value = "lowercase", Label = "Lowercase" },
+                        new SelectOption { Value = "trim", Label = "Trim" },
+                        new SelectOption { Value = "length", Label = "Length" },
+                        new SelectOption { Value = "contains", Label = "Contains" },
+                        new SelectOption { Value = "replace", Label = "Replace" },
+                        new SelectOption { Value = "substring", Label = "Substring" },
+                        new SelectOption { Value = "split", Label = "Split" },
+                        new SelectOption { Value = "concat", Label = "Concat" },
+                        new SelectOption { Value = "startsWith", Label = "Starts With" },
+                        new SelectOption { Value = "endsWith", Label = "Ends With" },
+                        new SelectOption { Value = "reverse", Label = "Reverse" }
+                    }
+                },
+                new ConfigProperty { Name = "searchText", Label = "Search Text", Type = "string" },
+                new ConfigProperty { Name = "replaceWith", Label = "Replace With", Type = "string" },
+                new ConfigProperty { Name = "startIndex", Label = "Start Index", Type = "number" },
+                new ConfigProperty { Name = "endIndex", Label = "End Index", Type = "number" },
+                new ConfigProperty { Name = "delimiter", Label = "Delimiter", Type = "string" },
+                new ConfigProperty { Name = "property", Label = "Value Property", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<StringOpsCfg>();
+        var prop = cfg?.Property ?? "value";
+        var str = "";
+        if (context.Message.Payload is { } p)
+        {
+            if (p.TryGetProperty(prop, out var el))
+                str = el.ToString();
+            else if (p.ValueKind == JsonValueKind.String)
+                str = p.GetString() ?? "";
+            else
+                str = p.ToString();
+        }
+
+        var op = cfg?.Operation ?? "uppercase";
+
+        object result = op switch
+        {
+            "uppercase" => str.ToUpperInvariant(),
+            "lowercase" => str.ToLowerInvariant(),
+            "trim" => str.Trim(),
+            "length" => str.Length,
+            "contains" => str.Contains(cfg?.SearchText ?? "", StringComparison.Ordinal),
+            "replace" => str.Replace(cfg?.SearchText ?? "", cfg?.ReplaceWith ?? "", StringComparison.Ordinal),
+            "substring" => SubstringOp(str, (int)(cfg?.StartIndex ?? 0), (int)(cfg?.EndIndex ?? str.Length)),
+            "split" => str.Split(cfg?.Delimiter ?? ","),
+            "concat" => str + (cfg?.SearchText ?? ""),
+            "startsWith" => str.StartsWith(cfg?.SearchText ?? "", StringComparison.Ordinal),
+            "endsWith" => str.EndsWith(cfg?.SearchText ?? "", StringComparison.Ordinal),
+            "reverse" => new string(str.Reverse().ToArray()),
+            _ => str
+        };
+
+        context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+        return ValueTask.CompletedTask;
+    }
+
+    private static string SubstringOp(string str, int start, int end)
+    {
+        start = Math.Clamp(start, 0, str.Length);
+        end = Math.Clamp(end, start, str.Length);
+        return str.Substring(start, end - start);
+    }
+
+    private sealed class StringOpsCfg
+    {
+        public string? Operation { get; set; }
+        public string? SearchText { get; set; }
+        public string? ReplaceWith { get; set; }
+        public double StartIndex { get; set; }
+        public double EndIndex { get; set; }
+        public string? Delimiter { get; set; }
+        public string? Property { get; set; }
+    }
+}
+
+/// <summary>
+/// Array Ops — performs operations on JSON arrays.
+/// </summary>
+public sealed class ArrayOpsRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "array-ops",
+        DisplayName = "Array Operations",
+        Category = "Data Transform",
+        Description = "Performs operations on JSON arrays",
+        Icon = "fa-layer-group",
+        Color = "#1976D2",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "operation", Label = "Operation", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "get-element", Label = "Get Element" },
+                        new SelectOption { Value = "length", Label = "Length" },
+                        new SelectOption { Value = "first", Label = "First" },
+                        new SelectOption { Value = "last", Label = "Last" },
+                        new SelectOption { Value = "join", Label = "Join" },
+                        new SelectOption { Value = "slice", Label = "Slice" },
+                        new SelectOption { Value = "includes", Label = "Includes" },
+                        new SelectOption { Value = "index-of", Label = "Index Of" }
+                    }
+                },
+                new ConfigProperty { Name = "index", Label = "Index", Type = "number" },
+                new ConfigProperty { Name = "separator", Label = "Separator", Type = "string" },
+                new ConfigProperty { Name = "start", Label = "Start", Type = "number" },
+                new ConfigProperty { Name = "end", Label = "End", Type = "number" },
+                new ConfigProperty { Name = "searchValue", Label = "Search Value", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<ArrayOpsCfg>();
+        var op = cfg?.Operation ?? "length";
+
+        JsonElement arr = default;
+        if (context.Message.Payload is { } p)
+        {
+            if (p.ValueKind == JsonValueKind.Array)
+                arr = p;
+            else if (p.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Array)
+                arr = v;
+            else
+            {
+                // Try parsing as JSON array
+                try { arr = JsonDocument.Parse(p.GetRawText()).RootElement; }
+                catch { context.Logger.Info("Input is not a valid JSON array"); }
+            }
+        }
+
+        if (arr.ValueKind != JsonValueKind.Array)
+        {
+            context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = (object?)null, error = "Input is not an array" })));
+            return ValueTask.CompletedTask;
+        }
+
+        var len = arr.GetArrayLength();
+        object? result = op switch
+        {
+            "get-element" => len > 0 ? GetElementValue(arr, Math.Clamp((int)(cfg?.Index ?? 0), 0, len - 1)) : null,
+            "length" => len,
+            "first" => len > 0 ? GetElementValue(arr, 0) : null,
+            "last" => len > 0 ? GetElementValue(arr, len - 1) : null,
+            "join" => string.Join(cfg?.Separator ?? ",", Enumerable.Range(0, len).Select(i => arr[i].ToString())),
+            "slice" => SliceArray(arr, (int)(cfg?.Start ?? 0), (int)(cfg?.End ?? -1)),
+            "includes" => Enumerable.Range(0, len).Any(i => arr[i].ToString() == (cfg?.SearchValue ?? "")),
+            "index-of" => IndexOf(arr, len, cfg?.SearchValue ?? ""),
+            _ => len
+        };
+
+        context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+        return ValueTask.CompletedTask;
+    }
+
+    private static object? GetElementValue(JsonElement arr, int index)
+    {
+        var el = arr[index];
+        return el.ValueKind switch
+        {
+            JsonValueKind.Number => el.GetDouble(),
+            JsonValueKind.String => el.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => el.ToString()
+        };
+    }
+
+    private static object SliceArray(JsonElement arr, int start, int end)
+    {
+        var len = arr.GetArrayLength();
+        if (end < 0) end = len + end + 1;
+        start = Math.Clamp(start, 0, len);
+        end = Math.Clamp(end, start, len);
+        return Enumerable.Range(start, end - start).Select(i => arr[i].ToString()).ToArray();
+    }
+
+    private static int IndexOf(JsonElement arr, int len, string searchValue)
+    {
+        for (int i = 0; i < len; i++)
+            if (arr[i].ToString() == searchValue) return i;
+        return -1;
+    }
+
+    private sealed class ArrayOpsCfg
+    {
+        public string? Operation { get; set; }
+        public double Index { get; set; }
+        public string? Separator { get; set; } = ",";
+        public double Start { get; set; }
+        public double End { get; set; } = -1;
+        public string? SearchValue { get; set; }
+    }
+}
+
+/// <summary>
+/// JSON Ops — performs JSON-specific operations like parse, stringify, property access.
+/// </summary>
+public sealed class JsonOpsRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "json-ops",
+        DisplayName = "JSON Operations",
+        Category = "Data Transform",
+        Description = "Performs JSON-specific operations like parse, stringify, and property access",
+        Icon = "fa-code",
+        Color = "#FF6F00",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "output", Label = "Output", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "operation", Label = "Operation", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "parse", Label = "Parse" },
+                        new SelectOption { Value = "stringify", Label = "Stringify" },
+                        new SelectOption { Value = "get-property", Label = "Get Property" },
+                        new SelectOption { Value = "has-property", Label = "Has Property" },
+                        new SelectOption { Value = "keys", Label = "Keys" },
+                        new SelectOption { Value = "values", Label = "Values" }
+                    }
+                },
+                new ConfigProperty { Name = "path", Label = "Property Path (dot notation)", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<JsonOpsCfg>();
+        var op = cfg?.Operation ?? "parse";
+
+        try
+        {
+            object? result = op switch
+            {
+                "parse" => ParseOp(context),
+                "stringify" => StringifyOp(context),
+                "get-property" => GetPropertyOp(context, cfg?.Path ?? ""),
+                "has-property" => HasPropertyOp(context, cfg?.Path ?? ""),
+                "keys" => KeysOp(context),
+                "values" => ValuesOp(context),
+                _ => null
+            };
+
+            context.Emitter.Emit("output", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = result })));
+        }
+        catch (Exception ex)
+        {
+            context.Logger.Error($"JSON Ops error: {ex.Message}");
+            context.Emitter.EmitError(ex, context.Message);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private static object? ParseOp(NodeExecutionContext context)
+    {
+        if (context.Message.Payload is not { } p) return null;
+        var raw = p.ValueKind == JsonValueKind.String ? p.GetString() ?? "" : p.GetRawText();
+        return JsonDocument.Parse(raw).RootElement.ToString();
+    }
+
+    private static string StringifyOp(NodeExecutionContext context)
+    {
+        if (context.Message.Payload is not { } p) return "null";
+        return p.GetRawText();
+    }
+
+    private static object? GetPropertyOp(NodeExecutionContext context, string path)
+    {
+        if (context.Message.Payload is not { } p || string.IsNullOrEmpty(path)) return null;
+        var current = p;
+        foreach (var segment in path.Split('.'))
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out var next))
+                return null;
+            current = next;
+        }
+        return current.ValueKind switch
+        {
+            JsonValueKind.Number => current.GetDouble(),
+            JsonValueKind.String => current.GetString(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => current.ToString()
+        };
+    }
+
+    private static bool HasPropertyOp(NodeExecutionContext context, string path)
+    {
+        if (context.Message.Payload is not { } p || string.IsNullOrEmpty(path)) return false;
+        var current = p;
+        foreach (var segment in path.Split('.'))
+        {
+            if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(segment, out var next))
+                return false;
+            current = next;
+        }
+        return true;
+    }
+
+    private static object KeysOp(NodeExecutionContext context)
+    {
+        if (context.Message.Payload is not { } p || p.ValueKind != JsonValueKind.Object)
+            return Array.Empty<string>();
+        return p.EnumerateObject().Select(prop => prop.Name).ToArray();
+    }
+
+    private static object ValuesOp(NodeExecutionContext context)
+    {
+        if (context.Message.Payload is not { } p || p.ValueKind != JsonValueKind.Object)
+            return Array.Empty<string>();
+        return p.EnumerateObject().Select(prop => prop.Value.ToString()).ToArray();
+    }
+
+    private sealed class JsonOpsCfg { public string? Operation { get; set; } public string? Path { get; set; } }
+}
+
+/// <summary>
+/// Timeline — buffers timestamped values and computes windowed aggregations.
+/// </summary>
+public sealed class TimelineRuntime : NodeRuntimeBase
+{
+    private readonly List<(double Value, DateTime Timestamp)> _buffer = new();
+
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "timeline",
+        DisplayName = "Timeline",
+        Category = "Data Transform",
+        Description = "Buffers timestamped values and computes windowed aggregations",
+        Icon = "fa-chart-line",
+        Color = "#0288D1",
+        InputPorts = new[]
+        {
+            new PortDescriptor { Name = "input", Label = "Input", Direction = PortDirection.Input, Required = true }
+        },
+        OutputPorts = new[]
+        {
+            new PortDescriptor { Name = "aggregated", Label = "Aggregated", Direction = PortDirection.Output },
+            new PortDescriptor { Name = "buffer", Label = "Buffer", Direction = PortDirection.Output }
+        },
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "maxEntries", Label = "Max Entries", Type = "number" },
+                new ConfigProperty { Name = "windowMs", Label = "Window (ms)", Type = "number" },
+                new ConfigProperty { Name = "aggregation", Label = "Aggregation", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "last", Label = "Last" },
+                        new SelectOption { Value = "first", Label = "First" },
+                        new SelectOption { Value = "avg", Label = "Average" },
+                        new SelectOption { Value = "min", Label = "Minimum" },
+                        new SelectOption { Value = "max", Label = "Maximum" },
+                        new SelectOption { Value = "sum", Label = "Sum" },
+                        new SelectOption { Value = "count", Label = "Count" },
+                        new SelectOption { Value = "range", Label = "Range (Max - Min)" }
+                    }
+                },
+                new ConfigProperty { Name = "property", Label = "Value Property", Type = "string" }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
+        var cfg = context.GetConfig<TimelineCfg>();
+        var val = NumericHelper.Extract(context.Message, cfg?.Property);
+        var now = context.CurrentUtc;
+        var maxEntries = (int)(cfg?.MaxEntries ?? 100);
+        var windowMs = cfg?.WindowMs ?? 0;
+        var aggregation = cfg?.Aggregation ?? "last";
+
+        _buffer.Add((val, now));
+
+        // Prune by time window
+        if (windowMs > 0)
+        {
+            var cutoff = now.AddMilliseconds(-windowMs);
+            _buffer.RemoveAll(e => e.Timestamp < cutoff);
+        }
+
+        // Prune by max entries
+        while (_buffer.Count > maxEntries)
+            _buffer.RemoveAt(0);
+
+        var values = _buffer.Select(e => e.Value).ToList();
+        double aggregated = 0;
+        if (values.Count > 0)
+        {
+            aggregated = aggregation switch
+            {
+                "first" => values[0],
+                "avg" => values.Average(),
+                "min" => values.Min(),
+                "max" => values.Max(),
+                "sum" => values.Sum(),
+                "count" => values.Count,
+                "range" => values.Max() - values.Min(),
+                _ => values[^1] // last
+            };
+        }
+
+        context.Emitter.Emit("aggregated", context.Message.Derive(context.CurrentUtc, CreatePayload(new { value = aggregated, count = _buffer.Count })));
+        context.Emitter.Emit("buffer", context.Message.Derive(context.CurrentUtc, CreatePayload(
+            _buffer.Select(e => new { e.Value, timestamp = e.Timestamp.ToString("o") }).ToArray())));
+
+        return ValueTask.CompletedTask;
+    }
+
+    private sealed class TimelineCfg
+    {
+        public double MaxEntries { get; set; } = 100;
+        public double WindowMs { get; set; }
+        public string? Aggregation { get; set; }
+        public string? Property { get; set; }
+    }
+}
+
+// ─── Utility (Extended) ─────────────────────────────────────────
+
+/// <summary>
+/// Comment — a visual-only node with no execution logic.
+/// </summary>
+public sealed class CommentRuntime : NodeRuntimeBase
+{
+    public static NodeDescriptor Descriptor => new()
+    {
+        Type = "comment",
+        DisplayName = "Comment",
+        Category = "Utility",
+        Description = "A visual-only comment node for documentation purposes",
+        Icon = "fa-comment",
+        Color = "#FFC107",
+        InputPorts = Array.Empty<PortDescriptor>(),
+        OutputPorts = Array.Empty<PortDescriptor>(),
+        ConfigSchema = new NodeConfigSchema
+        {
+            Properties = new[]
+            {
+                new ConfigProperty { Name = "text", Label = "Comment Text", Type = "string" },
+                new ConfigProperty { Name = "fontSize", Label = "Font Size", Type = "select",
+                    Options = new[]
+                    {
+                        new SelectOption { Value = "small", Label = "Small" },
+                        new SelectOption { Value = "medium", Label = "Medium" },
+                        new SelectOption { Value = "large", Label = "Large" }
+                    }
+                }
+            }
+        }
+    };
+
+    public override ValueTask ExecuteAsync(NodeExecutionContext context, CancellationToken ct)
+    {
         return ValueTask.CompletedTask;
     }
 }
@@ -1526,5 +2886,16 @@ internal static class NumericHelper
             JsonValueKind.Null or JsonValueKind.Undefined => false,
             _ => true
         };
+    }
+
+    /// <summary>Extracts a typed input value from a message payload for script nodes.</summary>
+    public static object? ExtractInputValue(MessageEnvelope message)
+    {
+        if (!message.Payload.HasValue) return null;
+        var p = message.Payload.Value;
+        if (p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var d)) return d;
+        if (p.ValueKind == JsonValueKind.String) return p.GetString();
+        if (p.TryGetProperty("value", out var vp) && vp.ValueKind == JsonValueKind.Number) return vp.GetDouble();
+        return p.ToString();
     }
 }

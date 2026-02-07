@@ -162,6 +162,235 @@
       ],
       "createdAt": "2026-02-06T00:00:00Z",
       "updatedAt": "2026-02-06T00:00:00Z"
+    },
+    {
+      "id": "sm-batch-process",
+      "name": "Batch Process Controller",
+      "description": "Controls a batch reactor cycle: fill the tank, heat to setpoint, hold temperature, drain, and repeat. Monitors pressure for over-pressure faults and level for overflow/underflow protection. Uses actual simulator tags.",
+      "enabled": true,
+      "states": [
+        {
+          "id": "bp-idle",
+          "name": "Idle",
+          "color": "#6b7280",
+          "x": 100,
+          "y": 250,
+          "isInitial": true,
+          "isFinal": false,
+          "description": "System is idle, waiting for batch start command",
+          "onEnterActions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "0" }
+          ],
+          "onExitActions": []
+        },
+        {
+          "id": "bp-filling",
+          "name": "Filling",
+          "color": "#3b82f6",
+          "x": 300,
+          "y": 100,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Inlet valve open, tank is being filled to 75% level setpoint",
+          "onEnterActions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "1" }
+          ],
+          "onExitActions": []
+        },
+        {
+          "id": "bp-heating",
+          "name": "Heating",
+          "color": "#f59e0b",
+          "x": 530,
+          "y": 100,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Heater enabled, raising temperature to 30°C setpoint",
+          "onEnterActions": [],
+          "onExitActions": [],
+          "onEnterScript": "var temp = ReadTagDouble(\"Default Simulator/Temperature_001\");\nvar pressure = ReadTagDouble(\"Default Simulator/Pressure_001\");\nLog($\"Heating started — temp={temp:F1}°C, pressure={pressure:F2} bar\");\nSetState(\"heatStartTemp\", temp);"
+        },
+        {
+          "id": "bp-holding",
+          "name": "Holding",
+          "color": "#22c55e",
+          "x": 730,
+          "y": 250,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Maintaining temperature at setpoint for reaction time",
+          "onEnterActions": [],
+          "onExitActions": []
+        },
+        {
+          "id": "bp-draining",
+          "name": "Draining",
+          "color": "#8b5cf6",
+          "x": 530,
+          "y": 400,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Drain valve open, emptying the tank below 25% level",
+          "onEnterActions": [],
+          "onExitActions": []
+        },
+        {
+          "id": "bp-complete",
+          "name": "Complete",
+          "color": "#10b981",
+          "x": 300,
+          "y": 400,
+          "isInitial": false,
+          "isFinal": false,
+          "description": "Batch cycle finished, ready for next batch or return to Idle",
+          "onEnterActions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "0" }
+          ],
+          "onExitActions": [],
+          "onEnterScript": "var startTemp = GetState<double>(\"heatStartTemp\", 0);\nvar finalTemp = ReadTagDouble(\"Default Simulator/Temperature_001\");\nvar level = ReadTagDouble(\"Default Simulator/Level_001\");\nLog($\"Batch complete — heated from {startTemp:F1}°C to {finalTemp:F1}°C, final level={level:F1}%\");\nClearState(\"heatStartTemp\");"
+        },
+        {
+          "id": "bp-fault",
+          "name": "Fault",
+          "color": "#ef4444",
+          "x": 730,
+          "y": 450,
+          "isInitial": false,
+          "isFinal": true,
+          "description": "Over-pressure or abnormal condition detected — requires operator acknowledgment",
+          "onEnterActions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "0" }
+          ],
+          "onExitActions": []
+        }
+      ],
+      "transitions": [
+        {
+          "id": "bp-t1",
+          "fromStateId": "bp-idle",
+          "toStateId": "bp-filling",
+          "event": "batch_start",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Default Simulator/Status_001",
+            "operator": "Eq",
+            "threshold": "1"
+          },
+          "actions": []
+        },
+        {
+          "id": "bp-t2",
+          "fromStateId": "bp-filling",
+          "toStateId": "bp-heating",
+          "event": "tank_full",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Default Simulator/Level_001",
+            "operator": "Gte",
+            "threshold": "75"
+          },
+          "actions": []
+        },
+        {
+          "id": "bp-t3",
+          "fromStateId": "bp-heating",
+          "toStateId": "bp-holding",
+          "event": "temp_reached",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Default Simulator/Temperature_001",
+            "operator": "Gte",
+            "threshold": "30"
+          },
+          "actions": []
+        },
+        {
+          "id": "bp-t4",
+          "fromStateId": "bp-holding",
+          "toStateId": "bp-draining",
+          "event": "hold_complete",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Default Simulator/Temperature_001",
+            "operator": "Lt",
+            "threshold": "20"
+          },
+          "actions": []
+        },
+        {
+          "id": "bp-t5",
+          "fromStateId": "bp-draining",
+          "toStateId": "bp-complete",
+          "event": "tank_empty",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Default Simulator/Level_001",
+            "operator": "Lte",
+            "threshold": "25"
+          },
+          "actions": []
+        },
+        {
+          "id": "bp-t6",
+          "fromStateId": "bp-complete",
+          "toStateId": "bp-idle",
+          "event": "reset",
+          "priority": 0,
+          "trigger": {
+            "tagPath": "Default Simulator/Flow_001",
+            "operator": "Lt",
+            "threshold": "135"
+          },
+          "actions": []
+        },
+        {
+          "id": "bp-t7",
+          "fromStateId": "bp-filling",
+          "toStateId": "bp-fault",
+          "event": "overpressure",
+          "priority": 1,
+          "trigger": {
+            "tagPath": "Default Simulator/Pressure_001",
+            "operator": "Gt",
+            "threshold": "6.5"
+          },
+          "actions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "0" }
+          ]
+        },
+        {
+          "id": "bp-t8",
+          "fromStateId": "bp-heating",
+          "toStateId": "bp-fault",
+          "event": "overpressure",
+          "priority": 1,
+          "trigger": {
+            "tagPath": "Default Simulator/Pressure_001",
+            "operator": "Gt",
+            "threshold": "6.5"
+          },
+          "actions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "0" }
+          ]
+        },
+        {
+          "id": "bp-t9",
+          "fromStateId": "bp-holding",
+          "toStateId": "bp-fault",
+          "event": "overpressure",
+          "priority": 1,
+          "trigger": {
+            "tagPath": "Default Simulator/Pressure_001",
+            "operator": "Gt",
+            "threshold": "6.5"
+          },
+          "actions": [
+            { "tagPath": "Default Simulator/Status_001", "value": "0" }
+          ]
+        }
+      ],
+      "createdAt": "2026-02-06T00:00:00Z",
+      "updatedAt": "2026-02-06T00:00:00Z"
     }
   ]
 }

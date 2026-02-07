@@ -490,6 +490,12 @@
     // MachineRuntimeInfo messages; stays null when engine is offline)
     private MachineRuntimeInfo? _liveInfo;
     
+    // ID of the state node currently highlighted as "active" on the diagram
+    private string? _highlightedStateId;
+    
+    // ID of the transition connector currently highlighted as "last fired"
+    private string? _highlightedConnectorId;
+    
     // State to diagram node mapping
     private Dictionary<string, string> _stateToNodeMap = new();
     
@@ -604,6 +610,13 @@
         {
             var connector = CreateStateConnector(transition.Id, transition.FromStateId, transition.ToStateId, transition.Event);
             StateConnectors.Add(connector);
+        }
+        
+        // If we already have live info, highlight the active state and last transition
+        if (_liveInfo != null)
+        {
+            HighlightActiveState(_liveInfo.NowStateId);
+            HighlightActiveTransition(_liveInfo.BeforeStateId, _liveInfo.NowStateId);
         }
         
         StateHasChanged();
@@ -1079,7 +1092,92 @@
         if (info.ConfigId == CurrentStateMachine?.Id)
         {
             _liveInfo = info;
+            HighlightActiveState(info.NowStateId);
+            HighlightActiveTransition(info.BeforeStateId, info.NowStateId);
             InvokeAsync(StateHasChanged);
+        }
+    }
+    
+    /// <summary>
+    /// Visually highlights the active state node on the diagram and restores
+    /// the previous active node to its original style.
+    /// </summary>
+    private void HighlightActiveState(string? activeStateId)
+    {
+        if (CurrentStateMachine == null) return;
+        
+        // Restore previous highlighted node
+        if (_highlightedStateId != null && _highlightedStateId != activeStateId)
+        {
+            var prevNode = StateNodes.FirstOrDefault(n => n.ID == _highlightedStateId);
+            var prevState = CurrentStateMachine.States.FirstOrDefault(s => s.Id == _highlightedStateId);
+            if (prevNode != null && prevState != null)
+            {
+                prevNode.Style.StrokeColor = prevState.Color;
+                prevNode.Style.StrokeWidth = 3;
+                // Restore annotation to plain white
+                if (prevNode.Annotations.Count > 0)
+                    prevNode.Annotations[0].Style.Color = "#ffffff";
+            }
+        }
+        
+        // Highlight the new active node
+        if (!string.IsNullOrEmpty(activeStateId))
+        {
+            var node = StateNodes.FirstOrDefault(n => n.ID == activeStateId);
+            if (node != null)
+            {
+                node.Style.StrokeColor = "#00e676";
+                node.Style.StrokeWidth = 5;
+                if (node.Annotations.Count > 0)
+                    node.Annotations[0].Style.Color = "#00e676";
+            }
+        }
+        
+        _highlightedStateId = activeStateId;
+    }
+    
+    /// <summary>
+    /// Visually highlights the transition connector that just fired (from → to)
+    /// and restores the previous connector to its default style.
+    /// </summary>
+    private void HighlightActiveTransition(string? fromStateId, string? toStateId)
+    {
+        // Restore previous highlighted connector
+        if (_highlightedConnectorId != null)
+        {
+            var prev = StateConnectors.FirstOrDefault(c => c.ID == _highlightedConnectorId);
+            if (prev != null)
+            {
+                prev.Style.StrokeColor = "#4caf50";
+                prev.Style.StrokeWidth = 2;
+                prev.Style.StrokeDashArray = "";
+                if (prev.TargetDecorator != null)
+                {
+                    prev.TargetDecorator.Style.Fill = "#4caf50";
+                    prev.TargetDecorator.Style.StrokeColor = "#4caf50";
+                }
+            }
+            _highlightedConnectorId = null;
+        }
+        
+        // Find and highlight the connector matching the transition
+        if (!string.IsNullOrEmpty(fromStateId) && !string.IsNullOrEmpty(toStateId))
+        {
+            var connector = StateConnectors.FirstOrDefault(c =>
+                c.SourceID == fromStateId && c.TargetID == toStateId);
+            if (connector != null)
+            {
+                connector.Style.StrokeColor = "#00e676";
+                connector.Style.StrokeWidth = 4;
+                connector.Style.StrokeDashArray = "8,4";
+                if (connector.TargetDecorator != null)
+                {
+                    connector.TargetDecorator.Style.Fill = "#00e676";
+                    connector.TargetDecorator.Style.StrokeColor = "#00e676";
+                }
+                _highlightedConnectorId = connector.ID;
+            }
         }
     }
     
