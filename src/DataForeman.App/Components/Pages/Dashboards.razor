@@ -7,6 +7,7 @@
 @inject RealtimeDataService RealtimeData
 @inject MqttService MqttService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <PageTitle>Dashboards - DataForeman</PageTitle>
@@ -95,6 +96,9 @@
                     }
                     else
                     {
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-tv" @onclick="ShowTVModeDialog" Content="TV Mode"></SfButton>
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="ExportDashboard" Content="Export"></SfButton>
+                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-import" @onclick="ShowImportDialog" Content="Import"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-expand" @onclick="ToggleFullscreen"></SfButton>
                     }
@@ -404,6 +408,152 @@
     </SfDialog>
 }
 
+<!-- TV Mode Settings Dialog -->
+@if (_showTVSettingsDialog)
+{
+    <SfDialog @bind-Visible="_showTVSettingsDialog" Width="420px" IsModal="true" ShowCloseIcon="true" Header="TV Mode Settings">
+        <DialogTemplates>
+            <Content>
+                <div class="add-panel-form">
+                    <div class="form-group">
+                        <label>Rotation Interval</label>
+                        <SfDropDownList TItem="TVIntervalOption" TValue="int" DataSource="@TVIntervals" @bind-Value="_tvRotationMs">
+                            <DropDownListFieldSettings Text="Label" Value="Value"></DropDownListFieldSettings>
+                        </SfDropDownList>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Dashboards to Rotate</label>
+                        @foreach (var d in ConfigService.Dashboards)
+                        {
+                            var isSelected = _tvSelectedDashboardIds.Contains(d.Id);
+                            <div class="tag-selector">
+                                <SfCheckBox TChecked="bool" Checked="@isSelected"
+                                            CheckedChanged="@(v => ToggleTVDashboard(d.Id, v))"
+                                            Label="@d.Name"></SfCheckBox>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </Content>
+            <FooterTemplate>
+                <SfButton @onclick="() => _showTVSettingsDialog = false">Cancel</SfButton>
+                <SfButton CssClass="e-primary" Disabled="@(!_tvSelectedDashboardIds.Any())" @onclick="StartTVMode">Start TV Mode</SfButton>
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
+<!-- TV Mode Overlay -->
+@if (_tvModeActive)
+{
+    <div class="tv-mode-overlay" @onmousemove="TVMouseMove" @onkeydown="TVKeyDown" tabindex="0">
+        <div class="tv-mode-topbar @(_tvControlsVisible ? "" : "hidden")">
+            <span class="tv-mode-title">@_tvDashboards.ElementAtOrDefault(_tvIndex)?.Name</span>
+            <span class="tv-mode-counter">@(_tvIndex + 1) / @_tvDashboards.Count</span>
+            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-times" @onclick="StopTVMode">Exit (ESC)</SfButton>
+        </div>
+        <div class="tv-mode-content">
+            @if (_tvDashboards.Any())
+            {
+                var tvDash = _tvDashboards[_tvIndex];
+                <SfDashboardLayout Columns="12"
+                                   CellSpacing="@(new double[] { 10, 10 })"
+                                   CellAspectRatio="0.6"
+                                   AllowDragging="false"
+                                   AllowResizing="false">
+                    <DashboardLayoutPanels>
+                        @foreach (var panel in tvDash.Panels)
+                        {
+                            <DashboardLayoutPanel Id="@panel.Id"
+                                                  Row="@panel.GridY"
+                                                  Column="@panel.GridX"
+                                                  SizeX="@panel.GridWidth"
+                                                  SizeY="@panel.GridHeight">
+                                <HeaderTemplate>
+                                    <div class="panel-header-content">
+                                        <span class="panel-title">@panel.Title</span>
+                                    </div>
+                                </HeaderTemplate>
+                                <ContentTemplate>
+                                    <div class="panel-content">
+                                        @RenderPanel(panel)
+                                    </div>
+                                </ContentTemplate>
+                            </DashboardLayoutPanel>
+                        }
+                    </DashboardLayoutPanels>
+                </SfDashboardLayout>
+            }
+        </div>
+        <div class="tv-mode-controls @(_tvControlsVisible ? "" : "hidden")">
+            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-backward" @onclick="TVPrev"></SfButton>
+            <SfButton CssClass="e-flat e-small" IconCss="@(_tvPaused ? "fa-solid fa-play" : "fa-solid fa-pause")" @onclick="TVTogglePause"></SfButton>
+            <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-forward" @onclick="TVNext"></SfButton>
+        </div>
+    </div>
+}
+
+<!-- Import Dashboard Dialog -->
+@if (_showImportDialog)
+{
+    <SfDialog @bind-Visible="_showImportDialog" Width="480px" IsModal="true" ShowCloseIcon="true" Header="Import Dashboard">
+        <DialogTemplates>
+            <Content>
+                <div class="add-panel-form">
+                    @if (string.IsNullOrEmpty(_importJson))
+                    {
+                        <div class="form-group">
+                            <label>Paste dashboard JSON</label>
+                            <SfTextBox @bind-Value="_importJson" Multiline="true" HtmlAttributes="@(new Dictionary<string, object>{{"rows","8"}})" Placeholder="Paste JSON here..."></SfTextBox>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="import-validation">
+                            @if (!string.IsNullOrEmpty(_importError))
+                            {
+                                <div class="import-validation-item error">
+                                    <i class="fa-solid fa-circle-xmark"></i>
+                                    <span>@_importError</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="import-validation-item valid">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>Valid dashboard: "@_importPreviewName" with @_importPanelCount panels</span>
+                                </div>
+                                <div class="form-group" style="margin-top:12px;">
+                                    <label>Dashboard Name</label>
+                                    <SfTextBox @bind-Value="_importName"></SfTextBox>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </Content>
+            <FooterTemplate>
+                @if (!string.IsNullOrEmpty(_importJson))
+                {
+                    <SfButton @onclick="ResetImport">Back</SfButton>
+                }
+                else
+                {
+                    <SfButton @onclick="() => _showImportDialog = false">Cancel</SfButton>
+                }
+                @if (string.IsNullOrEmpty(_importJson))
+                {
+                    <SfButton CssClass="e-primary" @onclick="ValidateImport">Validate</SfButton>
+                }
+                else if (string.IsNullOrEmpty(_importError))
+                {
+                    <SfButton CssClass="e-primary" @onclick="ExecuteImport">Import</SfButton>
+                }
+            </FooterTemplate>
+        </DialogTemplates>
+    </SfDialog>
+}
+
 @code {
     [Parameter] public string? DashboardId { get; set; }
     
@@ -429,6 +579,35 @@
     
     // Track panel resize versions to force chart re-render
     private Dictionary<string, int> _panelResizeVersions = new();
+    
+    // ── TV Mode state ──
+    private bool _showTVSettingsDialog;
+    private bool _tvModeActive;
+    private bool _tvPaused;
+    private bool _tvControlsVisible = true;
+    private int _tvRotationMs = 10000;
+    private int _tvIndex;
+    private List<string> _tvSelectedDashboardIds = new();
+    private List<DashboardConfig> _tvDashboards = new();
+    private System.Timers.Timer? _tvTimer;
+
+    private List<TVIntervalOption> TVIntervals = new()
+    {
+        new() { Value = 5000, Label = "5 seconds" },
+        new() { Value = 10000, Label = "10 seconds" },
+        new() { Value = 30000, Label = "30 seconds" },
+        new() { Value = 60000, Label = "1 minute" },
+        new() { Value = 180000, Label = "3 minutes" },
+        new() { Value = 300000, Label = "5 minutes" }
+    };
+    
+    // ── Import/Export state ──
+    private bool _showImportDialog;
+    private string _importJson = "";
+    private string _importName = "";
+    private string _importError = "";
+    private string _importPreviewName = "";
+    private int _importPanelCount;
     
     private List<TimeRangeOption> TimeRanges = new()
     {
@@ -1265,14 +1444,177 @@
         _ => 300
     };
 
+    // ── TV Mode methods ──────────────────────────────────
+    private void ShowTVModeDialog()
+    {
+        _tvSelectedDashboardIds = new List<string> { CurrentDashboard.Id };
+        _showTVSettingsDialog = true;
+    }
+
+    private void ToggleTVDashboard(string id, bool include)
+    {
+        if (include && !_tvSelectedDashboardIds.Contains(id))
+            _tvSelectedDashboardIds.Add(id);
+        else if (!include)
+            _tvSelectedDashboardIds.Remove(id);
+    }
+
+    private void StartTVMode()
+    {
+        _showTVSettingsDialog = false;
+        _tvDashboards = ConfigService.Dashboards
+            .Where(d => _tvSelectedDashboardIds.Contains(d.Id))
+            .ToList();
+        if (!_tvDashboards.Any()) return;
+
+        _tvIndex = 0;
+        _tvPaused = false;
+        _tvModeActive = true;
+        _tvControlsVisible = true;
+
+        _tvTimer = new System.Timers.Timer(_tvRotationMs);
+        _tvTimer.Elapsed += (s, e) =>
+        {
+            if (!_tvPaused && _tvDashboards.Count > 1)
+            {
+                _tvIndex = (_tvIndex + 1) % _tvDashboards.Count;
+                InvokeAsync(StateHasChanged);
+            }
+        };
+        _tvTimer.Start();
+    }
+
+    private void StopTVMode()
+    {
+        _tvModeActive = false;
+        _tvTimer?.Stop();
+        _tvTimer?.Dispose();
+        _tvTimer = null;
+    }
+
+    private void TVPrev()
+    {
+        if (_tvDashboards.Count == 0) return;
+        _tvIndex = (_tvIndex - 1 + _tvDashboards.Count) % _tvDashboards.Count;
+    }
+
+    private void TVNext()
+    {
+        if (_tvDashboards.Count == 0) return;
+        _tvIndex = (_tvIndex + 1) % _tvDashboards.Count;
+    }
+
+    private void TVTogglePause() => _tvPaused = !_tvPaused;
+
+    private void TVMouseMove() => _tvControlsVisible = true;
+
+    private void TVKeyDown(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape": StopTVMode(); break;
+            case " ": TVTogglePause(); break;
+            case "ArrowLeft": TVPrev(); break;
+            case "ArrowRight": TVNext(); break;
+        }
+    }
+
+    // ── Export/Import methods ─────────────────────────────
+    private async Task ExportDashboard()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(CurrentDashboard, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+        });
+        var fileName = $"{CurrentDashboard.Name.Replace(" ", "-")}-{DateTime.Now:yyyyMMdd-HHmm}.json";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("eval",
+            $"(function(){{var a=document.createElement('a');a.href='data:application/json;base64,{base64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);}})()");
+    }
+
+    private void ShowImportDialog()
+    {
+        _importJson = "";
+        _importName = "";
+        _importError = "";
+        _importPreviewName = "";
+        _importPanelCount = 0;
+        _showImportDialog = true;
+    }
+
+    private void ResetImport()
+    {
+        _importJson = "";
+        _importError = "";
+    }
+
+    private void ValidateImport()
+    {
+        try
+        {
+            var dashboard = System.Text.Json.JsonSerializer.Deserialize<DashboardConfig>(_importJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (dashboard == null)
+            {
+                _importError = "Invalid JSON: could not parse dashboard";
+                return;
+            }
+
+            _importPreviewName = dashboard.Name ?? "Unnamed";
+            _importName = dashboard.Name ?? "Imported Dashboard";
+            _importPanelCount = dashboard.Panels?.Count ?? 0;
+            _importError = "";
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            _importError = $"Invalid JSON: {ex.Message}";
+        }
+    }
+
+    private async Task ExecuteImport()
+    {
+        try
+        {
+            var dashboard = System.Text.Json.JsonSerializer.Deserialize<DashboardConfig>(_importJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (dashboard == null) return;
+
+            dashboard.Id = Guid.NewGuid().ToString();
+            dashboard.Name = _importName;
+            dashboard.CreatedAt = DateTime.UtcNow;
+            dashboard.UpdatedAt = DateTime.UtcNow;
+
+            foreach (var panel in dashboard.Panels)
+                panel.Id = Guid.NewGuid().ToString();
+
+            await ConfigService.AddDashboardAsync(dashboard);
+            _showImportDialog = false;
+
+            if (DataForeman.App.Components.Layout.MainLayout.Instance is { } layout)
+                await layout.ShowToastAsync($"Dashboard \"{_importName}\" imported", "e-toast-success", "Imported");
+
+            Navigation.NavigateTo($"/dashboards/{dashboard.Id}");
+        }
+        catch (Exception ex)
+        {
+            _importError = $"Import failed: {ex.Message}";
+        }
+    }
+
     public void Dispose()
     {
         RealtimeData.OnDataChanged -= HandleDataChanged;
         StopRefreshTimer();
+        StopTVMode();
     }
 
     public class TimeRangeOption { public string Value { get; set; } = ""; public string Label { get; set; } = ""; }
     public class PanelTypeOption { public PanelType Value { get; set; } public string Label { get; set; } = ""; }
     public class TagOption { public string Id { get; set; } = ""; public string Name { get; set; } = ""; }
     public class ChartDataPoint { public DateTime Timestamp { get; set; } public double Value { get; set; } }
+    public class TVIntervalOption { public int Value { get; set; } public string Label { get; set; } = ""; }
 }
