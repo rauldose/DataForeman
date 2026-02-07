@@ -1506,7 +1506,15 @@
 
     private void TVTogglePause() => _tvPaused = !_tvPaused;
 
-    private void TVMouseMove() => _tvControlsVisible = true;
+    private DateTime _tvLastMouseMove = DateTime.MinValue;
+
+    private void TVMouseMove()
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _tvLastMouseMove).TotalMilliseconds < 500) return;
+        _tvLastMouseMove = now;
+        _tvControlsVisible = true;
+    }
 
     private void TVKeyDown(KeyboardEventArgs e)
     {
@@ -1527,11 +1535,11 @@
             WriteIndented = true,
             PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
         });
-        var fileName = $"{CurrentDashboard.Name.Replace(" ", "-")}-{DateTime.Now:yyyyMMdd-HHmm}.json";
+        var safeName = System.Text.RegularExpressions.Regex.Replace(CurrentDashboard.Name, @"[^a-zA-Z0-9_\-]", "-");
+        var fileName = $"{safeName}-{DateTime.Now:yyyyMMdd-HHmm}.json";
         var bytes = System.Text.Encoding.UTF8.GetBytes(json);
         var base64 = Convert.ToBase64String(bytes);
-        await JS.InvokeVoidAsync("eval",
-            $"(function(){{var a=document.createElement('a');a.href='data:application/json;base64,{base64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);}})()");
+        await JS.InvokeVoidAsync("dataforeman.downloadJson", fileName, base64);
     }
 
     private void ShowImportDialog()
