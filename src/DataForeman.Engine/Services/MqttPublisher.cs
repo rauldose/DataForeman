@@ -284,6 +284,32 @@ public class MqttPublisher : IAsyncDisposable
     }
 
     /// <summary>
+    /// Publishes an internal tag (context) value update so the UI can see
+    /// tags that were auto-created by context-set nodes in flows.
+    /// </summary>
+    public async Task PublishInternalTagValueAsync(InternalTagValueMessage message)
+    {
+        if (_mqttClient == null || !_isConnected) return;
+
+        try
+        {
+            var topic = MqttTopics.GetContextValueTopic(message.Scope, message.Path);
+            var payload = JsonSerializer.Serialize(message, _jsonOptions);
+
+            await _mqttClient.EnqueueAsync(new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                .WithRetainFlag(true)
+                .Build());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error publishing internal tag value for {Path}", message.Path);
+        }
+    }
+
+    /// <summary>
     /// Publishes a raw message to a topic.
     /// </summary>
     public async Task PublishMessageAsync(string topic, string payload)

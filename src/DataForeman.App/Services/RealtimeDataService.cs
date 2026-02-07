@@ -30,6 +30,7 @@ public class RealtimeDataService : IDisposable
     public event Action<MachineRuntimeInfo>? OnStateMachineStateChanged;
     public event Action<FlowRunSummaryMessage>? OnFlowRunSummaryReceived;
     public event Action<string>? OnFlowDeployStatusChanged;
+    public event Action<string>? OnInternalTagChanged;
 
     public RealtimeDataService(MqttService mqttService, ILogger<RealtimeDataService> logger)
     {
@@ -45,6 +46,7 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnStateMachineStateReceived += HandleStateMachineState;
         _mqttService.OnFlowRunSummaryReceived += HandleFlowRunSummary;
         _mqttService.OnFlowDeployStatusReceived += HandleFlowDeployStatus;
+        _mqttService.OnInternalTagValueReceived += HandleInternalTagValue;
     }
 
     /// <summary>
@@ -401,6 +403,31 @@ public class RealtimeDataService : IDisposable
         }
     }
 
+    private void HandleInternalTagValue(InternalTagValueMessage message)
+    {
+        try
+        {
+            // Build a cache key matching the format used by InternalTagStore
+            var key = message.Scope switch
+            {
+                "flow" when message.FlowId != null => $"flow:{message.FlowId}:{message.Path}",
+                "node" when message.FlowId != null && message.NodeId != null => $"node:{message.FlowId}:{message.NodeId}:{message.Path}",
+                _ => $"global:{message.Path}"
+            };
+
+            var cache = _internalTagValues.GetOrAdd(key, k => new InternalTagValueCache { Key = k });
+            cache.Value = message.Value;
+            cache.TimestampUtc = message.Timestamp;
+
+            OnInternalTagChanged?.Invoke(key);
+            OnDataChanged?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling internal tag value for {Path}", message.Path);
+        }
+    }
+
     /// <summary>
     /// Gets the Engine's deployment status for a flow, or null if not yet received.
     /// </summary>
@@ -436,6 +463,7 @@ public class RealtimeDataService : IDisposable
         _mqttService.OnStateMachineStateReceived -= HandleStateMachineState;
         _mqttService.OnFlowRunSummaryReceived -= HandleFlowRunSummary;
         _mqttService.OnFlowDeployStatusReceived -= HandleFlowDeployStatus;
+        _mqttService.OnInternalTagValueReceived -= HandleInternalTagValue;
     }
 }
 
