@@ -22,7 +22,7 @@
             </div>
         </div>
         
-        @if (!ConfigService.StateMachines.Any())
+        @if (!VisibleStateMachines.Any())
         {
             <div class="empty-state">
                 <i class="fa-solid fa-diagram-project"></i>
@@ -48,15 +48,33 @@
                             }
                         </Template>
                     </GridColumn>
+                    <GridColumn HeaderText="Shared" Width="80">
+                        <Template>
+                            @{
+                                var item = (context as StateMachineDisplay);
+                                @if (item?.IsShared == true)
+                                {
+                                    <span class="shared-badge"><i class="fa-solid fa-share-nodes"></i> Shared</span>
+                                }
+                                @if (item?.IsOwner == false)
+                                {
+                                    <span class="readonly-badge">Read Only</span>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
                     <GridColumn HeaderText="Actions" Width="120">
                         <Template>
                             @{
                                 var item = (context as StateMachineDisplay);
                                 <div class="action-buttons">
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditStateMachine(item!.Id)"></SfButton>
-                                    <PermissionGuard Feature="state_machines" Operation="delete">
-                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteStateMachine(item!.Id)"></SfButton>
-                                    </PermissionGuard>
+                                    @if (item?.IsOwner == true)
+                                    {
+                                        <PermissionGuard Feature="state_machines" Operation="delete">
+                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteStateMachine(item!.Id)"></SfButton>
+                                        </PermissionGuard>
+                                    }
                                 </div>
                             }
                         </Template>
@@ -76,9 +94,15 @@
                           IconCss="@(CurrentStateMachine.Enabled ? "fa-solid fa-pause" : "fa-solid fa-play")"
                           Content="@(CurrentStateMachine.Enabled ? "Disable" : "Enable")"
                           @onclick="ToggleEnabled"></SfButton>
-                <PermissionGuard Feature="state_machines" Operation="update">
-                    <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveStateMachine">Save</SfButton>
-                </PermissionGuard>
+                @if (AppState.IsOwner(CurrentStateMachine.OwnerId))
+                {
+                    <div class="share-toggle" title="@(CurrentStateMachine.IsShared ? "Shared with others" : "Private")">
+                        <SfCheckBox @bind-Checked="CurrentStateMachine.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
+                    </div>
+                    <PermissionGuard Feature="state_machines" Operation="update">
+                        <SfButton CssClass="e-primary" IconCss="fa-solid fa-floppy-disk" @onclick="SaveStateMachine">Save</SfButton>
+                    </PermissionGuard>
+                }
             </div>
             
             <div class="editor-content">
@@ -453,6 +477,10 @@
 
     private StateMachineConfig CurrentStateMachine { get; set; } = new();
     private List<StateMachineDisplay> StateMachinesList { get; set; } = new();
+    
+    /// <summary>State machines visible to the current user: owned + shared.</summary>
+    private IEnumerable<StateMachineConfig> VisibleStateMachines => ConfigService.StateMachines
+        .Where(sm => AppState.IsOwner(sm.OwnerId) || sm.IsShared);
     private SfDialog? _deleteDialog;
     private bool _deleteDialogVisible = false;
     private string? _deletingStateMachineId;
@@ -570,14 +598,16 @@
 
     private void LoadStateMachines()
     {
-        StateMachinesList = ConfigService.StateMachines
+        StateMachinesList = VisibleStateMachines
             .Select(sm => new StateMachineDisplay
             {
                 Id = sm.Id,
                 Name = sm.Name,
                 Description = sm.Description ?? "",
                 StateCount = sm.States.Count,
-                Enabled = sm.Enabled
+                Enabled = sm.Enabled,
+                IsShared = sm.IsShared,
+                IsOwner = AppState.IsOwner(sm.OwnerId)
             })
             .ToList();
     }
@@ -637,7 +667,8 @@
         {
             Id = newId,
             Name = "New State Machine",
-            Description = "State machine description"
+            Description = "State machine description",
+            OwnerId = AppState.CurrentUser?.Id
         };
     }
 
@@ -1221,6 +1252,8 @@
         public string Description { get; set; } = string.Empty;
         public int StateCount { get; set; }
         public bool Enabled { get; set; }
+        public bool IsShared { get; set; }
+        public bool IsOwner { get; set; } = true;
     }
     
     private class OperatorOption

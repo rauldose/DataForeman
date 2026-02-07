@@ -56,6 +56,16 @@ public class AppStateService
         };
     }
 
+    /// <summary>
+    /// Check if the current user is the owner of an item.
+    /// Items with no OwnerId are considered owned by everyone (legacy items).
+    /// </summary>
+    public bool IsOwner(string? ownerId)
+    {
+        if (string.IsNullOrEmpty(ownerId)) return true; // Legacy items with no owner
+        return CurrentUser?.Id == ownerId;
+    }
+
     /// <summary>Clear all state (on logout).</summary>
     public void Clear()
     {

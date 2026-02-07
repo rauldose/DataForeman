@@ -10,6 +10,8 @@ public class ChartConfig
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Name { get; set; } = string.Empty;
     public string ChartType { get; set; } = "Line"; // Line, Bar, Area, Gauge
+    public string? OwnerId { get; set; }
+    public bool IsShared { get; set; }
     public List<ChartSeriesConfig> Series { get; set; } = new();
     public List<ChartAxisConfig> YAxes { get; set; } = new();
     public ChartSettings Settings { get; set; } = new();

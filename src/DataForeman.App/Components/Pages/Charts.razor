@@ -23,7 +23,7 @@
             </div>
         </div>
         
-        @if (!ConfigService.Charts.Any())
+        @if (!VisibleCharts.Any())
         {
             <div class="empty-state">
                 <i class="fa-solid fa-chart-area"></i>
@@ -41,6 +41,21 @@
                     <GridColumn Field="@nameof(ChartDisplay.SeriesCount)" HeaderText="Series" Width="80"></GridColumn>
                     <GridColumn Field="@nameof(ChartDisplay.AxisCount)" HeaderText="Axes" Width="80"></GridColumn>
                     <GridColumn Field="@nameof(ChartDisplay.Mode)" HeaderText="Mode" Width="100"></GridColumn>
+                    <GridColumn HeaderText="Shared" Width="80">
+                        <Template>
+                            @{
+                                var item = (context as ChartDisplay);
+                                @if (item?.IsShared == true)
+                                {
+                                    <span class="shared-badge"><i class="fa-solid fa-share-nodes"></i> Shared</span>
+                                }
+                                @if (item?.IsOwner == false)
+                                {
+                                    <span class="readonly-badge">Read Only</span>
+                                }
+                            }
+                        </Template>
+                    </GridColumn>
                     <GridColumn HeaderText="Actions" Width="120">
                         <Template>
                             @{
@@ -48,9 +63,12 @@
                                 <div class="action-buttons">
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditChart(item!.Id)"></SfButton>
                                     <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-expand" @onclick="() => ViewChart(item!.Id)"></SfButton>
-                                    <PermissionGuard Feature="charts" Operation="delete">
-                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
-                                    </PermissionGuard>
+                                    @if (item?.IsOwner == true)
+                                    {
+                                        <PermissionGuard Feature="charts" Operation="delete">
+                                            <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteChart(item!.Id)"></SfButton>
+                                        </PermissionGuard>
+                                    }
                                 </div>
                             }
                         </Template>
@@ -80,9 +98,15 @@
                 
                 <SfButton CssClass="@(_showConfigPanel ? "e-info" : "e-flat")" IconCss="fa-solid fa-sliders" 
                           @onclick="() => _showConfigPanel = !_showConfigPanel" title="Toggle config panel"></SfButton>
-                <PermissionGuard Feature="charts" Operation="update">
-                    <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
-                </PermissionGuard>
+                @if (AppState.IsOwner(CurrentChart.OwnerId))
+                {
+                    <div class="share-toggle" title="@(CurrentChart.IsShared ? "Shared with others" : "Private")">
+                        <SfCheckBox @bind-Checked="CurrentChart.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
+                    </div>
+                    <PermissionGuard Feature="charts" Operation="update">
+                        <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveChart">Save</SfButton>
+                    </PermissionGuard>
+                }
             </div>
             
             <div class="editor-content">
@@ -314,14 +338,19 @@
     
     private List<string> AxisPositions = new() { "Left", "Right" };
     
-    private List<ChartDisplay> ChartsList => ConfigService.Charts.Select(c => new ChartDisplay
+    private IEnumerable<ChartConfig> VisibleCharts => ConfigService.Charts
+        .Where(c => AppState.IsOwner(c.OwnerId) || c.IsShared);
+    
+    private List<ChartDisplay> ChartsList => VisibleCharts.Select(c => new ChartDisplay
     {
         Id = c.Id,
         Name = c.Name,
         ChartType = c.ChartType,
         SeriesCount = c.Series.Count,
         AxisCount = c.YAxes.Count,
-        Mode = c.Settings.Mode.ToString()
+        Mode = c.Settings.Mode.ToString(),
+        IsShared = c.IsShared,
+        IsOwner = AppState.IsOwner(c.OwnerId)
     }).ToList();
     
     private IEnumerable<TagConfig> FilteredTags
@@ -360,6 +389,7 @@
                 CurrentChart = new ChartConfig 
                 { 
                     Name = "New Chart",
+                    OwnerId = AppState.CurrentUser?.Id,
                     YAxes = new List<ChartAxisConfig> { new ChartAxisConfig { Name = "Primary", Position = "Left", Color = "#3b82f6" } }
                 };
             }
@@ -581,6 +611,8 @@
         public int SeriesCount { get; set; } 
         public int AxisCount { get; set; } 
         public string Mode { get; set; } = ""; 
+        public bool IsShared { get; set; }
+        public bool IsOwner { get; set; } = true;
     }
     
     public class ChartDataPoint 

@@ -26,7 +26,7 @@
             </div>
         </div>
         
-        @if (!ConfigService.Dashboards.Any())
+        @if (!VisibleDashboards.Any())
         {
             <div class="empty-state">
                 <i class="fa-solid fa-gauge"></i>
@@ -37,12 +37,20 @@
         else
         {
             <div class="dashboard-grid">
-                @foreach (var dashboard in ConfigService.Dashboards)
+                @foreach (var dashboard in VisibleDashboards)
                 {
                     <div class="dashboard-card" @onclick="() => ViewDashboard(dashboard.Id)">
                         <div class="dashboard-card-header">
                             <i class="fa-solid fa-gauge"></i>
                             <span class="dashboard-name">@dashboard.Name</span>
+                            @if (dashboard.IsShared)
+                            {
+                                <span class="shared-badge" title="Shared with others"><i class="fa-solid fa-share-nodes"></i></span>
+                            }
+                            @if (!AppState.IsOwner(dashboard.OwnerId) && dashboard.IsShared)
+                            {
+                                <span class="readonly-badge" title="Read only">Read Only</span>
+                            }
                         </div>
                         <div class="dashboard-card-body">
                             <span class="dashboard-description">@(dashboard.Description ?? "No description")</span>
@@ -51,12 +59,15 @@
                             </div>
                         </div>
                         <div class="dashboard-card-actions" @onclick:stopPropagation="true">
-                            <PermissionGuard Feature="dashboards" Operation="update">
-                                <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
-                            </PermissionGuard>
-                            <PermissionGuard Feature="dashboards" Operation="delete">
-                                <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
-                            </PermissionGuard>
+                            @if (AppState.IsOwner(dashboard.OwnerId))
+                            {
+                                <PermissionGuard Feature="dashboards" Operation="update">
+                                    <SfButton CssClass="e-flat e-small" IconCss="fa-solid fa-pen" @onclick="() => EditDashboard(dashboard.Id)"></SfButton>
+                                </PermissionGuard>
+                                <PermissionGuard Feature="dashboards" Operation="delete">
+                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="fa-solid fa-trash" @onclick="() => ConfirmDeleteDashboard(dashboard.Id)"></SfButton>
+                                </PermissionGuard>
+                            }
                         </div>
                     </div>
                 }
@@ -98,6 +109,9 @@
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-chart-line" Content="Add Chart" @onclick="ShowChartLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-play" Content="Add Flow" @onclick="ShowFlowLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
+                        <div class="share-toggle" title="@(CurrentDashboard.IsShared ? "Shared with others" : "Private")">
+                            <SfCheckBox @bind-Checked="CurrentDashboard.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
+                        </div>
                         <PermissionGuard Feature="dashboards" Operation="update">
                             <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
                         </PermissionGuard>
@@ -108,7 +122,10 @@
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-tv" @onclick="ShowTVModeDialog" Content="TV Mode"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-export" @onclick="ExportDashboard" Content="Export"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-file-import" @onclick="ShowImportDialog" Content="Import"></SfButton>
-                        <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
+                        @if (AppState.IsOwner(CurrentDashboard.OwnerId))
+                        {
+                            <SfButton CssClass="e-flat" IconCss="fa-solid fa-pen" @onclick="EnterEditMode">Edit</SfButton>
+                        }
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-expand" @onclick="ToggleFullscreen"></SfButton>
                     }
                 </div>
@@ -568,6 +585,10 @@
     
     private SfDashboardLayout? DashboardLayout;
     private DashboardConfig CurrentDashboard = new();
+    
+    /// <summary>Dashboards visible to the current user: owned + shared.</summary>
+    private IEnumerable<DashboardConfig> VisibleDashboards => ConfigService.Dashboards
+        .Where(d => AppState.IsOwner(d.OwnerId) || d.IsShared);
     private DashboardPanel? SelectedPanel;
     private DashboardPanel? ConfiguringPanel;
     private bool IsEditMode;
@@ -652,7 +673,11 @@
         {
             if (DashboardId == "new")
             {
-                CurrentDashboard = new DashboardConfig { Name = "New Dashboard" };
+                CurrentDashboard = new DashboardConfig
+                {
+                    Name = "New Dashboard",
+                    OwnerId = AppState.CurrentUser?.Id
+                };
                 IsEditMode = true;
             }
             else

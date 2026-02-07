@@ -1962,3 +1962,8 @@ html, body {
 .import-validation-item.valid   i { color: #22c55e; }
 .import-validation-item.warning i { color: #f59e0b; }
 .import-validation-item.error   i { color: #ef4444; }
+
+/* ── Sharing & Ownership ── */
+.shared-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #60a5fa; background: rgba(96,165,250,0.12); padding: 2px 8px; border-radius: 12px; }
+.readonly-badge { display: inline-flex; font-size: 11px; color: #a1a1aa; background: rgba(161,161,170,0.12); padding: 2px 8px; border-radius: 12px; margin-left: 4px; }
+.share-toggle { display: inline-flex; align-items: center; margin: 0 8px; }
