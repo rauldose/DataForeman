@@ -26,12 +26,18 @@
                         <span class="dropdown-item-icon" aria-hidden="true">&#9632;</span> Dashboard
                     </div>
                     <div class="dropdown-divider" role="separator"></div>
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
-                        <span class="dropdown-item-icon"></span> Connections...
-                    </div>
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
-                        <span class="dropdown-item-icon"></span> Flow Editor...
-                    </div>
+                    @if (AppState.HasPermission("connectivity", "read"))
+                    {
+                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
+                            <span class="dropdown-item-icon"></span> Connections...
+                        </div>
+                    }
+                    @if (AppState.HasPermission("flows", "read"))
+                    {
+                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
+                            <span class="dropdown-item-icon"></span> Flow Editor...
+                        </div>
+                    }
                     <div class="dropdown-divider" role="separator"></div>
                     <div class="dropdown-item" @onclick="SignOut" role="menuitem">
                         <span class="dropdown-item-icon"></span> Exit
@@ -49,12 +55,18 @@
                     <div class="dropdown-item @(IsActive("/") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/"))" role="menuitem">>
                         <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/") ? ">" : "")</span> Dashboard
                     </div>
-                    <div class="dropdown-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" role="menuitem">
-                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/charts") ? ">" : "")</span> Charts
-                    </div>
-                    <div class="dropdown-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" role="menuitem">
-                        <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/diagnostics") ? ">" : "")</span> Diagnostics
-                    </div>
+                    @if (AppState.HasPermission("charts", "read"))
+                    {
+                        <div class="dropdown-item @(IsActive("/charts") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/charts"))" role="menuitem">
+                            <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/charts") ? ">" : "")</span> Charts
+                        </div>
+                    }
+                    @if (AppState.HasPermission("diagnostics", "read"))
+                    {
+                        <div class="dropdown-item @(IsActive("/diagnostics") ? "active" : "")" @onclick="@(() => Navigation.NavigateTo("/diagnostics"))" role="menuitem">
+                            <span class="dropdown-item-icon" aria-hidden="true">@(IsActive("/diagnostics") ? ">" : "")</span> Diagnostics
+                        </div>
+                    }
                 </div>
             }
         </div>
@@ -65,12 +77,18 @@
             @if (ShowToolsMenu)
             {
                 <div class="dropdown-menu" role="menu">
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
-                        <span class="dropdown-item-icon"></span> Flow Studio
-                    </div>
-                    <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
-                        <span class="dropdown-item-icon"></span> Connectivity Manager
-                    </div>
+                    @if (AppState.HasPermission("flows", "read"))
+                    {
+                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/flows"))" role="menuitem">
+                            <span class="dropdown-item-icon"></span> Flow Studio
+                        </div>
+                    }
+                    @if (AppState.HasPermission("connectivity", "read"))
+                    {
+                        <div class="dropdown-item" @onclick="@(() => Navigation.NavigateTo("/connectivity"))" role="menuitem">
+                            <span class="dropdown-item-icon"></span> Connectivity Manager
+                        </div>
+                    }
                     <div class="dropdown-divider" role="separator"></div>
                     @if (ShowUsersMenu)
                     {

@@ -3,6 +3,7 @@
 @using DataForeman.BlazorUI.Services
 @inject DataService DataService
 @inject NavigationManager Navigation
+@inject AppStateService AppState
 
 <PageTitle>Dashboard - DataForeman</PageTitle>
 
@@ -10,7 +11,9 @@
     <div class="page-header">
         <h2>Dashboard</h2>
         <div class="page-actions">
-            <button class="btn-modern" @onclick="CreateNewDashboard">New Dashboard</button>
+            <PermissionGuard Feature="dashboard" Operation="create">
+                <button class="btn-modern" @onclick="CreateNewDashboard">New Dashboard</button>
+            </PermissionGuard>
         </div>
     </div>
 
@@ -61,8 +64,12 @@
             <div class="dashboard-panel">
                 <div class="panel-title">Quick Actions</div>
                 <div class="panel-body action-panel">
-                    <button class="btn-modern" @onclick="@(() => NavigateTo("/flows/new"))">Create Flow</button>
-                    <button class="btn-modern" @onclick="@(() => NavigateTo("/connectivity/new"))">Add Connection</button>
+                    <PermissionGuard Feature="flows" Operation="create">
+                        <button class="btn-modern" @onclick="@(() => NavigateTo("/flows/new"))">Create Flow</button>
+                    </PermissionGuard>
+                    <PermissionGuard Feature="connectivity" Operation="create">
+                        <button class="btn-modern" @onclick="@(() => NavigateTo("/connectivity/new"))">Add Connection</button>
+                    </PermissionGuard>
                     <button class="btn-modern" @onclick="@(() => NavigateTo("/charts"))">View Charts</button>
                 </div>
             </div>

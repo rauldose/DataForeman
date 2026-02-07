@@ -6,6 +6,7 @@
 @inject DataService DataService
 @inject NodePluginRegistry NodeRegistry
 @inject IJSRuntime JSRuntime
+@inject AppStateService AppState
 
 <PageTitle>Flow Studio - DataForeman</PageTitle>
 
@@ -15,7 +16,9 @@
         <div class="page-header">
             <h1>Flow Studio</h1>
             <div class="page-actions">
-                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Flow" OnClick="@CreateNewFlow"></SfButton>
+                <PermissionGuard Feature="flows" Operation="create">
+                    <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="New Flow" OnClick="@CreateNewFlow"></SfButton>
+                </PermissionGuard>
             </div>
         </div>
         
@@ -53,7 +56,9 @@
                                 {
                                     <div class="action-buttons">
                                         <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditFlow(flow.Id))"></SfButton>
-                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(async () => await DeleteFlow(flow.Id))"></SfButton>
+                                        <PermissionGuard Feature="flows" Operation="delete">
+                                            <SfButton CssClass="e-flat e-small" IconCss="e-icons e-delete" OnClick="@(async () => await DeleteFlow(flow.Id))"></SfButton>
+                                        </PermissionGuard>
                                     </div>
                                 }
                             }
@@ -74,8 +79,12 @@
                 {
                     <span class="save-message">@_saveMessage</span>
                 }
-                <SfButton CssClass="@(CurrentFlow.Deployed ? "e-danger" : "e-success")" IconCss="@(CurrentFlow.Deployed ? "e-icons e-stop" : "e-icons e-play")" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
-                <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveFlow"></SfButton>
+                <PermissionGuard Feature="flows" Operation="update">
+                    <SfButton CssClass="@(CurrentFlow.Deployed ? "e-danger" : "e-success")" IconCss="@(CurrentFlow.Deployed ? "e-icons e-stop" : "e-icons e-play")" Content="@(CurrentFlow.Deployed ? "Stop" : "Deploy")" OnClick="@ToggleDeploy"></SfButton>
+                </PermissionGuard>
+                <PermissionGuard Feature="flows" Operation="update">
+                    <SfButton CssClass="e-primary" IconCss="e-icons e-save" Content="Save" OnClick="@SaveFlow"></SfButton>
+                </PermissionGuard>
             </div>
             
             <div class="editor-container">

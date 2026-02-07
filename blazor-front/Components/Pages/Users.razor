@@ -11,7 +11,9 @@
     <div class="page-header">
         <h1>Users</h1>
         <div class="page-actions">
-            <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add User" OnClick="@OpenAddUserDialog"></SfButton>
+            <PermissionGuard Feature="users" Operation="create">
+                <SfButton CssClass="e-primary" IconCss="e-icons e-plus" Content="Add User" OnClick="@OpenAddUserDialog"></SfButton>
+            </PermissionGuard>
         </div>
     </div>
 
@@ -50,9 +52,15 @@
                             if (user != null)
                             {
                                 <div class="action-buttons">
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditUser(user))" title="Edit"></SfButton>
-                                    <SfButton CssClass="e-flat e-small" IconCss="e-icons e-key" OnClick="@(() => ManagePermissions(user))" title="Permissions"></SfButton>
-                                    <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" OnClick="@(() => DeleteUser(user))" title="Delete"></SfButton>
+                                    <PermissionGuard Feature="users" Operation="update">
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-edit" OnClick="@(() => EditUser(user))" title="Edit"></SfButton>
+                                    </PermissionGuard>
+                                    <PermissionGuard Feature="users" Operation="update">
+                                        <SfButton CssClass="e-flat e-small" IconCss="e-icons e-key" OnClick="@(() => ManagePermissions(user))" title="Permissions"></SfButton>
+                                    </PermissionGuard>
+                                    <PermissionGuard Feature="users" Operation="delete">
+                                        <SfButton CssClass="e-flat e-small e-danger" IconCss="e-icons e-delete" OnClick="@(() => DeleteUser(user))" title="Delete"></SfButton>
+                                    </PermissionGuard>
                                 </div>
                             }
                         }
@@ -382,8 +390,7 @@
     {
         if (SelectedUser != null)
         {
-            // TODO: Implement UpdateUserPermissionsAsync in DataService
-            // await DataService.UpdateUserPermissionsAsync(SelectedUser.Id, UserPermissions);
+            await DataService.UpdateUserPermissionsAsync(SelectedUser.Id, UserPermissions);
         }
         ShowPermissionsDialog = false;
     }
