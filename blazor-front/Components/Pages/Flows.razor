@@ -1520,7 +1520,15 @@
     {
         try
         {
-            await DataService.UpdateFlowAsync(CurrentFlow.Id, null, null, null, null, null, CurrentFlow.Shared, null);
+            await DataService.UpdateFlowAsync(
+                CurrentFlow.Id,
+                name: null,
+                description: null,
+                definition: null,
+                executionMode: null,
+                scanRateMs: null,
+                shared: CurrentFlow.Shared,
+                testMode: null);
         }
         catch (Exception ex)
         {
