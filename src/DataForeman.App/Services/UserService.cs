@@ -206,7 +206,7 @@ public class UserService
         {
             if (_usersFile.Users.Count == 0)
             {
-                _logger.LogInformation("Creating default admin user (admin@dataforeman.local / admin123!)");
+                _logger.LogInformation("Creating default admin user (admin@dataforeman.local)");
                 var admin = new AppUser
                 {
                     Id = Guid.NewGuid().ToString(),
