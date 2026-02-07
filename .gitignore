@@ -54,3 +54,6 @@ dataforeman.db
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Runtime-generated user data
+config/users.json
