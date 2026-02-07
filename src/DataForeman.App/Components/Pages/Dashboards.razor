@@ -109,12 +109,15 @@
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-chart-line" Content="Add Chart" @onclick="ShowChartLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-play" Content="Add Flow" @onclick="ShowFlowLibrary"></SfButton>
                         <SfButton CssClass="e-flat" IconCss="fa-solid fa-plus" Content="Add Panel" @onclick="ShowAddPanel"></SfButton>
-                        <div class="share-toggle" title="@(CurrentDashboard.IsShared ? "Shared with others" : "Private")">
-                            <SfCheckBox @bind-Checked="CurrentDashboard.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
-                        </div>
-                        <PermissionGuard Feature="dashboards" Operation="update">
-                            <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
-                        </PermissionGuard>
+                        @if (AppState.IsOwner(CurrentDashboard.OwnerId))
+                        {
+                            <div class="share-toggle" title="@(CurrentDashboard.IsShared ? "Shared with others" : "Private")">
+                                <SfCheckBox @bind-Checked="CurrentDashboard.IsShared" Label="Share" TChecked="bool"></SfCheckBox>
+                            </div>
+                            <PermissionGuard Feature="dashboards" Operation="update">
+                                <SfButton CssClass="e-success" IconCss="fa-solid fa-floppy-disk" @onclick="SaveDashboard">Save</SfButton>
+                            </PermissionGuard>
+                        }
                         <SfButton CssClass="e-flat" @onclick="ExitEditMode">Cancel</SfButton>
                     }
                     else
